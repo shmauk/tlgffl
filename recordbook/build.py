@@ -151,6 +151,17 @@ create table documents (
 -- NFL.com era's other winners come from hand-kept tables. A disputed outcome
 -- has one row per candidate and counts for nobody; an unknown one has a single
 -- row with no franchise.
+-- Each season's highest and lowest score and biggest and narrowest winning
+-- margin, over its games with a score. Every game level on a measure gets a
+-- row. franchise_id is the scorer for a score, the winner for a margin.
+create table season_highs_lows (
+    season integer not null references seasons(year),
+    measure text not null check (measure in
+        ('highest_score', 'lowest_score', 'biggest_margin', 'narrowest_margin')),
+    game_id integer not null references games(id),
+    franchise_id integer not null references franchises(id),
+    value real not null
+);
 create table bracket_winners (
     season integer not null references seasons(year),
     bracket text not null check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
@@ -329,8 +340,11 @@ def build(data, out):
                                          {name: fid for fid, name, *_ in franchises})
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
-    documents =[(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
+    documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
+    games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
+    highs_lows = [(season, measure, i + 1, fid, value)
+                  for season, measure, i, fid, value in gamelog.highs_and_lows(games)]
 
     if out.exists():
         out.unlink()
@@ -344,10 +358,10 @@ def build(data, out):
                         [(f, y, n) for (f, y), n in sorted(team_names.items())])
         con.executemany(f"insert into reported_season_lines values ({', '.join('?' * 11)})",
                         sorted(lines))
-        games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
-        con.executemany(f"insert into games ({', '.join(GAME_COLUMNS)}) "
-                        f"values ({', '.join('?' * len(GAME_COLUMNS))})",
-                        [astuple(g) for g in games])
+        con.executemany(f"insert into games (id, {', '.join(GAME_COLUMNS)}) "
+                        f"values ({', '.join('?' * (len(GAME_COLUMNS) + 1))})",
+                        [(i, *astuple(g)) for i, g in enumerate(games, start=1)])
+        con.executemany("insert into season_highs_lows values (?, ?, ?, ?, ?)", highs_lows)
         con.executemany("insert into coverage values (?, ?, ?, ?, ?, ?, ?)", coverage)
         con.executemany(f"insert into season_lines values ({', '.join('?' * 16)})",
                         sorted(season_lines))

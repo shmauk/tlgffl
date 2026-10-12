@@ -104,6 +104,27 @@ def test_a_logged_playoffs_score_that_contradicts_the_final_placings_fails_the_b
         built(data, tmp_path)
 
 
+def test_a_seasons_highs_and_lows_come_from_its_scored_games(data, tmp_path):
+    db = built(data, tmp_path)
+    rows = query(db, "select h.measure, g.week, h.franchise_id, h.value from season_highs_lows h "
+                     "join games g on g.id = h.game_id where h.season = 2014 "
+                     "order by h.measure, g.week, h.franchise_id")
+    assert rows == [
+        ("biggest_margin", 3, 4, 30.0),            # Dog 120, Ant 90
+        ("highest_score", 4, 1, 130.0),            # Ant in the final
+        ("lowest_score", 1, 4, 70.0),              # Dog
+        # Ties for the narrowest win are all listed; Bee v Dog's tie is no win.
+        ("narrowest_margin", 1, 1, 10.0), ("narrowest_margin", 1, 3, 10.0),
+        ("narrowest_margin", 2, 1, 10.0), ("narrowest_margin", 4, 1, 10.0),
+    ]
+
+
+def test_games_whose_score_is_lost_are_left_out_of_highs_and_lows(data, tmp_path):
+    write_games(data, [(2014, *g) for g in REGULAR])
+    db = built(data, tmp_path)
+    assert query(db, "select value from season_highs_lows where measure = 'highest_score'") == [(120.0,)]
+
+
 def test_a_game_naming_an_unknown_team_fails_the_build(data, tmp_path):
     write_games(data, [(2014, *g) for g in REGULAR] + [(2014, 4, "Ant", "Eel", 130, 120)])
     with pytest.raises(BuildError, match="2014 .*'Eel'"):

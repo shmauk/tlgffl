@@ -134,6 +134,32 @@ def breakdown(games, seasons):
     return {k: tuple(v) for k, v in out.items()}
 
 
+def highs_and_lows(games):
+    """Each season's highest and lowest score, biggest margin and narrowest
+    margin (wins only, so ties are left out), over its games with a score.
+
+    games is indexed as stored; returns (season, measure, game index,
+    franchise, value) rows, every game level on the measure included. The
+    franchise is the scorer for a score and the winner for a margin.
+    """
+    candidates = defaultdict(list)   # (season, measure) -> [(value, index, franchise)]
+    for i, g in enumerate(games):
+        if g.home_points is None:
+            continue
+        for fid, pts in ((g.home, g.home_points), (g.away, g.away_points)):
+            candidates[(g.season, "highest_score")].append((-pts, i, fid))
+            candidates[(g.season, "lowest_score")].append((pts, i, fid))
+        margin = round(abs(g.home_points - g.away_points), 2)
+        if margin:
+            candidates[(g.season, "biggest_margin")].append((-margin, i, g.winner))
+            candidates[(g.season, "narrowest_margin")].append((margin, i, g.winner))
+    rows = []
+    for (season, measure), values in sorted(candidates.items()):
+        best = min(v for v, _, _ in values)
+        rows += [(season, measure, i, fid, abs(v)) for v, i, fid in values if v == best]
+    return rows
+
+
 def win_pct(w, l, t):
     """Win %, a tie counting as half a win, as a fraction."""
     return (w + t / 2) / (w + l + t) if w + l + t else None
