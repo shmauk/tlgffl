@@ -1,18 +1,26 @@
 # The Fantasy League
 
-A 16-team NFL fantasy football league running since 2012: on NFL.com (as TheGentlemen'sLeague) from 2012 to 2024, on Sleeper from 2025. This site is its record book and one-stop shop.
+An NFL fantasy football league running since 2012 (10–12 teams to 2014, 16 since 2015): on NFL.com (as TheGentlemen'sLeague) from 2012 to 2024, on Sleeper from 2025. This site is its record book and one-stop shop.
 
 ## Language
 
 ### Identity
 
 **Franchise**:
-One manager's continuous run in one league slot; the core entity every record hangs off.
+A continuous run in one league slot under the same management, as the league judges it; the core entity every record hangs off. Run by one or more managers, none of them the lead.
 _Avoid_: Team, roster, slot
+
+**Franchise name**:
+The name a franchise is shown by: the last team name it played under.
+_Avoid_: Team name (for the franchise as a whole)
 
 **Manager**:
 The person who runs a franchise. One manager may run several franchises over time; real names are never published.
 _Avoid_: Owner, user, player
+
+**Active franchise**:
+A franchise playing in the current season. Departed franchises keep every record they set.
+_Avoid_: Current team
 
 **Team name**:
 The name a franchise played under in a given season. It changes most years and never identifies anything.
@@ -21,6 +29,26 @@ _Avoid_: Franchise
 **NFL player**:
 A real-world NFL athlete rostered, drafted, kept or traded by franchises. Only known from the Sleeper era on.
 _Avoid_: Player (unqualified)
+
+### Rosters
+
+**Lineup**:
+A franchise's starters and bench in a week it played a game, with each NFL player's points.
+_Avoid_: Roster (for a single week)
+
+**Transaction**:
+A completed roster move: a trade, a won waiver claim or a free-agent pickup.
+_Avoid_: Move, add/drop
+
+**Waiver claim**:
+A franchise's bid for an NFL player in one waiver run, won or lost.
+_Avoid_: Waiver (unqualified), bid
+
+**Draft pick**:
+A slot in a season's draft, owned by a franchise and tradeable before it's used.
+
+**Keeper**:
+An NFL player a franchise keeps from one season into the next instead of releasing them into the draft.
 
 ### Structure
 
@@ -32,24 +60,60 @@ _Avoid_: Year, league (for a single year)
 The platform a season was played on: the NFL.com era (2012–2024) or the Sleeper era (2025 on).
 
 **Division**:
-One of four groups of four franchises; division results drive playoff seeding.
+A group of franchises in one season whose standings drive bracket seeding: one division to 2014, four groups of four since 2015.
 _Avoid_: Group, conference
 
-### Brackets
+**Realignment**:
+The league redrawing its divisions, currently every three years.
+
+**Division lineage**:
+The same division across the seasons between two realignments, even if one of its franchises changes hands.
+
+### Games and brackets
+
+**Game**:
+A head-to-head pairing of two franchises in one week that counts in the league's results: regular season or bracket. Pairings the platform invented to fill a schedule are not games.
+_Avoid_: Matchup, fixture, exhibition
+
+**Season line**:
+A franchise's season summed up: W-L-T, points for and against, division, seed, bracket and final placing.
+_Avoid_: Standings row, record (for a whole season)
+
+**Tie**:
+A game whose two franchises scored the same points. Records are written W-L-T.
+_Avoid_: Draw
+
+**Bracket**:
+One of the postseason competitions a season ends in. Each is defined by its role; its size and seeding change between seasons.
+_Avoid_: Postseason, playoffs (for all brackets)
 
 **Playoffs**:
-The six-team championship bracket: four division winners plus two wildcards.
-_Avoid_: Winners bracket
+The bracket that decides the champion.
+_Avoid_: Winners bracket, championship bracket
 
 **Shit Bowl**:
-The six-team bracket of division losers plus the two worst wildcards.
-_Avoid_: Toilet bowl, losers bracket
+The bracket that decides the worst franchise of the season. Losing advances you.
+_Avoid_: Toilet bowl, losers bracket, consolation bracket
+
+**Shit Bowl winner**:
+The franchise the Shit Bowl crowns worst of the season.
+_Avoid_: Shit Bowl loser, last place
 
 **Mediocre Bowl**:
-The four-team bracket for everyone in neither the Playoffs nor the Shit Bowl.
+The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exists since 2015.
+
+**Disputed**:
+A hand-recorded outcome the league can't agree on, with more than one candidate. It counts for nobody until it's settled.
 
 ### Measures
 
 **Breakdown**:
 A franchise's record had it played every other franchise each week. Used as a tiebreaker.
 _Avoid_: All-play record
+
+**Award**:
+A named per-season title with a fixed formula, given to the franchise that ranks first on it.
+_Avoid_: Trophy, prize
+
+**Award result**:
+One franchise's value and rank for one award in one season.
