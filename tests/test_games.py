@@ -85,3 +85,28 @@ def test_playoffs_games_carry_bracket_and_round_and_other_postseason_pairings_ar
     assert query(db, "select week, phase, bracket, round, status, home_franchise_id, home_points, "
                      "away_franchise_id, away_points from games where week > 3") == [
         (4, "bracket", "playoffs", 1, "final", 1, 130.0, 2, 120.0)]
+
+
+def test_a_game_naming_an_unknown_team_fails_the_build(data, tmp_path):
+    write_games(data, [(2014, *g) for g in REGULAR] + [(2014, 4, "Ant", "Eel", 130, 120)])
+    with pytest.raises(BuildError, match="2014 .*'Eel'"):
+        built(data, tmp_path)
+
+
+def test_a_franchise_playing_twice_in_a_week_fails_the_build(data, tmp_path):
+    write_games(data, [(2014, *g) for g in REGULAR] + [(2014, 3, "Ant", "Bee", 100, 90)])
+    with pytest.raises(BuildError, match="2014 week 3"):
+        built(data, tmp_path)
+
+
+def test_coverage_is_recorded_per_season_week_and_phase(data, tmp_path):
+    # Week 3's Bee v Cat and the Playoffs final are lost.
+    write_games(data, [(2014, *g) for g in REGULAR[:-1]])
+    db = built(data, tmp_path)
+    assert query(db, "select week, phase, bracket, games_expected, games_final, complete "
+                     "from coverage where season = 2014 order by week") == [
+        (1, "regular", None, 2, 2, 1),
+        (2, "regular", None, 2, 2, 1),
+        (3, "regular", None, 2, 1, 0),
+        (4, "bracket", "playoffs", 1, 0, 0),
+    ]

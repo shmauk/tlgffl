@@ -65,3 +65,15 @@ def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
     assert final == [(3, "Mooreccan chicken with rice", 85.88, "The Hatters", 72.7)]
     assert db.execute("select count(*) from games where bracket is not null and bracket != 'playoffs'"
                       ).fetchone() == (0,)
+
+
+def test_coverage_marks_the_known_gaps(db):
+    def incomplete(phase):
+        return db.execute("select season, week from coverage where phase = ? and not complete "
+                          "order by season, week", (phase,)).fetchall()
+    # Regular-season scores stop at 2022 week 9.
+    assert incomplete("regular") == [(2022, w) for w in range(10, 15)] + [
+        (y, w) for y in (2023, 2024) for w in range(1, 15)]
+    # Playoffs scores stop at 2021, whose final (week 17) is missing too.
+    assert incomplete("bracket") == [(2021, 17)] + [(y, w) for y in (2022, 2023, 2024)
+                                                    for w in (15, 16, 17)]

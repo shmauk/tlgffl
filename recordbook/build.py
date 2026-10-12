@@ -74,6 +74,19 @@ create table games (
     away_points real,
     check ((phase = 'regular') = (bracket is null and round is null))
 );
+-- How many of a week's games survive, per phase and bracket. The site's gap
+-- markers come from here (ADR 0001). Only brackets whose games are known are
+-- listed: NFL.com-era Shit Bowl and Mediocre Bowl games are recorded by hand.
+create table coverage (
+    season integer not null references seasons(year),
+    week integer not null,
+    phase text not null check (phase in ('regular', 'bracket')),
+    bracket text check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
+    games_expected integer not null,
+    games_final integer not null,
+    complete integer not null check (complete in (0, 1))
+);
+create unique index coverage_key on coverage (season, week, phase, coalesce(bracket, ''));
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -207,6 +220,9 @@ def build(data, out):
 
     games = gamelog.nfl_games(gamelog.read_log(data / "league_h2h.csv"), franchise_of,
                               regular_weeks, playoff_teams)
+    check_one_game_a_week(games)
+    team_counts = {year: count for year, _, count in seasons}
+    coverage = gamelog.coverage(games, team_counts, regular_weeks, playoff_teams)
 
     if not seasons:
         raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
@@ -235,6 +251,7 @@ def build(data, out):
         con.executemany(f"insert into games ({', '.join(GAME_COLUMNS)}) "
                         f"values ({', '.join('?' * len(GAME_COLUMNS))})",
                         [astuple(g) for g in games])
+        con.executemany("insert into coverage values (?, ?, ?, ?, ?, ?, ?)", coverage)
         con.commit()
     finally:
         con.close()
@@ -254,6 +271,15 @@ def franchise_name(fid, team_names, sleeper_ids, aliases):
     if roster in aliases:
         return aliases[roster]["franchise"]
     raise BuildError(f"franchise {fid} has no team name that could be its franchise name")
+
+
+def check_one_game_a_week(games):
+    seen = set()
+    for g in games:
+        for fid in (g.home, g.away):
+            if (g.season, g.week, fid) in seen:
+                raise BuildError(f"{g.season} week {g.week}: franchise {fid} has more than one game")
+            seen.add((g.season, g.week, fid))
 
 
 def check_against_sleeper_aliases(franchises, sleeper_ids, aliases):

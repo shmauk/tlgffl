@@ -5,6 +5,7 @@ name and covers 2012 wk1 to 2022 wk9. Missing games are added later as plain
 rows in the same file.
 """
 import csv
+from collections import defaultdict
 from dataclasses import dataclass
 
 
@@ -65,3 +66,34 @@ def nfl_games(rows, franchise_of, regular_weeks, playoff_teams):
         if hp != ap:
             eliminated.add((season, away if hp > ap else home))
     return games
+
+
+def playoffs_rounds(teams):
+    """Games in each round of a single-elimination Playoffs of `teams`
+    franchises, the top seeds taking byes until the field is a power of two."""
+    if teams < 2:
+        return []
+    field = 1 << (teams.bit_length() - 1)
+    rounds = [teams - field] if field < teams else []
+    while field > 1:
+        rounds.append(field // 2)
+        field //= 2
+    return rounds
+
+
+def coverage(games, team_counts, regular_weeks, playoff_teams):
+    """Rows of (season, week, phase, bracket, games expected, final games,
+    complete) for every NFL.com regular-season and Playoffs week."""
+    final = defaultdict(int)
+    for g in games:
+        if g.status == "final":
+            final[(g.season, g.week, g.phase, g.bracket)] += 1
+    rows = []
+    for season, weeks in sorted(regular_weeks.items()):
+        expected = [(w, "regular", None, team_counts[season] // 2) for w in range(1, weeks + 1)]
+        for n, count in enumerate(playoffs_rounds(len(playoff_teams.get(season, ()))), start=1):
+            expected.append((weeks + n, "bracket", "playoffs", count))
+        for week, phase, bracket, count in expected:
+            got = final[(season, week, phase, bracket)]
+            rows.append((season, week, phase, bracket, count, got, int(got == count)))
+    return rows
