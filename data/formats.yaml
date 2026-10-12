@@ -1,0 +1,128 @@
+# Each season's format (decided in #11; see GLOSSARY.md). Hand-kept: for past
+# seasons it records what was actually played.
+#
+#   teams                 how many franchises played (checked against the archive)
+#   divisions             how many divisions
+#   regular_season_weeks  first and last week of the regular season
+#   brackets              each bracket's size, the weeks it plays and, for a
+#                         series, how it is won
+#
+# Seeding, tiebreaks and realignment cycles are still to be added (#23).
+
+2012:
+  teams: 10
+  divisions: 1
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 4, weeks: [15, 16]}
+    shit_bowl: {size: 4, weeks: [15, 16]}
+2013:
+  teams: 12
+  divisions: 1
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 4, weeks: [15, 16]}
+    shit_bowl: {size: 4, weeks: [15, 16]}
+2014:
+  teams: 12
+  divisions: 1
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 4, weeks: [15, 16]}
+    shit_bowl: {size: 4, weeks: [15, 16]}
+2015:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 13]
+  brackets:
+    playoffs: {size: 6, weeks: [14, 15, 16]}
+    shit_bowl: {size: 6, weeks: [14, 15, 16]}
+    mediocre_bowl: {size: 4, weeks: [14, 15]}
+2016:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 13]
+  brackets:
+    playoffs: {size: 6, weeks: [14, 15, 16]}
+    shit_bowl: {size: 6, weeks: [14, 15, 16]}
+    mediocre_bowl: {size: 4, weeks: [14, 15]}
+2017:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 13]
+  brackets:
+    playoffs: {size: 6, weeks: [14, 15, 16]}
+    shit_bowl: {size: 6, weeks: [14, 15, 16]}
+    mediocre_bowl: {size: 4, weeks: [14, 15]}
+2018:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 13]
+  brackets:
+    playoffs: {size: 6, weeks: [14, 15, 16]}
+    shit_bowl: {size: 6, weeks: [14, 15, 16]}
+    mediocre_bowl: {size: 4, weeks: [14, 15]}
+2019:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 13]
+  brackets:
+    playoffs: {size: 6, weeks: [14, 15, 16]}
+    shit_bowl: {size: 6, weeks: [14, 15, 16]}
+    mediocre_bowl: {size: 4, weeks: [14, 15]}
+2020:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 13]
+  brackets:
+    playoffs: {size: 6, weeks: [14, 15, 16]}
+    shit_bowl: {size: 6, weeks: [14, 15, 16]}
+    mediocre_bowl: {size: 4, weeks: [14, 15]}
+2021:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 6, weeks: [15, 16, 17]}
+    shit_bowl: {size: 6, weeks: [15, 16, 17]}
+    mediocre_bowl: {size: 4, weeks: [15, 16]}
+2022:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 6, weeks: [15, 16, 17]}
+    shit_bowl: {size: 6, weeks: [15, 16, 17]}
+    mediocre_bowl: {size: 4, weeks: [15, 16]}
+2023:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 6, weeks: [15, 16, 17]}
+    shit_bowl: {size: 6, weeks: [15, 16, 17]}
+    mediocre_bowl: {size: 4, weeks: [15, 16]}
+2024:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 6, weeks: [15, 16, 17]}
+    shit_bowl: {size: 6, weeks: [15, 16, 17]}
+    mediocre_bowl: {size: 4, weeks: [15, 16]}
+2025:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 6, weeks: [15, 16, 17]}
+    shit_bowl: {size: 6, weeks: [15, 16, 17]}
+    mediocre_bowl: {size: 4, weeks: [15, 16]}
+2026:
+  teams: 16
+  divisions: 4
+  regular_season_weeks: [1, 14]
+  brackets:
+    playoffs: {size: 7, weeks: [15, 16, 17]}
+    shit_bowl: {size: 7, weeks: [15, 16, 17]}
+    mediocre_bowl: {size: 2, weeks: [15, 16, 17], series: best of three}

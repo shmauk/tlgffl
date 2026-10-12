@@ -47,3 +47,28 @@ def test_redacted_and_pending_names_stay_team_names_only(db):
     assert db.execute("select f.name from team_names t join franchises f on f.id = t.franchise_id "
                       "where t.season = 2019 and t.team_name = '[name redacted]'").fetchall() == [
         ("Bearnaise Dynamics",)]
+
+
+def test_every_season_has_a_format(db):
+    assert db.execute("select count(*) from seasons where year not in (select season from season_formats)"
+                      ).fetchone() == (0,)
+
+
+def test_formats_follow_the_rules_by_season(db):
+    # The table in #11: 14-week regular seasons in 2012-14 and from 2021, 13 in 2015-20.
+    rows = db.execute("select season, divisions, regular_season_last_week from season_formats "
+                      "where season in (2012, 2015, 2021, 2026) order by season").fetchall()
+    assert rows == [(2012, 1, 14), (2015, 4, 13), (2021, 4, 14), (2026, 4, 14)]
+    assert db.execute("select bracket, size, first_week, last_week, series from season_brackets "
+                      "where season = 2026 order by first_week, size desc").fetchall() == [
+        ("playoffs", 7, 15, 17, None), ("shit_bowl", 7, 15, 17, None),
+        ("mediocre_bowl", 2, 15, 17, "best of three")]
+    assert db.execute("select bracket, first_week, last_week from season_brackets "
+                      "where season = 2018 order by bracket").fetchall() == [
+        ("mediocre_bowl", 14, 15), ("playoffs", 14, 16), ("shit_bowl", 14, 16)]
+
+
+def test_the_constitution_and_agm_documents_are_linked(db):
+    assert db.execute("select count(*) from documents where kind = 'constitution'").fetchone() == (1,)
+    assert [s for (s,) in db.execute("select distinct season from documents where kind = 'agm' order by season")
+            ] == [2021, 2022, 2023, 2024, 2025]

@@ -14,6 +14,8 @@ import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
+import yaml
+
 LEAGUE = "1078038"
 
 # Names a platform shows when no real team name exists. They are kept as a
@@ -55,7 +57,34 @@ create table reported_season_lines (
     final_placing integer,
     primary key (franchise_id, season)
 );
+-- A season's format (#11), from the hand-kept data/formats.yaml. Its team
+-- count is seasons.team_count.
+create table season_formats (
+    season integer primary key references seasons(year),
+    divisions integer not null,
+    regular_season_first_week integer not null,
+    regular_season_last_week integer not null
+);
+create table season_brackets (
+    season integer not null references season_formats(season),
+    bracket text not null check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
+    size integer not null,
+    first_week integer not null,
+    last_week integer not null,
+    series text,
+    primary key (season, bracket)
+);
+-- The constitution and AGM documents (Google Docs links), from the hand-kept
+-- data/documents.csv. The constitution has no season.
+create table documents (
+    kind text not null check (kind in ('constitution', 'agm')),
+    season integer,
+    title text not null,
+    url text not null
+);
 """
+
+BRACKETS = ("playoffs", "shit_bowl", "mediocre_bowl")
 
 
 class BuildError(Exception):
@@ -177,6 +206,9 @@ def build(data, out):
         franchises.append((fid, franchise_name(fid, team_names, sleeper_ids, aliases),
                            int(current in played[fid]), min(played[fid]), max(played[fid])))
     check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
+    formats, brackets = season_formats(data, dict((y, n) for y, _, n in seasons))
+    documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
+                 for r in read_optional_csv(data / "documents.csv")]
 
     if out.exists():
         out.unlink()
@@ -190,9 +222,44 @@ def build(data, out):
                         [(f, y, n) for (f, y), n in sorted(team_names.items())])
         con.executemany(f"insert into reported_season_lines values ({', '.join('?' * 11)})",
                         sorted(lines))
+        con.executemany("insert into season_formats values (?, ?, ?, ?)", formats)
+        con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?)", brackets)
+        con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.commit()
     finally:
         con.close()
+
+
+def read_optional_csv(path):
+    return read_csv(path) if path.exists() else []
+
+
+def season_formats(data, team_counts):
+    """Rows for season_formats and season_brackets from data/formats.yaml.
+
+    Only seasons that have been played (or are being played) get rows; a format
+    may be written down ahead of its season.
+    """
+    path = data / "formats.yaml"
+    if not path.exists():
+        return [], []
+    entries = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    formats, brackets = [], []
+    for season, f in sorted(entries.items()):
+        if season not in team_counts:
+            continue
+        if f["teams"] != team_counts[season]:
+            raise BuildError(f"data/formats.yaml says {season} had {f['teams']} teams, "
+                             f"but {team_counts[season]} played")
+        first, last = f["regular_season_weeks"]
+        formats.append((season, f["divisions"], first, last))
+        for name, b in f["brackets"].items():
+            if name not in BRACKETS:
+                raise BuildError(f"data/formats.yaml {season}: unknown bracket {name!r} "
+                                 f"(expected one of {', '.join(BRACKETS)})")
+            brackets.append((season, name, b["size"], min(b["weeks"]), max(b["weeks"]),
+                             b.get("series")))
+    return formats, brackets
 
 
 def franchise_name(fid, team_names, sleeper_ids, aliases):

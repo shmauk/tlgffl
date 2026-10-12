@@ -7,6 +7,8 @@ import csv
 import json
 from pathlib import Path
 
+import yaml
+
 LEAGUE = "1078038"
 
 
@@ -77,3 +79,14 @@ def write_franchise_keys(data: Path, rows):
 def write_sleeper_aliases(data: Path, rows):
     """rows: (roster_id, sleeper_name, franchise name as ff-data-project calls it)."""
     write_csv(data / "sleeper_aliases.csv", ["roster_id", "sleeper_name", "franchise"], rows)
+
+
+def write_formats(data: Path, formats):
+    """formats: {season: format entry}, as in data/formats.yaml."""
+    data.mkdir(parents=True, exist_ok=True)
+    (data / "formats.yaml").write_text(yaml.safe_dump(formats, sort_keys=False))
+
+
+def write_documents(data: Path, rows):
+    """rows: (kind, season, title, url)."""
+    write_csv(data / "documents.csv", ["kind", "season", "title", "url"], rows)

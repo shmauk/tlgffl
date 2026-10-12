@@ -4,7 +4,8 @@ See `GLOSSARY.md` for the league's language and `docs/adr/` for the decisions be
 
 ## Building locally
 
-Needs Python 3.14 and Node 24 or later. The Python build is stdlib-only; pytest is the one dev dependency.
+Needs Python 3.14 and Node 24 or later. The Python build's one dependency is PyYAML, for the
+hand-kept `data/formats.yaml` (`requirements.txt`); pytest is the one dev dependency.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt

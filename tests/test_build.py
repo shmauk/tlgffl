@@ -3,7 +3,8 @@ import sqlite3
 import pytest
 
 from recordbook.build import build, BuildError
-from tests.archive import team, write_nfl_season, write_franchise_keys, write_sleeper_aliases
+from tests.archive import (team, write_nfl_season, write_franchise_keys, write_sleeper_aliases,
+                           write_formats, write_documents)
 
 
 def query(db, sql, *args):
@@ -96,3 +97,55 @@ def test_an_empty_archive_fails_the_build(tmp_path):
     write_sleeper_aliases(tmp_path, [])
     with pytest.raises(BuildError, match="no seasons"):
         build(tmp_path, tmp_path / "league.sqlite")
+
+
+FORMAT_2012 = {"teams": 2, "divisions": 1, "regular_season_weeks": [1, 14],
+               "brackets": {"playoffs": {"size": 4, "weeks": [15, 16]},
+                            "shit_bowl": {"size": 4, "weeks": [15, 16]}}}
+
+
+def test_a_seasons_format_comes_from_the_hand_kept_format_file(archive, tmp_path):
+    write_formats(archive, {
+        2012: FORMAT_2012,
+        2025: {"teams": 3, "divisions": 4, "regular_season_weeks": [1, 14],
+               "brackets": {"playoffs": {"size": 6, "weeks": [15, 16, 17]},
+                            "shit_bowl": {"size": 6, "weeks": [15, 16, 17]},
+                            "mediocre_bowl": {"size": 2, "weeks": [15, 16, 17],
+                                              "series": "best of three"}}},
+    })
+    db = tmp_path / "league.sqlite"
+    build(archive, db)
+    assert query(db, "select * from season_formats order by season") == [
+        (2012, 1, 1, 14), (2025, 4, 1, 14)]
+    assert query(db, "select * from season_brackets order by season, size desc, bracket") == [
+        (2012, "playoffs", 4, 15, 16, None),
+        (2012, "shit_bowl", 4, 15, 16, None),
+        (2025, "playoffs", 6, 15, 17, None),
+        (2025, "shit_bowl", 6, 15, 17, None),
+        (2025, "mediocre_bowl", 2, 15, 17, "best of three"),
+    ]
+
+
+def test_a_formats_team_count_must_match_the_season(archive, tmp_path):
+    write_formats(archive, {2012: {**FORMAT_2012, "teams": 12}})
+    with pytest.raises(BuildError, match="2012.*12 teams.*2 played"):
+        build(archive, tmp_path / "league.sqlite")
+
+
+def test_an_unknown_bracket_in_a_format_fails_the_build(archive, tmp_path):
+    write_formats(archive, {2012: {**FORMAT_2012, "brackets": {"toilet_bowl": {"size": 4, "weeks": [15]}}}})
+    with pytest.raises(BuildError, match="2012.*toilet_bowl"):
+        build(archive, tmp_path / "league.sqlite")
+
+
+def test_league_documents_come_from_the_hand_kept_table(archive, tmp_path):
+    write_documents(archive, [
+        ("constitution", "", "Constitution", "https://docs.google.com/document/d/c/edit"),
+        ("agm", 2022, "AGM minutes 2022", "https://docs.google.com/document/d/m22/edit"),
+    ])
+    db = tmp_path / "league.sqlite"
+    build(archive, db)
+    assert query(db, "select kind, season, title, url from documents order by season") == [
+        ("constitution", None, "Constitution", "https://docs.google.com/document/d/c/edit"),
+        ("agm", 2022, "AGM minutes 2022", "https://docs.google.com/document/d/m22/edit"),
+    ]
