@@ -1,0 +1,506 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway, never merged). Answers "Visual design: the site's look across
+  records, profiles and Statsguru" (shmauk/tlgffl#15).
+  Three radically different visual directions, switchable via ?variant=A|B|C, each rendering
+  three pages via ?page=records|franchise|statsguru. Real ff-data-project data.
+  The prototype treats 2025 as "this season" (the data stops there).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE · visual design</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
+.num { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+table { border-collapse: collapse; }
+
+/* ---------- prototype switcher (not part of the design) ---------- */
+#proto-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 99;
+  display: flex; gap: 10px; align-items: center; background: #111; color: #fff; border: 2px solid #ff3d7f;
+  border-radius: 999px; padding: 6px 10px; font: 600 13px/1 system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+#proto-bar button { background: #333; color: #fff; border: 0; border-radius: 999px; padding: 6px 10px; cursor: pointer; font: inherit; }
+#proto-bar button.on { background: #ff3d7f; }
+#proto-bar .lbl { min-width: 150px; text-align: center; }
+#proto-bar .sep { width: 1px; height: 20px; background: #555; }
+
+/* =================== A: Scorecard (Cricinfo-modern) =================== */
+.vA { background: #fff; color: #1d2329; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.vA .top { background: #0b4f3a; color: #fff; }
+.vA .top .in { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 28px; padding: 0 16px; height: 48px; }
+.vA .brand { font-weight: 800; font-size: 16px; letter-spacing: -.01em; text-decoration: none; }
+.vA .brand small { font-weight: 500; opacity: .7; margin-left: 6px; font-size: 12px; }
+.vA .top nav a { text-decoration: none; opacity: .85; padding: 15px 0; border-bottom: 3px solid transparent; font-weight: 600; }
+.vA .top nav { display: flex; gap: 20px; }
+.vA .top nav a.on { opacity: 1; border-color: #f2b632; }
+.vA main { max-width: 1120px; margin: 0 auto; padding: 14px 16px 90px; }
+.vA .crumb { color: #6b7580; font-size: 12px; margin-bottom: 6px; }
+.vA .crumb a { color: #1667b7; text-decoration: none; }
+.vA h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+.vA h2 { font-size: 14px; margin: 22px 0 6px; padding-bottom: 4px; border-bottom: 2px solid #0b4f3a; text-transform: uppercase; letter-spacing: .04em; }
+.vA .sub { color: #5b6570; margin-bottom: 10px; }
+.vA .seg { display: inline-flex; border: 1px solid #c9d1d9; border-radius: 4px; overflow: hidden; margin: 6px 12px 10px 0; }
+.vA .seg a { padding: 4px 10px; text-decoration: none; color: #1d2329; border-right: 1px solid #c9d1d9; }
+.vA .seg a:last-child { border-right: 0; }
+.vA .seg a.on { background: #0b4f3a; color: #fff; }
+.vA table.t { width: 100%; }
+.vA .t th { background: #eef1f4; color: #4a545e; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; text-align: left; padding: 6px 8px; border-bottom: 1px solid #d5dbe1; white-space: nowrap; }
+.vA .t th.num { text-align: right; }
+.vA .t th a { text-decoration: none; }
+.vA .t th.sorted { color: #0b4f3a; }
+.vA .t td { padding: 5px 8px; border-bottom: 1px solid #eceff2; }
+.vA .t tbody tr:nth-child(even) td { background: #f8f9fb; }
+.vA .t tbody tr:hover td { background: #fff7df; }
+.vA .t td a, .vA .lnk { color: #1667b7; text-decoration: none; }
+.vA .t td a:hover { text-decoration: underline; }
+.vA .t .fr { font-weight: 600; }
+.vA .t .alias { color: #6b7580; font-size: 12px; margin-left: 4px; }
+.vA .mk { color: #c0392b; font-weight: 700; font-size: 10px; margin-left: 1px; cursor: help; }
+.vA .bd { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; margin-left: 6px; vertical-align: 1px; }
+.vA .bd-now { background: #f2b632; color: #3d2c00; }
+.vA .bd-dep { border: 1px solid #aab3bc; color: #6b7580; }
+.vA .bd-act { background: #dff3ea; color: #0b4f3a; }
+.vA .src { display: inline-block; font-size: 11px; font-style: italic; color: #6b7580; border-bottom: 1px dotted #6b7580; margin-left: 6px; cursor: help; }
+.vA .src.disp { color: #b03a2e; border-color: #b03a2e; font-style: normal; font-weight: 600; }
+.vA .notes { background: #f6f7f9; border-left: 3px solid #0b4f3a; padding: 8px 12px; margin-top: 10px; font-size: 12px; color: #3d4650; }
+.vA .notes b.g { color: #c0392b; display: inline-block; width: 14px; }
+.vA .notes div { margin: 2px 0; }
+.vA .more { margin-top: 10px; display: inline-block; font-weight: 600; }
+.vA .qbar { background: #eef1f4; border: 1px solid #d5dbe1; border-radius: 4px; padding: 8px 12px; margin: 8px 0 12px; display: flex; justify-content: space-between; gap: 10px; }
+.vA .prof-head { display: flex; gap: 16px; align-items: center; padding: 6px 0 12px; border-bottom: 1px solid #e3e7eb; }
+.vA .emoji { font-size: 44px; width: 64px; height: 64px; display: grid; place-items: center; background: #eef1f4; border-radius: 8px; }
+.vA .grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; }
+.vA .kv td { padding: 4px 6px; border-bottom: 1px solid #eceff2; }
+.vA .kv td:first-child { color: #6b7580; }
+.vA .kv { width: 100%; }
+.vA ul.plain { list-style: none; padding: 0; margin: 0; }
+.vA ul.plain li { padding: 4px 0; border-bottom: 1px solid #eceff2; }
+
+/* =================== B: Almanack (Wisden) =================== */
+.vB { background: #fbf8f1; color: #1b1a17; font: 16px/1.5 "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+.vB header { text-align: center; padding: 34px 16px 0; }
+.vB .kicker { font-variant: small-caps; letter-spacing: .14em; font-size: 15px; color: #6e2a1f; text-transform: lowercase; }
+.vB .title { font-size: 44px; line-height: 1.05; margin: 2px 0 10px; font-weight: 400; letter-spacing: .01em; }
+.vB .title a { text-decoration: none; }
+.vB nav { border-top: 1px solid #1b1a17; border-bottom: 3px double #1b1a17; max-width: 760px; margin: 0 auto; padding: 6px 0; display: flex; justify-content: center; gap: 26px; font-variant: small-caps; text-transform: lowercase; letter-spacing: .1em; }
+.vB nav a { text-decoration: none; color: #4a463e; }
+.vB nav a.on { color: #1b1a17; font-weight: 700; }
+.vB main { max-width: 760px; margin: 0 auto; padding: 26px 16px 110px; }
+.vB main.wide { max-width: 960px; }
+.vB h1 { font-weight: 400; font-style: italic; font-size: 30px; margin: 0; text-align: center; }
+.vB .sub { text-align: center; color: #5a554b; font-variant: small-caps; text-transform: lowercase; letter-spacing: .06em; margin-bottom: 4px; }
+.vB .filters { text-align: center; font-size: 14px; margin: 6px 0 18px; color: #5a554b; }
+.vB .filters a { text-decoration: none; margin: 0 6px; }
+.vB .filters a.on { color: #1b1a17; font-weight: 700; border-bottom: 1px solid #1b1a17; }
+.vB h2 { font-weight: 400; font-variant: small-caps; text-transform: lowercase; letter-spacing: .1em; font-size: 19px; margin: 34px 0 6px; text-align: center; }
+.vB h2::before, .vB h2::after { content: "—"; color: #a39b8b; margin: 0 10px; }
+.vB table.t { width: 100%; border-top: 1.5px solid #1b1a17; border-bottom: 1.5px solid #1b1a17; font-size: 15px; }
+.vB .t th { font-weight: 400; font-variant: small-caps; text-transform: lowercase; letter-spacing: .05em; color: #4a463e; text-align: left; padding: 6px 6px 4px; border-bottom: .5px solid #1b1a17; white-space: nowrap; }
+.vB .t th.num { text-align: right; }
+.vB .t th a { text-decoration: none; }
+.vB .t th.sorted { color: #6e2a1f; text-decoration: underline; }
+.vB .t td { padding: 3px 6px; vertical-align: baseline; }
+.vB .t td a { text-decoration: none; }
+.vB .t td a:hover { text-decoration: underline; }
+.vB .t tr.now td { font-weight: 700; }
+.vB .t tr.dep .fr { font-style: italic; }
+.vB .alias { color: #6c665a; font-size: 13px; }
+.vB .mk { font-size: 11px; vertical-align: super; line-height: 0; margin-left: 1px; cursor: help; }
+.vB .bd { font-variant: small-caps; text-transform: lowercase; letter-spacing: .06em; font-size: 14px; margin-left: 6px; font-weight: 400; font-style: normal; }
+.vB .bd-now { color: #6e2a1f; }
+.vB .bd-dep { color: #6c665a; }
+.vB .src { font-style: italic; color: #6c665a; font-size: 14px; }
+.vB .src.disp { font-style: normal; font-variant: small-caps; text-transform: lowercase; letter-spacing: .06em; color: #6e2a1f; }
+.vB .foot { font-size: 13px; color: #3d3a33; margin-top: 8px; line-height: 1.45; }
+.vB .foot div { padding-left: 16px; text-indent: -16px; }
+.vB .foot .g { display: inline-block; width: 16px; text-indent: 0; }
+.vB .more { display: block; text-align: right; font-style: italic; font-size: 14px; margin-top: 6px; }
+.vB .prose { text-align: justify; hyphens: auto; }
+.vB .prose::first-letter { font-size: 3.1em; float: left; line-height: .9; padding: 4px 6px 0 0; color: #6e2a1f; }
+.vB .name { text-align: center; font-variant: small-caps; text-transform: lowercase; font-size: 36px; letter-spacing: .06em; margin: 0; font-weight: 400; }
+.vB .meta { text-align: center; color: #5a554b; font-style: italic; margin-bottom: 18px; }
+.vB .cols { columns: 2; column-gap: 32px; font-size: 14px; }
+.vB .query { text-align: center; font-style: italic; margin: 0 0 16px; }
+.vB .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+
+/* =================== C: Night desk (dark data app) =================== */
+.vC { background: #0e131d; color: #dfe5ee; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; }
+.vC .shell { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 100vh; }
+.vC aside { background: #0a0e16; border-right: 1px solid #1d2636; padding: 18px 12px; position: sticky; top: 0; height: 100vh; }
+.vC .logo { font-weight: 800; font-size: 15px; padding: 0 8px 18px; color: #fff; }
+.vC .logo span { display: block; font-weight: 500; font-size: 11px; color: #7d8aa0; letter-spacing: .12em; text-transform: uppercase; }
+.vC aside a { display: flex; gap: 10px; padding: 8px 10px; border-radius: 8px; text-decoration: none; color: #a9b4c6; margin-bottom: 2px; }
+.vC aside a.on { background: #18263a; color: #5ee3cf; }
+.vC aside a:hover { background: #131c2b; }
+.vC main { padding: 22px 28px 110px; max-width: 1200px; }
+.vC .crumb { color: #7d8aa0; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+.vC h1 { font-size: 26px; margin: 2px 0 14px; color: #fff; letter-spacing: -.02em; }
+.vC .card { background: #141b28; border: 1px solid #1f2a3d; border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+.vC .card h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: #7d8aa0; font-weight: 600; }
+.vC .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.vC .chip { padding: 4px 12px; border-radius: 999px; background: #18212f; border: 1px solid #263247; color: #a9b4c6; text-decoration: none; font-size: 13px; }
+.vC .chip.on { background: #5ee3cf; color: #062a26; border-color: #5ee3cf; font-weight: 700; }
+.vC table.t { width: 100%; font-size: 13.5px; }
+.vC .t th { position: sticky; top: 0; background: #141b28; text-align: left; color: #7d8aa0; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; padding: 8px 10px; border-bottom: 1px solid #263247; white-space: nowrap; }
+.vC .t th.num { text-align: right; }
+.vC .t th a { text-decoration: none; }
+.vC .t th.sorted { color: #5ee3cf; }
+.vC .t td { padding: 9px 10px; border-bottom: 1px solid #1a2333; }
+.vC .t td.num { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+.vC .t tbody tr:hover td { background: #18212f; }
+.vC .t tr.dep td { opacity: .55; }
+.vC .t td a { color: #e9eef6; text-decoration: none; }
+.vC .t td a:hover { color: #5ee3cf; }
+.vC .alias { color: #7d8aa0; font-size: 12px; margin-left: 6px; }
+.vC .mk { display: inline-grid; place-items: center; min-width: 16px; height: 16px; padding: 0 3px; margin-left: 5px; border-radius: 4px; background: #2a2440; color: #c3a6ff; font-size: 11px; font-weight: 700; vertical-align: 1px; cursor: help; font-family: system-ui, sans-serif; }
+.vC .bd { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 8px; vertical-align: 1px; }
+.vC .bd-now { background: #f6ad55; color: #2d1800; box-shadow: 0 0 10px rgba(246,173,85,.45); }
+.vC .bd-dep { background: #262f3f; color: #8e9ab0; }
+.vC .bd-act { background: #0f3a33; color: #5ee3cf; }
+.vC .src { font-size: 11px; padding: 2px 7px; border-radius: 4px; background: #1f2a3d; color: #a9b4c6; margin-left: 8px; cursor: help; }
+.vC .src.disp { background: #3a1d24; color: #ff8fa3; }
+.vC .bar { position: relative; height: 6px; background: #1f2a3d; border-radius: 3px; min-width: 90px; }
+.vC .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #2bb5a2, #5ee3cf); border-radius: 3px; }
+.vC .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: #9aa6ba; margin-top: 12px; }
+.vC .legend .mk { margin: 0 6px 0 0; }
+.vC .hero { display: flex; align-items: center; gap: 18px; }
+.vC .hero .big { font-size: 56px; font-weight: 800; color: #5ee3cf; font-family: ui-monospace, Menlo, monospace; line-height: 1; }
+.vC .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.vC .kpi { background: #141b28; border: 1px solid #1f2a3d; border-radius: 12px; padding: 12px 14px; }
+.vC .kpi b { display: block; font-size: 22px; color: #fff; font-family: ui-monospace, Menlo, monospace; }
+.vC .kpi span { font-size: 11px; color: #7d8aa0; text-transform: uppercase; letter-spacing: .08em; }
+.vC .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.vC .spark { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 10px; }
+.vC .spark div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 10px; color: #7d8aa0; }
+.vC .spark i { width: 100%; border-radius: 4px 4px 0 0; background: #2bb5a2; display: block; }
+.vC .spark i.gap { background: repeating-linear-gradient(135deg, #6b5aa8 0 4px, #2a2440 4px 8px); }
+.vC .spark i.po { background: #5ee3cf; }
+.vC .spark i.now { background: #f6ad55; }
+.vC .qsum { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.vC .btn { background: #5ee3cf; color: #062a26; padding: 6px 14px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; }
+.vC .ghost { color: #5ee3cf; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="proto-bar"></div>
+<script>
+const D = __DATA__;
+const CUR = 2025; // PROTOTYPE: the data stops at 2025, so it plays "this season"
+const P = new URLSearchParams(location.search);
+const VARIANTS = { A: 'Scorecard', B: 'Almanack', C: 'Night desk' };
+const PAGES = { records: 'Record list', franchise: 'Franchise profile', statsguru: 'Statsguru results' };
+let variant = VARIANTS[P.get('variant')] ? P.get('variant') : 'A';
+let page = PAGES[P.get('page')] ? P.get('page') : 'records';
+
+const F = {}; D.franchises.forEach(f => F[f.id] = f);
+const ID = {}; D.franchises.forEach(f => ID[f.name] = f.id);
+const GAP = new Set(Object.entries(D.coverage).filter(([, c]) => c.regScored.length < c.regWeeks).map(([s]) => +s));
+const NOTE = {
+  '†': "Includes NFL.com's reported season totals for weeks with no game scores (2022 wk 10 – 2024). Wins, losses and points are complete; game-level figures are not.",
+  '‡': 'Playoff result known but the score is lost, so the game is left out of points.',
+  '*': 'Highs and lows only come from games with scores.',
+  '§': "A week, opponent or result filter can't be checked against games with no detail, so those games are left out, not estimated.",
+  '¶': 'Lineups and NFL players only exist from 2025 on.',
+};
+
+// ---------- helpers ----------
+const url = over => { const q = new URLSearchParams(location.search); for (const [k, v] of Object.entries(over)) v == null ? q.delete(k) : q.set(k, v); return '?' + q; };
+const fUrl = id => url({ page: 'franchise', f: id, sort: null });
+const n2 = x => x.toFixed(2);
+const pct = x => (x * 100).toFixed(1);
+const wlt = o => `${o.w}-${o.l}-${o.t}`;
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const mk = (g) => `<span class="mk" title="${esc(NOTE[g])}">${g}</span>`;
+const fname = id => esc(F[id].name);
+const seasonLink = s => `<a href="#" title="Season page (not in this prototype)">${s}</a>`;
+
+// ---------- Breakdown per season-franchise (fully covered seasons only) ----------
+const BD = {};
+(() => {
+  const wk = {};
+  D.games.forEach(([s, w, ph, a, pa, b, pb]) => { if (ph !== 'R' || pa == null || GAP.has(s)) return; (wk[s + '-' + w] ||= []).push([a, pa], [b, pb]); });
+  for (const k in wk) {
+    const s = +k.split('-')[0], arr = wk[k];
+    arr.forEach(([f, sc]) => { const o = BD[s + '-' + f] ||= { w: 0, l: 0, t: 0 }; arr.forEach(([g, sc2]) => { if (g === f) return; sc > sc2 ? o.w++ : sc < sc2 ? o.l++ : o.t++; }); });
+  }
+})();
+
+// ---------- view models ----------
+function recordVM() {
+  const era = P.get('era') || 'all';
+  let L = D.lines.filter(l => era === 'all' || (era === 'nfl' ? l[0] < 2025 : l[0] >= 2025))
+    .map(l => ({ s: l[0], f: l[1], team: l[2], w: l[3], l: l[4], t: l[5], pf: l[6], pa: l[7], gp: l[3] + l[4] + l[5] }));
+  L.sort((a, b) => a.w - b.w || a.s - b.s);
+  const cut = L[Math.min(9, L.length - 1)].w;
+  const rows = L.filter(x => x.w <= cut);
+  rows.forEach(r => {
+    r.rank = rows.findIndex(x => x.w === r.w) + 1; r.tied = rows.filter(x => x.w === r.w).length > 1;
+    r.gap = GAP.has(r.s); r.now = r.s === CUR; r.dep = !F[r.f].active; r.pct = (r.w + r.t / 2) / r.gp; r.ppg = r.pf / r.gp;
+  });
+  return { era, rows, used: rows.some(r => r.gap) ? ['†'] : [] };
+}
+
+function profileVM(fid) {
+  const fr = F[fid];
+  const seasons = D.lines.filter(l => l[1] === fid).sort((a, b) => a[0] - b[0]).map(l => {
+    const o = { s: l[0], team: l[2], w: l[3], l: l[4], t: l[5], pf: l[6], pa: l[7], po: l[8] };
+    o.gp = o.w + o.l + o.t; o.gap = GAP.has(o.s); o.now = o.s === CUR; o.bd = BD[o.s + '-' + fid] || null;
+    if (o.bd) { const n = o.bd.w + o.bd.l + o.bd.t; o.bdPct = (o.bd.w + o.bd.t / 2) / n; o.luck = (o.w + o.t / 2) / o.gp - o.bdPct; }
+    return o;
+  });
+  const c = { w: 0, l: 0, t: 0, pf: 0, pa: 0, gp: 0, bw: 0, bl: 0, bt: 0, po: 0 };
+  seasons.forEach(o => { c.w += o.w; c.l += o.l; c.t += o.t; c.pf += o.pf; c.pa += o.pa; c.gp += o.gp; c.po += o.po ? 1 : 0; if (o.bd) { c.bw += o.bd.w; c.bl += o.bd.l; c.bt += o.bd.t; } });
+  c.pct = (c.w + c.t / 2) / c.gp; c.bdPct = (c.bw + c.bt / 2) / (c.bw + c.bl + c.bt);
+  // PROTOTYPE: 2022–24 Shit Bowl winners were never recorded as games, so they play "recalled"; 2021's two names play "disputed"
+  const sb = Object.entries(D.shitbowl).filter(([, names]) => names.includes(fr.name)).map(([s, names]) => ({
+    s: +s, disputed: names.length > 1, recalled: names.length === 1 && +s >= 2022, others: names.filter(n => n !== fr.name).map(n => ID[n]),
+  }));
+  c.sbTitles = sb.filter(x => !x.disputed).length;
+  const games = [], lost = [];
+  D.games.forEach(([s, w, ph, a, pa, b, pb]) => {
+    if (a !== fid && b !== fid) return;
+    const me = a === fid, pts = me ? pa : pb, opp = me ? b : a, op = me ? pb : pa;
+    if (pts == null) { lost.push({ s, w, ph, opp }); return; }
+    games.push({ s, w, ph, pts, opp, op, res: pts > op ? 'W' : pts < op ? 'L' : 'T' });
+  });
+  const best = [...games].sort((a, b) => b.pts - a.pts).slice(0, 5);
+  const worst = [...games].sort((a, b) => a.pts - b.pts).slice(0, 5);
+  const h = {};
+  games.forEach(g => { const o = h[g.opp] ||= { opp: g.opp, w: 0, l: 0, t: 0, pf: 0, pa: 0, last: 0 }; o[g.res.toLowerCase()]++; o.pf += g.pts; o.pa += g.op; o.last = Math.max(o.last, g.s); });
+  const h2h = Object.values(h).map(o => ({ ...o, gp: o.w + o.l + o.t, pct: (o.w + o.t / 2) / (o.w + o.l + o.t), dep: !F[o.opp].active })).sort((a, b) => b.gp - a.gp || b.pct - a.pct);
+  const pl = {};
+  D.lineups.forEach(([y, wk, ph, f, o, pid, slot, pts]) => { if (f !== fid || slot === 'BN') return; const p = pl[pid] ||= { pid, starts: 0, pts: 0 }; p.starts++; p.pts += pts; });
+  const players = Object.values(pl).sort((a, b) => b.starts - a.starts || b.pts - a.pts).slice(0, 8).map(p => ({ ...p, ...D.players[p.pid] }));
+  return { id: fid, fr, seasons, c, sb, best, worst, h2h, players, lost,
+    span: `${seasons[0].s}–${seasons[seasons.length - 1].s}`, now: seasons[seasons.length - 1] };
+}
+
+function sgVM() {
+  const T = {};
+  const row = f => T[f] ||= { f, w: 0, l: 0, t: 0, pf: 0, pa: 0, mat: 0, seasons: new Set(), hs: -1, ls: 1e9, gap: false, lost: false };
+  D.lines.forEach(([s, f, , w, l, t, pf, pa]) => { const r = row(f); r.w += w; r.l += l; r.t += t; r.pf += pf; r.pa += pa; r.mat += w + l + t; r.seasons.add(s); if (GAP.has(s)) r.gap = true; });
+  D.games.forEach(([s, w, ph, a, pa, b, pb]) => {
+    [[a, pa, pb], [b, pb, pa]].forEach(([f, me, op]) => {
+      const r = row(f);
+      if (me == null) { if (ph === 'P') r.lost = true; return; }
+      r.hs = Math.max(r.hs, me); r.ls = Math.min(r.ls, me);
+      if (ph !== 'P') return;
+      r.mat++; r.pf += me; r.pa += op; me > op ? r.w++ : me < op ? r.l++ : r.t++;
+    });
+  });
+  const rows = Object.values(T).map(r => ({ ...r, dep: !F[r.f].active, pct: (r.w + r.t / 2) / r.mat, ppg: r.pf / r.mat,
+    span: `${Math.min(...r.seasons)}–${Math.max(...r.seasons)}`, name: F[r.f].name }));
+  const [col, dir] = (P.get('sort') || 'w.desc').split('.');
+  rows.sort((a, b) => { const x = a[col], y = b[col]; const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return dir === 'asc' ? c : -c; });
+  return { rows, col, dir };
+}
+const SGCOLS = [['name', 'Franchise'], ['span', 'Span'], ['mat', 'Mat'], ['w', 'W'], ['l', 'L'], ['t', 'T'], ['pct', 'W%'], ['pf', 'PF'], ['pa', 'PA'], ['ppg', 'PF/G'], ['hs', 'HS'], ['ls', 'LS']];
+const sortUrl = (k, vm) => url({ sort: k + '.' + (vm.col === k && vm.dir === 'desc' ? 'asc' : 'desc') });
+const sgCell = (r, k) => ({ name: '', span: r.span, mat: r.mat, w: r.w, l: r.l, t: r.t, pct: pct(r.pct), pf: n2(r.pf), pa: n2(r.pa), ppg: n2(r.ppg), hs: n2(r.hs), ls: n2(r.ls) })[k];
+const SGQUERY = 'Franchise records · totals per franchise · seasons 2012–2025 · regular season and Playoffs';
+const SGURL = '/statsguru/?ph=R,P';
+const QNOTES = ['Consolation games for 2022–24 were never recorded.', "The Shit Bowl and Mediocre Bowl aren't yet separated in the data."];
+const ERAS = [['all', 'All eras'], ['nfl', 'NFL.com era'], ['sleeper', 'Sleeper era']];
+const phaseName = { R: 'Reg', P: 'Playoffs', C: 'Consolation' };
+const NAV = [['records', 'Records', '🏆'], ['franchise', 'Franchises', '🏈'], ['seasons', 'Seasons', '📅'], ['statsguru', 'Statsguru', '🔎'], ['league', 'League', '📜']];
+const navHref = k => PAGES[k] ? url({ page: k, sort: null }) : '#';
+
+// =====================================================================
+// A: Scorecard
+// =====================================================================
+const A = {
+  shell: (body) => `<div class="top"><div class="in"><a class="brand" href="${url({ page: 'records' })}">The Fantasy League<small>record book</small></a>
+    <nav>${NAV.map(([k, l]) => `<a href="${navHref(k)}" class="${k === page ? 'on' : ''}">${l}</a>`).join('')}</nav></div></div><main>${body}</main>`,
+  bd: { now: '<span class="bd bd-now">This season</span>', dep: '<span class="bd bd-dep">Departed</span>', act: '<span class="bd bd-act">Active</span>' },
+  src: (r) => r.disputed ? `<span class="src disp" title="Hand-recorded outcome the league can't agree on; counts for nobody until settled">Disputed</span>` : r.recalled ? `<span class="src" title="From memory: no game record exists">recalled</span>` : '',
+  notes: (gs, extra = []) => `<div class="notes">${gs.map(g => `<div><b class="g">${g}</b>${NOTE[g]}</div>`).join('')}${extra.map(e => `<div><b class="g"></b>${e}</div>`).join('')}</div>`,
+  records(vm) {
+    return A.shell(`<div class="crumb"><a href="#">Records</a> › <a href="#">Seasons</a></div>
+      <h1>Fewest wins in a season</h1>
+      <div class="sub">Regular season. The ten lowest, plus anyone tied with 10th.</div>
+      <div class="seg">${ERAS.map(([k, l]) => `<a class="${vm.era === k ? 'on' : ''}" href="${url({ era: k === 'all' ? null : k })}">${l}</a>`).join('')}</div>
+      <table class="t"><thead><tr><th class="num">#</th><th>Team</th><th class="num">W-L-T</th><th class="num">Win %</th><th class="num">PF/G</th><th>Season</th></tr></thead><tbody>
+      ${vm.rows.map(r => `<tr><td class="num">${r.tied ? '=' : ''}${r.rank}</td>
+        <td><a class="fr" href="${fUrl(r.f)}">${esc(r.team)}</a>${r.team !== F[r.f].name ? `<span class="alias">(${fname(r.f)})</span>` : ''}${r.dep ? A.bd.dep : ''}${r.now ? A.bd.now : ''}</td>
+        <td class="num">${wlt(r)}${r.gap ? mk('†') : ''}</td><td class="num">${pct(r.pct)}</td><td class="num">${n2(r.ppg)}</td><td>${seasonLink(r.s)}</td></tr>`).join('')}
+      </tbody></table>
+      ${A.notes(vm.used, ['Season lengths differ (13 or 14 weeks), so wins are raw counts; win % is shown alongside.'])}
+      <a class="lnk more" href="#">Full list in Statsguru →</a>`);
+  },
+  franchise(vm) {
+    const c = vm.c, fr = vm.fr;
+    return A.shell(`<div class="crumb"><a href="#">Franchises</a></div>
+      <div class="prof-head"><div class="emoji">${fr.emoji || '🏈'}</div><div>
+        <h1>${esc(fr.name)}${fr.active ? A.bd.act : A.bd.dep}</h1>
+        <div class="sub">${vm.seasons.length} seasons, ${vm.span} · <a class="lnk" href="${url({ page: 'statsguru', f: vm.id })}">Open in Statsguru →</a></div></div></div>
+      <div class="grid"><div>
+        <h2>Season by season</h2>
+        <table class="t"><thead><tr><th>Season</th><th>Team name</th><th class="num">W-L-T</th><th class="num">PF</th><th class="num">PA</th><th class="num">Breakdown</th><th class="num">Luck</th><th>Finish</th></tr></thead><tbody>
+        ${vm.seasons.map(o => `<tr><td>${seasonLink(o.s)}${o.now ? A.bd.now : ''}</td><td>${esc(o.team)}</td><td class="num">${wlt(o)}${o.gap ? mk('†') : ''}</td><td class="num">${n2(o.pf)}</td><td class="num">${n2(o.pa)}</td>
+          <td class="num">${o.bd ? wlt(o.bd) : '–'}</td><td class="num">${o.bd ? (o.luck > 0 ? '+' : '') + pct(o.luck) : '–'}</td><td>${o.po ? 'Playoffs' : ''}${vm.sb.find(x => x.s === o.s) ? 'Shit Bowl winner' + A.src(vm.sb.find(x => x.s === o.s)) : ''}</td></tr>`).join('')}
+        </tbody></table>
+        <h2>Head-to-head</h2>
+        <table class="t"><thead><tr><th>Opponent</th><th class="num">Games</th><th class="num">W-L-T</th><th class="num">Win %</th><th class="num">PF</th><th class="num">PA</th><th class="num">Last met</th></tr></thead><tbody>
+        ${vm.h2h.map(o => `<tr><td><a class="fr" href="${fUrl(o.opp)}">${fname(o.opp)}</a>${o.dep ? A.bd.dep : ''}</td><td class="num">${o.gp}</td><td class="num">${wlt(o)}</td><td class="num">${pct(o.pct)}</td><td class="num">${n2(o.pf)}</td><td class="num">${n2(o.pa)}</td><td class="num">${o.last}</td></tr>`).join('')}
+        </tbody></table>
+        ${A.notes(['†', '‡'], ['Head-to-head counts games with scores only.'])}
+      </div><div>
+        <h2>Career</h2>
+        <table class="kv"><tbody>
+          <tr><td>Regular season</td><td class="num">${wlt(c)}${mk('†')}</td></tr><tr><td>Win %</td><td class="num">${pct(c.pct)}</td></tr>
+          <tr><td>PF per game</td><td class="num">${n2(c.pf / c.gp)}</td></tr><tr><td>PA per game</td><td class="num">${n2(c.pa / c.gp)}</td></tr>
+          <tr><td>Breakdown %</td><td class="num">${pct(c.bdPct)}${mk('*')}</td></tr><tr><td>Playoff appearances</td><td class="num">${c.po}</td></tr>
+          <tr><td>Shit Bowl winner titles</td><td class="num">${c.sbTitles}</td></tr></tbody></table>
+        <h2>Bracket history</h2>
+        <ul class="plain">${vm.sb.map(x => `<li>${seasonLink(x.s)} Shit Bowl winner${A.src(x)}${x.disputed ? ` <span class="alias">with ${x.others.map(fname).join(', ')}</span>` : ''}</li>`).join('')}
+          ${vm.lost.filter(g => g.ph === 'P').map(g => `<li>${seasonLink(g.s)} Playoffs wk ${g.w} v ${fname(g.opp)}${mk('‡')}</li>`).join('')}</ul>
+        <h2>Best games${mk('*')}</h2>
+        <table class="t"><tbody>${vm.best.map(g => `<tr><td class="num">${n2(g.pts)}</td><td>v ${fname(g.opp)}</td><td>${g.s} wk ${g.w}</td></tr>`).join('')}</tbody></table>
+        <h2>Worst games${mk('*')}</h2>
+        <table class="t"><tbody>${vm.worst.map(g => `<tr><td class="num">${n2(g.pts)}</td><td>v ${fname(g.opp)}</td><td>${g.s} wk ${g.w}</td></tr>`).join('')}</tbody></table>
+        ${vm.players.length ? `<h2>Most started${mk('¶')}</h2><table class="t"><tbody>${vm.players.map(p => `<tr><td><a href="#">${esc(p.name)}</a> <span class="alias">${p.pos}</span></td><td class="num">${p.starts}</td><td class="num">${n2(p.pts)}</td></tr>`).join('')}</tbody></table>` : ''}
+      </div></div>`);
+  },
+  statsguru(vm) {
+    return A.shell(`<div class="crumb"><a href="#">Statsguru</a> › Results</div><h1>Statsguru</h1>
+      <div class="qbar"><span><b>Query:</b> ${SGQUERY}</span><a class="lnk" href="#">Edit query</a></div>
+      <table class="t"><thead><tr>${SGCOLS.map(([k, l]) => `<th class="${k === 'name' || k === 'span' ? '' : 'num'} ${vm.col === k ? 'sorted' : ''}"><a href="${sortUrl(k, vm)}">${l}${k === 'hs' || k === 'ls' ? '*' : ''}${vm.col === k ? (vm.dir === 'desc' ? ' ▼' : ' ▲') : ''}</a></th>`).join('')}</tr></thead><tbody>
+      ${vm.rows.map(r => `<tr>${SGCOLS.map(([k]) => k === 'name' ? `<td><a class="fr" href="${fUrl(r.f)}">${esc(r.name)}</a>${r.gap ? mk('†') : ''}${r.lost ? mk('‡') : ''}${r.dep ? A.bd.dep : ''}</td>` : `<td class="${k === 'span' ? '' : 'num'}">${sgCell(r, k)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table>${A.notes(['†', '‡', '*'], QNOTES)}`);
+  },
+};
+
+// =====================================================================
+// B: Almanack
+// =====================================================================
+const B = {
+  shell: (body, wide) => `<header><div class="kicker">The Fantasy League · est. 2012</div><div class="title"><a href="${url({ page: 'records' })}">The Record Book</a></div></header>
+    <nav>${NAV.map(([k, l]) => `<a href="${navHref(k)}" class="${k === page ? 'on' : ''}">${l}</a>`).join('')}</nav><main class="${wide ? 'wide' : ''}">${body}</main>`,
+  bd: { now: '<span class="bd bd-now">this season</span>', dep: '<span class="bd bd-dep">departed</span>' },
+  src: r => r.disputed ? ' <span class="src disp">disputed</span>' : r.recalled ? ' <span class="src">(recalled)</span>' : '',
+  foot: (gs, extra = []) => `<div class="foot">${gs.map(g => `<div><span class="g">${g}</span>${NOTE[g]}</div>`).join('')}${extra.map(e => `<div><span class="g"></span>${e}</div>`).join('')}</div>`,
+  records(vm) {
+    return B.shell(`<div class="sub">Seasons</div><h1>Fewest wins in a season</h1>
+      <div class="filters">${ERAS.map(([k, l]) => `<a class="${vm.era === k ? 'on' : ''}" href="${url({ era: k === 'all' ? null : k })}">${l}</a>`).join(' · ')}</div>
+      <table class="t"><thead><tr><th></th><th>Team</th><th class="num">W–L–T</th><th class="num">Pct</th><th class="num">Pts/G</th><th class="num">Season</th></tr></thead><tbody>
+      ${vm.rows.map(r => `<tr class="${r.now ? 'now' : ''} ${r.dep ? 'dep' : ''}"><td class="num">${r.tied ? '=' : ''}${r.rank}</td>
+        <td><a class="fr" href="${fUrl(r.f)}">${esc(r.team)}</a>${r.team !== F[r.f].name ? ` <span class="alias">(${fname(r.f)})</span>` : ''}${r.now ? B.bd.now : ''}</td>
+        <td class="num">${r.w}–${r.l}–${r.t}${r.gap ? mk('†') : ''}</td><td class="num">${pct(r.pct)}</td><td class="num">${n2(r.ppg)}</td><td class="num">${seasonLink(r.s)}</td></tr>`).join('')}
+      </tbody></table>
+      ${B.foot(vm.used, ['Regular season only. Season lengths differ (13 or 14 weeks).', '<i>Italic</i>: a franchise no longer in the league.'])}
+      <a class="more" href="#">The full list, in Statsguru</a>`);
+  },
+  franchise(vm) {
+    const c = vm.c, fr = vm.fr;
+    const names = vm.seasons.map(o => `${o.s} <i>${esc(o.team)}</i>`).join('; ');
+    return B.shell(`<p class="name">${esc(fr.name)}</p>
+      <div class="meta">${fr.active ? 'In the league' : 'Departed'} · ${vm.seasons.length} seasons, ${vm.span} · <a href="${url({ page: 'statsguru', f: vm.id })}">open in Statsguru</a></div>
+      <p class="prose">${esc(fr.name)} have played ${vm.seasons.length} seasons, winning ${c.w}, losing ${c.l} and tying ${c.t} regular-season games${mk('†')} (${pct(c.pct)} per cent), with ${n2(c.pf / c.gp)} points a game for and ${n2(c.pa / c.gp)} against. Had they played the whole league every week, they would have won ${pct(c.bdPct)} per cent${mk('*')}. They have reached the Playoffs ${c.po} times and been crowned Shit Bowl winner ${c.sbTitles} time${c.sbTitles === 1 ? '' : 's'}.</p>
+      <h2>Season by season</h2>
+      <table class="t"><thead><tr><th>Season</th><th>Team name</th><th class="num">W–L–T</th><th class="num">For</th><th class="num">Agst</th><th class="num">Breakdown</th><th class="num">Luck</th><th>Finish</th></tr></thead><tbody>
+      ${vm.seasons.map(o => { const sb = vm.sb.find(x => x.s === o.s); return `<tr class="${o.now ? 'now' : ''}"><td>${seasonLink(o.s)}</td><td><i>${esc(o.team)}</i></td><td class="num">${o.w}–${o.l}–${o.t}${o.gap ? mk('†') : ''}</td><td class="num">${n2(o.pf)}</td><td class="num">${n2(o.pa)}</td>
+        <td class="num">${o.bd ? `${o.bd.w}–${o.bd.l}–${o.bd.t}` : '—'}</td><td class="num">${o.bd ? (o.luck > 0 ? '+' : '−') + pct(Math.abs(o.luck)) : '—'}</td><td>${o.po ? 'Playoffs' : ''}${sb ? 'Shit Bowl' + B.src(sb) : ''}</td></tr>`; }).join('')}
+      </tbody></table>
+      ${B.foot(['†'], ['Bold: this season.'])}
+      <h2>Bracket history</h2>
+      ${vm.sb.map(x => `<div>${x.s}: Shit Bowl winner${B.src(x)}${x.disputed ? `, the claim shared with <i>${x.others.map(fname).join(', ')}</i> and counting for nobody until the league settles it` : ''}.</div>`).join('')}
+      ${vm.lost.filter(g => g.ph === 'P').map(g => `<div>${g.s}: Playoffs, week ${g.w}, against <i>${fname(g.opp)}</i>${mk('‡')}.</div>`).join('')}
+      <div class="two"><div><h2>Best games${mk('*')}</h2><table class="t"><tbody>${vm.best.map(g => `<tr><td class="num">${n2(g.pts)}</td><td>v <i>${fname(g.opp)}</i></td><td class="num">${g.s}/${g.w}</td></tr>`).join('')}</tbody></table></div>
+      <div><h2>Worst games${mk('*')}</h2><table class="t"><tbody>${vm.worst.map(g => `<tr><td class="num">${n2(g.pts)}</td><td>v <i>${fname(g.opp)}</i></td><td class="num">${g.s}/${g.w}</td></tr>`).join('')}</tbody></table></div></div>
+      <h2>Head-to-head</h2>
+      <table class="t"><thead><tr><th>Opponent</th><th class="num">P</th><th class="num">W–L–T</th><th class="num">Pct</th><th class="num">Last</th></tr></thead><tbody>
+      ${vm.h2h.map(o => `<tr class="${o.dep ? 'dep' : ''}"><td><a class="fr" href="${fUrl(o.opp)}">${fname(o.opp)}</a></td><td class="num">${o.gp}</td><td class="num">${o.w}–${o.l}–${o.t}</td><td class="num">${pct(o.pct)}</td><td class="num">${o.last}</td></tr>`).join('')}
+      </tbody></table>${B.foot(['†'], ['Games with scores only. <i>Italic</i>: departed.'])}
+      ${vm.players.length ? `<h2>Most started${mk('¶')}</h2><div class="cols">${vm.players.map(p => `<div><a href="#">${esc(p.name)}</a> <span class="alias">${p.pos}</span> — ${p.starts} starts, ${n2(p.pts)} pts</div>`).join('')}</div>` : ''}
+      <h2>Team names</h2><p class="prose" style="font-size:14px">${names}.</p>`);
+  },
+  statsguru(vm) {
+    return B.shell(`<div class="sub">Statsguru</div><h1>Results</h1>
+      <p class="query">${SGQUERY}. <a href="#">Amend the query</a></p>
+      <table class="t"><thead><tr>${SGCOLS.map(([k, l]) => `<th class="${k === 'name' || k === 'span' ? '' : 'num'} ${vm.col === k ? 'sorted' : ''}"><a href="${sortUrl(k, vm)}">${l}${k === 'hs' || k === 'ls' ? '*' : ''}</a></th>`).join('')}</tr></thead><tbody>
+      ${vm.rows.map(r => `<tr class="${r.dep ? 'dep' : ''}">${SGCOLS.map(([k]) => k === 'name' ? `<td><a class="fr" href="${fUrl(r.f)}">${esc(r.name)}</a>${r.gap ? mk('†') : ''}${r.lost ? mk('‡') : ''}</td>` : `<td class="${k === 'span' ? '' : 'num'}">${sgCell(r, k)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table>${B.foot(['†', '‡', '*'], [...QNOTES, '<i>Italic</i>: departed.'])}`, true);
+  },
+};
+
+// =====================================================================
+// C: Night desk
+// =====================================================================
+const C = {
+  shell: (body) => `<div class="shell"><aside><div class="logo">The Fantasy League<span>Record book</span></div>
+    ${NAV.map(([k, l, i]) => `<a href="${navHref(k)}" class="${k === page ? 'on' : ''}"><span>${i}</span>${l}</a>`).join('')}</aside><main>${body}</main></div>`,
+  bd: { now: '<span class="bd bd-now">Now</span>', dep: '<span class="bd bd-dep">Departed</span>', act: '<span class="bd bd-act">Active</span>' },
+  src: r => r.disputed ? `<span class="src disp" title="Counts for nobody until settled">⚑ disputed</span>` : r.recalled ? `<span class="src" title="From memory: no game record exists">◌ recalled</span>` : '',
+  legend: (gs, extra = []) => `<div class="legend">${gs.map(g => `<span>${mk(g)}${NOTE[g]}</span>`).join('')}${extra.map(e => `<span>${e}</span>`).join('')}</div>`,
+  records(vm) {
+    const top = vm.rows[0], max = Math.max(...vm.rows.map(r => r.gp));
+    return C.shell(`<div class="crumb">Records / Seasons</div><h1>Fewest wins in a season</h1>
+      <div class="chips">${ERAS.map(([k, l]) => `<a class="chip ${vm.era === k ? 'on' : ''}" href="${url({ era: k === 'all' ? null : k })}">${l}</a>`).join('')}</div>
+      <div class="card hero"><div class="big">${top.w}-${top.l}</div><div><div style="font-size:18px;font-weight:700"><a style="color:#fff;text-decoration:none" href="${fUrl(top.f)}">${esc(top.team)}</a>${top.dep ? C.bd.dep : ''}</div><div style="color:#7d8aa0">${fname(top.f)} · ${top.s} · the record</div></div></div>
+      <div class="card"><table class="t"><thead><tr><th class="num">#</th><th>Team</th><th>Wins</th><th class="num">W-L-T</th><th class="num">Win %</th><th class="num">PF/G</th><th class="num">Season</th></tr></thead><tbody>
+      ${vm.rows.map(r => `<tr class="${r.dep ? 'dep' : ''}"><td class="num">${r.tied ? '=' : ''}${r.rank}</td>
+        <td><a href="${fUrl(r.f)}">${esc(r.team)}</a>${r.team !== F[r.f].name ? `<span class="alias">${fname(r.f)}</span>` : ''}${r.dep ? C.bd.dep : ''}${r.now ? C.bd.now : ''}</td>
+        <td><div class="bar"><i style="width:${(r.w / max) * 100}%"></i></div></td>
+        <td class="num">${wlt(r)}${r.gap ? mk('†') : ''}</td><td class="num">${pct(r.pct)}</td><td class="num">${n2(r.ppg)}</td><td class="num">${seasonLink(r.s)}</td></tr>`).join('')}
+      </tbody></table>${C.legend(vm.used, ['Regular season · 13 or 14 weeks'])}</div>
+      <a class="ghost" href="#">Full list in Statsguru →</a>`);
+  },
+  franchise(vm) {
+    const c = vm.c, fr = vm.fr;
+    return C.shell(`<div class="crumb">Franchises</div>
+      <h1><span style="margin-right:10px">${fr.emoji || '🏈'}</span>${esc(fr.name)}${fr.active ? C.bd.act : C.bd.dep}</h1>
+      <div class="kpis">
+        <div class="kpi"><span>Reg. season${mk('†')}</span><b>${wlt(c)}</b></div><div class="kpi"><span>Win %</span><b>${pct(c.pct)}</b></div>
+        <div class="kpi"><span>PF / game</span><b>${n2(c.pf / c.gp)}</b></div><div class="kpi"><span>Breakdown %${mk('*')}</span><b>${pct(c.bdPct)}</b></div>
+        <div class="kpi"><span>Playoffs</span><b>${c.po}</b></div><div class="kpi"><span>Shit Bowls</span><b>${c.sbTitles}</b></div></div>
+      <div class="card"><h3>Win % by season · ${vm.span}</h3><div class="spark">${vm.seasons.map(o => `<div title="${o.s}: ${wlt(o)}${o.gap ? ' (reported totals)' : ''}"><i class="${o.gap ? 'gap' : o.now ? 'now' : o.po ? 'po' : ''}" style="height:${Math.max(4, (o.w + o.t / 2) / o.gp * 100)}%"></i>${String(o.s).slice(2)}</div>`).join('')}</div>
+        ${C.legend([], ['<span style="color:#5ee3cf">■</span> Playoffs', '<span style="color:#2bb5a2">■</span> missed', '<span style="color:#6b5aa8">▨</span> † reported totals', '<span style="color:#f6ad55">■</span> this season'])}</div>
+      <div class="card"><h3>Season by season</h3><table class="t"><thead><tr><th>Season</th><th>Team name</th><th class="num">W-L-T</th><th class="num">PF</th><th class="num">PA</th><th class="num">Breakdown</th><th class="num">Luck</th><th>Finish</th></tr></thead><tbody>
+        ${vm.seasons.map(o => { const sb = vm.sb.find(x => x.s === o.s); return `<tr><td>${seasonLink(o.s)}${o.now ? C.bd.now : ''}</td><td>${esc(o.team)}</td><td class="num">${wlt(o)}${o.gap ? mk('†') : ''}</td><td class="num">${n2(o.pf)}</td><td class="num">${n2(o.pa)}</td>
+          <td class="num">${o.bd ? wlt(o.bd) : '—'}</td><td class="num" style="color:${o.bd ? (o.luck > 0 ? '#5ee3cf' : '#ff8fa3') : ''}">${o.bd ? (o.luck > 0 ? '+' : '') + pct(o.luck) : '—'}</td><td>${o.po ? 'Playoffs' : ''}${sb ? 'Shit Bowl' + C.src(sb) : ''}</td></tr>`; }).join('')}
+        </tbody></table>${C.legend(['†'])}</div>
+      <div class="grid2">
+        <div class="card"><h3>Best games${mk('*')}</h3><table class="t"><tbody>${vm.best.map(g => `<tr><td class="num" style="color:#5ee3cf">${n2(g.pts)}</td><td>v <a href="${fUrl(g.opp)}">${fname(g.opp)}</a></td><td class="num">${g.s} · W${g.w}</td></tr>`).join('')}</tbody></table></div>
+        <div class="card"><h3>Worst games${mk('*')}</h3><table class="t"><tbody>${vm.worst.map(g => `<tr><td class="num" style="color:#ff8fa3">${n2(g.pts)}</td><td>v <a href="${fUrl(g.opp)}">${fname(g.opp)}</a></td><td class="num">${g.s} · W${g.w}</td></tr>`).join('')}</tbody></table></div>
+        <div class="card"><h3>Bracket history</h3>${vm.sb.map(x => `<div style="padding:6px 0;border-bottom:1px solid #1a2333">${x.s} · Shit Bowl winner${C.src(x)}${x.disputed ? `<span class="alias">with ${x.others.map(fname).join(', ')}</span>` : ''}</div>`).join('')}
+          ${vm.lost.filter(g => g.ph === 'P').map(g => `<div style="padding:6px 0;border-bottom:1px solid #1a2333">${g.s} · Playoffs W${g.w} v ${fname(g.opp)}${mk('‡')}</div>`).join('')}</div>
+        ${vm.players.length ? `<div class="card"><h3>Most started${mk('¶')}</h3><table class="t"><tbody>${vm.players.map(p => `<tr><td><a href="#">${esc(p.name)}</a><span class="alias">${p.pos} · ${p.team}</span></td><td class="num">${p.starts} st</td><td class="num">${n2(p.pts)}</td></tr>`).join('')}</tbody></table></div>` : '<div></div>'}
+      </div>
+      <div class="card"><h3>Head-to-head</h3><table class="t"><thead><tr><th>Opponent</th><th class="num">Games</th><th class="num">W-L-T</th><th>Win %</th><th class="num">Last met</th></tr></thead><tbody>
+        ${vm.h2h.map(o => `<tr class="${o.dep ? 'dep' : ''}"><td><a href="${fUrl(o.opp)}">${fname(o.opp)}</a>${o.dep ? C.bd.dep : ''}</td><td class="num">${o.gp}</td><td class="num">${wlt(o)}</td><td><div class="bar"><i style="width:${o.pct * 100}%"></i></div></td><td class="num">${o.last}</td></tr>`).join('')}
+        </tbody></table>${C.legend(['†'], ['Games with scores only'])}</div>`);
+  },
+  statsguru(vm) {
+    return C.shell(`<div class="crumb">Statsguru / Results</div><h1>Statsguru</h1>
+      <div class="card qsum"><div class="chips" style="margin:0"><span class="chip on">Franchise records</span><span class="chip">Totals per franchise</span><span class="chip">2012–2025</span><span class="chip">Regular season</span><span class="chip">Playoffs</span></div><a class="btn" href="#">Edit query</a></div>
+      <div class="card" style="padding:0 0 12px"><table class="t"><thead><tr>${SGCOLS.map(([k, l]) => `<th class="${k === 'name' || k === 'span' ? '' : 'num'} ${vm.col === k ? 'sorted' : ''}"><a href="${sortUrl(k, vm)}">${l}${k === 'hs' || k === 'ls' ? mk('*') : ''}${vm.col === k ? (vm.dir === 'desc' ? ' ↓' : ' ↑') : ''}</a></th>`).join('')}</tr></thead><tbody>
+        ${vm.rows.map(r => `<tr class="${r.dep ? 'dep' : ''}">${SGCOLS.map(([k]) => k === 'name' ? `<td><a href="${fUrl(r.f)}">${F[r.f].emoji || '·'} ${esc(r.name)}</a>${r.gap ? mk('†') : ''}${r.lost ? mk('‡') : ''}${r.dep ? C.bd.dep : ''}</td>` : `<td class="${k === 'span' ? '' : 'num'}">${sgCell(r, k)}</td>`).join('')}</tr>`).join('')}
+        </tbody></table><div style="padding:0 18px">${C.legend(['†', '‡', '*'], QNOTES)}</div></div>`);
+  },
+};
+
+// ---------- render ----------
+const V = { A, B, C }[variant];
+document.body.className = 'v' + variant;
+const fid = +(P.get('f') || 15);
+const vm = page === 'records' ? recordVM() : page === 'franchise' ? profileVM(F[fid] ? fid : 15) : sgVM();
+document.getElementById('app').innerHTML = V[page](vm);
+document.title = `PROTOTYPE · ${variant} ${VARIANTS[variant]} · ${PAGES[page]}`;
+
+// ---------- prototype switcher ----------
+const keys = Object.keys(VARIANTS);
+const go = v => location.search = url({ variant: v });
+const cycle = d => go(keys[(keys.indexOf(variant) + d + keys.length) % keys.length]);
+document.getElementById('proto-bar').innerHTML = `<button id="pv">←</button><span class="lbl">${variant} (${VARIANTS[variant]})</span><button id="nv">→</button><span class="sep"></span>
+  ${Object.entries(PAGES).map(([k, l]) => `<button data-p="${k}" class="${k === page ? 'on' : ''}">${l}</button>`).join('')}`;
+document.getElementById('pv').onclick = () => cycle(-1);
+document.getElementById('nv').onclick = () => cycle(1);
+document.querySelectorAll('#proto-bar [data-p]').forEach(b => b.onclick = () => location.search = url({ page: b.dataset.p, sort: null }));
+addEventListener('keydown', e => { if (e.target.closest('input,textarea,[contenteditable]')) return; if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1); });
+</script>
+</body>
+</html>
