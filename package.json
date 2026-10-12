@@ -1,0 +1,17 @@
+{
+  "name": "tlgffl",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build:data": "python3 -m recordbook.build",
+    "build": "astro build",
+    "dev": "astro dev",
+    "test:site": "node --test \"site-tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "astro": "7.3.8"
+  }
+}

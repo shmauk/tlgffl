@@ -1,0 +1,43 @@
+---
+// A placeholder franchise page so /franchises/<id>/ URLs exist from the start.
+// The full profile is a later ticket.
+import Base from '../../layouts/Base.astro';
+import { franchises, teamNames, reportedSeasonLines, type Franchise } from '../../lib/db';
+
+export function getStaticPaths() {
+  return franchises().map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
+}
+
+const { franchise } = Astro.props as { franchise: Franchise };
+const names = teamNames(franchise.id);
+const lines = new Map(reportedSeasonLines(franchise.id).map((l) => [l.season, l]));
+---
+
+<Base title={franchise.name}>
+  <h1>{franchise.name}</h1>
+  <p>{franchise.active ? 'Active' : 'Departed'} · {franchise.firstSeason}–{franchise.active ? '' : franchise.lastSeason}</p>
+  <table>
+    <thead>
+      <tr><th>Season</th><th>Team name</th><th>W-L-T</th><th>PF</th><th>PA</th><th>Seed</th><th>Final</th></tr>
+    </thead>
+    <tbody>
+      {
+        names.map(({ season, teamName }) => {
+          const l = lines.get(season);
+          return (
+            <tr>
+              <td>{season}</td>
+              <td>{teamName}</td>
+              <td>{l ? `${l.wins}-${l.losses}-${l.ties}` : ''}</td>
+              <td>{l?.pointsFor.toFixed(2) ?? ''}</td>
+              <td>{l?.pointsAgainst.toFixed(2) ?? ''}</td>
+              <td>{l?.seed ?? ''}</td>
+              <td>{l?.finalPlacing ?? ''}</td>
+            </tr>
+          );
+        })
+      }
+    </tbody>
+  </table>
+  <p>Season lines are as NFL.com reported them. Sleeper-era seasons are still to come.</p>
+</Base>

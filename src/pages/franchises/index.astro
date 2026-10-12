@@ -1,0 +1,26 @@
+---
+import Base from '../../layouts/Base.astro';
+import { franchises } from '../../lib/db';
+
+const all = franchises();
+const active = all.filter((f) => f.active);
+const departed = all.filter((f) => !f.active);
+---
+
+<Base title="Franchises">
+  <h1>Franchises</h1>
+  <h2>Active</h2>
+  <ul>
+    {active.map((f) => <li><a href={`/franchises/${f.id}/`}>{f.name}</a> ({f.firstSeason}–)</li>)}
+  </ul>
+  <h2>Departed</h2>
+  <ul>
+    {
+      departed.map((f) => (
+        <li>
+          <a href={`/franchises/${f.id}/`}>{f.name}</a> ({f.firstSeason}–{f.lastSeason})
+        </li>
+      ))
+    }
+  </ul>
+</Base>
