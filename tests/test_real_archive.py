@@ -47,3 +47,21 @@ def test_redacted_and_pending_names_stay_team_names_only(db):
     assert db.execute("select f.name from team_names t join franchises f on f.id = t.franchise_id "
                       "where t.season = 2019 and t.team_name = '[name redacted]'").fetchall() == [
         ("Bearnaise Dynamics",)]
+
+
+def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
+    # 4-team Playoffs to 2014, 6-team after. 2021's final is missing from the
+    # log, and the log stops at 2022 week 9.
+    counts = dict(db.execute("select season, count(*) from games where bracket = 'playoffs' "
+                             "group by season").fetchall())
+    assert counts == {**{y: 3 for y in (2012, 2013, 2014)}, **{y: 5 for y in range(2015, 2021)},
+                      2021: 4}
+    # 2015: seed 6 beat seed 1 in the semis and met seed 2 in the final; the
+    # 1 v 4 third-place pairing that week is filler.
+    final = db.execute(
+        "select g.round, f.name, g.home_points, a.name, g.away_points from games g "
+        "join franchises f on f.id = g.home_franchise_id join franchises a on a.id = g.away_franchise_id "
+        "where g.season = 2015 and g.bracket = 'playoffs' and g.week = 16").fetchall()
+    assert final == [(3, "Mooreccan chicken with rice", 85.88, "The Hatters", 72.7)]
+    assert db.execute("select count(*) from games where bracket is not null and bracket != 'playoffs'"
+                      ).fetchone() == (0,)

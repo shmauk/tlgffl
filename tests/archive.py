@@ -68,6 +68,18 @@ def write_csv(path: Path, header, rows, comments=()):
         w.writerows(rows)
 
 
+def write_games(data: Path, rows):
+    """The NFL.com game log, as scraped: rows of
+    (year, week, home team name, away team name, home score, away score)."""
+    out = []
+    for n, (year, week, home, away, hs, as_) in enumerate(rows):
+        # The scrape's winner column is unreliable (ties fall to away); fill it the buggy way.
+        out.append((f"{year}_{week}_{n}", year, week, n, home, away, hs, as_, home if hs > as_ else away))
+    write_csv(data / "league_h2h.csv",
+              ["", "year", "round", "game", "home_team", "away_team", "home_score", "away_score", "winner"],
+              out)
+
+
 def write_franchise_keys(data: Path, rows):
     """rows: (franchise_id, era, slot, owner_user_id)."""
     write_csv(data / "franchises.csv", ["franchise_id", "era", "slot", "owner_user_id", "note"],

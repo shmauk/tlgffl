@@ -12,7 +12,10 @@ import json
 import re
 import sqlite3
 from collections import defaultdict
+from dataclasses import astuple
 from pathlib import Path
+
+from recordbook import games as gamelog
 
 LEAGUE = "1078038"
 
@@ -55,7 +58,26 @@ create table reported_season_lines (
     final_placing integer,
     primary key (franchise_id, season)
 );
+-- A head-to-head pairing that counts in the league's results. Platform filler
+-- pairings are never written. Only final games count.
+create table games (
+    id integer primary key,
+    season integer not null references seasons(year),
+    week integer not null,
+    phase text not null check (phase in ('regular', 'bracket')),
+    bracket text check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
+    round integer,
+    status text not null check (status in ('scheduled', 'live', 'final')),
+    home_franchise_id integer not null references franchises(id),
+    home_points real,
+    away_franchise_id integer not null references franchises(id),
+    away_points real,
+    check ((phase = 'regular') = (bracket is null and round is null))
+);
 """
+
+GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
+                "home_points", "away_franchise_id", "away_points")
 
 
 class BuildError(Exception):
@@ -166,6 +188,26 @@ def build(data, out):
             played[fid].add(year)
             sleeper_ids[fid] = r["roster_id"]
 
+    # Every franchise plays every regular-season week, so the reported W+L+T
+    # is the regular season's length.
+    regular_weeks = {}
+    for _, year, w, l, t, *_ in lines:
+        regular_weeks[year] = max(regular_weeks.get(year, 0), w + l + t)
+    franchise_by_team_name = {(y, n): f for (f, y), n in team_names.items()}
+
+    def franchise_of(year, name):
+        if (year, name) not in franchise_by_team_name:
+            raise BuildError(f"the {year} game log names {name!r}, but no team had that name in {year}")
+        return franchise_by_team_name[(year, name)]
+
+    playoff_teams = defaultdict(set)
+    for fid, year, *_, bracket, _placing in lines:
+        if bracket == "championship":
+            playoff_teams[year].add(fid)
+
+    games = gamelog.nfl_games(gamelog.read_log(data / "league_h2h.csv"), franchise_of,
+                              regular_weeks, playoff_teams)
+
     if not seasons:
         raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
     all_ids = sorted(set(keys.values()))
@@ -190,6 +232,9 @@ def build(data, out):
                         [(f, y, n) for (f, y), n in sorted(team_names.items())])
         con.executemany(f"insert into reported_season_lines values ({', '.join('?' * 11)})",
                         sorted(lines))
+        con.executemany(f"insert into games ({', '.join(GAME_COLUMNS)}) "
+                        f"values ({', '.join('?' * len(GAME_COLUMNS))})",
+                        [astuple(g) for g in games])
         con.commit()
     finally:
         con.close()
