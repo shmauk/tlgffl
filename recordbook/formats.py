@@ -62,6 +62,9 @@ def load(path, team_counts):
     out = {}
     for season in sorted(team_counts):
         f = entries[season]
+        if not f.get("realignment"):
+            raise FormatError(f"data/formats.yaml {season}: no realignment (the first season "
+                              "of the division cycle it belongs to)")
         if f["teams"] != team_counts[season]:
             raise FormatError(f"data/formats.yaml says {season} had {f['teams']} teams, "
                               f"but {team_counts[season]} played")

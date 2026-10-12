@@ -1,128 +1,148 @@
 # Each season's format (decided in #11; see GLOSSARY.md). Hand-kept: for past
-# seasons it records what was actually played.
+# seasons it records what was actually played. Every season the archive holds
+# must have an entry, or the build fails; a season may be written down ahead.
 #
 #   teams                 how many franchises played (checked against the archive)
 #   divisions             how many divisions
+#   realignment           the first season of the division cycle this season
+#                         belongs to (the divisions are redrawn when it changes)
 #   regular_season_weeks  first and last week of the regular season
-#   brackets              each bracket's size, the weeks it plays and, for a
-#                         series, how it is won
+#   tiebreaks             how level franchises are separated for seeding
+#   brackets              each bracket's size, the weeks it plays (one per
+#                         round), how it is seeded and, for a series, how it is won
 #
-# Seeding, tiebreaks and realignment cycles are still to be added (#23).
+# NFL.com-era (2012-2024) seeds are as NFL.com reported them: it applied its
+# own tiebreaks, and nobody recalculates them. From 2025 the written rules
+# (playoffs.md) apply, and the build will check its seeds against the
+# brackets played (ADR 0005).
+
+x-nfl-tiebreaks: &nfl-tiebreaks NFL.com's own, as it reported the seeds
+x-rules-tiebreaks: &rules-tiebreaks >-
+  Win %, a tie counting half. Two franchises: head-to-head, then divisional
+  record if they share a division, then Breakdown, then scissors-paper-rock.
+  Three or more: divisional record if all share a division, then Breakdown,
+  then scissors-paper-rock. The Shit Bowl uses the reverse.
+
+x-nfl-4: &nfl-4
+  playoffs: {size: 4, weeks: [15, 16], seeding: "The top 4 as NFL.com seeded them: 1 v 4 and 2 v 3, the winners meet"}
+  shit_bowl: {size: 4, weeks: [15, 16], seeding: "The bottom 4; losing advances. NFL.com did not run it, so its pairings are not recorded"}
+x-nfl-6-from-14: &nfl-6-from-14
+  playoffs: {size: 6, weeks: [14, 15, 16], seeding: "As NFL.com seeded them: seeds 1 and 2 bye, 3 v 6 and 4 v 5, then re-seeded so seed 1 meets the lowest seed left"}
+  shit_bowl: {size: 6, weeks: [14, 15, 16], seeding: "The bottom 6; losing advances. NFL.com did not run it, so its pairings are not recorded"}
+  mediocre_bowl: {size: 4, weeks: [14, 15], seeding: "The middle 4. NFL.com did not run it, so its pairings are not recorded"}
+x-nfl-6-from-15: &nfl-6-from-15
+  playoffs: {size: 6, weeks: [15, 16, 17], seeding: "As NFL.com seeded them: seeds 1 and 2 bye, 3 v 6 and 4 v 5, then re-seeded so seed 1 meets the lowest seed left"}
+  shit_bowl: {size: 6, weeks: [15, 16, 17], seeding: "The bottom 6; losing advances. NFL.com did not run it, so its pairings are not recorded"}
+  mediocre_bowl: {size: 4, weeks: [15, 16], seeding: "The middle 4. NFL.com did not run it, so its pairings are not recorded"}
 
 2012:
   teams: 10
   divisions: 1
+  realignment: 2012
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 4, weeks: [15, 16]}
-    shit_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-4
 2013:
   teams: 12
   divisions: 1
+  realignment: 2012
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 4, weeks: [15, 16]}
-    shit_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-4
 2014:
   teams: 12
   divisions: 1
+  realignment: 2012
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 4, weeks: [15, 16]}
-    shit_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-4
 2015:
   teams: 16
   divisions: 4
+  realignment: 2015
   regular_season_weeks: [1, 13]
-  brackets:
-    playoffs: {size: 6, weeks: [14, 15, 16]}
-    shit_bowl: {size: 6, weeks: [14, 15, 16]}
-    mediocre_bowl: {size: 4, weeks: [14, 15]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-14
 2016:
   teams: 16
   divisions: 4
+  realignment: 2016
   regular_season_weeks: [1, 13]
-  brackets:
-    playoffs: {size: 6, weeks: [14, 15, 16]}
-    shit_bowl: {size: 6, weeks: [14, 15, 16]}
-    mediocre_bowl: {size: 4, weeks: [14, 15]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-14
 2017:
   teams: 16
   divisions: 4
+  realignment: 2017
   regular_season_weeks: [1, 13]
-  brackets:
-    playoffs: {size: 6, weeks: [14, 15, 16]}
-    shit_bowl: {size: 6, weeks: [14, 15, 16]}
-    mediocre_bowl: {size: 4, weeks: [14, 15]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-14
 2018:
   teams: 16
   divisions: 4
+  realignment: 2018
   regular_season_weeks: [1, 13]
-  brackets:
-    playoffs: {size: 6, weeks: [14, 15, 16]}
-    shit_bowl: {size: 6, weeks: [14, 15, 16]}
-    mediocre_bowl: {size: 4, weeks: [14, 15]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-14
 2019:
   teams: 16
   divisions: 4
+  realignment: 2019
   regular_season_weeks: [1, 13]
-  brackets:
-    playoffs: {size: 6, weeks: [14, 15, 16]}
-    shit_bowl: {size: 6, weeks: [14, 15, 16]}
-    mediocre_bowl: {size: 4, weeks: [14, 15]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-14
 2020:
   teams: 16
   divisions: 4
+  realignment: 2020
   regular_season_weeks: [1, 13]
-  brackets:
-    playoffs: {size: 6, weeks: [14, 15, 16]}
-    shit_bowl: {size: 6, weeks: [14, 15, 16]}
-    mediocre_bowl: {size: 4, weeks: [14, 15]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-14
 2021:
   teams: 16
   divisions: 4
+  realignment: 2021
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 6, weeks: [15, 16, 17]}
-    shit_bowl: {size: 6, weeks: [15, 16, 17]}
-    mediocre_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-15
 2022:
   teams: 16
   divisions: 4
+  realignment: 2022
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 6, weeks: [15, 16, 17]}
-    shit_bowl: {size: 6, weeks: [15, 16, 17]}
-    mediocre_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-15
 2023:
   teams: 16
   divisions: 4
+  realignment: 2023
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 6, weeks: [15, 16, 17]}
-    shit_bowl: {size: 6, weeks: [15, 16, 17]}
-    mediocre_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-15
 2024:
   teams: 16
   divisions: 4
+  realignment: 2023
   regular_season_weeks: [1, 14]
-  brackets:
-    playoffs: {size: 6, weeks: [15, 16, 17]}
-    shit_bowl: {size: 6, weeks: [15, 16, 17]}
-    mediocre_bowl: {size: 4, weeks: [15, 16]}
+  tiebreaks: *nfl-tiebreaks
+  brackets: *nfl-6-from-15
 2025:
   teams: 16
   divisions: 4
+  realignment: 2025
   regular_season_weeks: [1, 14]
+  tiebreaks: *rules-tiebreaks
   brackets:
-    playoffs: {size: 6, weeks: [15, 16, 17]}
-    shit_bowl: {size: 6, weeks: [15, 16, 17]}
-    mediocre_bowl: {size: 4, weeks: [15, 16]}
+    playoffs: {size: 6, weeks: [15, 16, 17], seeding: "Division winners take seeds 1-4 and 2 wildcards 5-6. Seeds 1 and 2 bye, 3 v 6 and 4 v 5, then re-seeded so seed 1 meets the lowest seed left"}
+    shit_bowl: {size: 6, weeks: [15, 16, 17], seeding: "The mirror image: the 4 division losers and the 2 worst wildcards, the worst 2 on byes; losing advances"}
+    mediocre_bowl: {size: 4, weeks: [15, 16], seeding: "The remaining 4: 7 v 10 and 8 v 9, the winners meet"}
 2026:
   teams: 16
   divisions: 4
+  realignment: 2025
   regular_season_weeks: [1, 14]
+  tiebreaks: *rules-tiebreaks
   brackets:
-    playoffs: {size: 7, weeks: [15, 16, 17]}
-    shit_bowl: {size: 7, weeks: [15, 16, 17]}
-    mediocre_bowl: {size: 2, weeks: [15, 16, 17], series: best of three}
+    playoffs: {size: 7, weeks: [15, 16, 17], seeding: "Division winners take seeds 1-4 and 3 wildcards 5-7. Only seed 1 byes: 2 v 7, 3 v 6 and 4 v 5, then re-seeded so seed 1 meets the lowest seed left"}
+    shit_bowl: {size: 7, weeks: [15, 16, 17], seeding: "The mirror image: the 4 division losers and the 3 worst wildcards, the worst on a bye; losing advances"}
+    mediocre_bowl: {size: 2, weeks: [15, 16, 17], series: best of three, seeding: "Seeds 8 and 9 play all three games, a tie counting half; total points decide if still level"}

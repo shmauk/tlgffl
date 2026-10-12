@@ -68,6 +68,22 @@ def test_formats_follow_the_rules_by_season(db):
         ("mediocre_bowl", 14, 15), ("playoffs", 14, 16), ("shit_bowl", 14, 16)]
 
 
+def test_a_new_realignment_cycle_starts_exactly_where_nfl_com_divisions_were_redrawn(db):
+    # Division membership by franchise, season by season (NFL.com era; 2012-14
+    # is one division whose membership only changes with the team count).
+    members = {}
+    for season, division, fid in db.execute(
+            "select season, division, franchise_id from season_lines where season between 2015 and 2024"):
+        members.setdefault(season, {}).setdefault(division, set()).add(fid)
+    groups = {s: sorted(sorted(m) for m in d.values()) for s, d in members.items()}
+    cycles = dict(db.execute("select season, realignment from season_formats"))
+    for season in range(2016, 2025):
+        redrawn = groups[season] != groups[season - 1]
+        assert (cycles[season] == season) == redrawn, season
+    assert cycles[2015] == 2015
+    assert {cycles[y] for y in (2012, 2013, 2014)} == {2012}
+
+
 def test_the_constitution_and_agm_documents_are_linked(db):
     assert db.execute("select count(*) from documents where kind = 'constitution'").fetchone() == (1,)
     assert [s for (s,) in db.execute("select distinct season from documents where kind = 'agm' order by season")

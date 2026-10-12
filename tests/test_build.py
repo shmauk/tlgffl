@@ -99,8 +99,9 @@ def test_an_empty_archive_fails_the_build(tmp_path):
         build(tmp_path, tmp_path / "league.sqlite")
 
 
-FORMAT_2012 = {"teams": 2, "divisions": 1, "regular_season_weeks": [1, 14],
-               "brackets": {"playoffs": {"size": 1, "weeks": [15]},
+FORMAT_2012 = {"teams": 2, "divisions": 1, "realignment": 2012, "regular_season_weeks": [1, 14],
+               "tiebreaks": "NFL.com's own",
+               "brackets": {"playoffs": {"size": 1, "weeks": [15], "seeding": "as NFL.com reported"},
                             "shit_bowl": {"size": 4, "weeks": [15, 16]}}}
 
 
@@ -108,8 +109,10 @@ def test_a_seasons_format_comes_from_the_hand_kept_format_file(archive, tmp_path
     write_formats(archive, {
         2012: FORMAT_2012,
         2013: fmt(2, 3, (1, [4])),
-        2025: {"teams": 3, "divisions": 4, "regular_season_weeks": [1, 14],
-               "brackets": {"playoffs": {"size": 6, "weeks": [15, 16, 17]},
+        2025: {"teams": 3, "divisions": 4, "realignment": 2025, "regular_season_weeks": [1, 14],
+               "tiebreaks": "head-to-head, then Breakdown",
+               "brackets": {"playoffs": {"size": 6, "weeks": [15, 16, 17],
+                                         "seeding": "division winners 1-4"},
                             "shit_bowl": {"size": 6, "weeks": [15, 16, 17]},
                             "mediocre_bowl": {"size": 2, "weeks": [15, 16, 17],
                                               "series": "best of three"}}},
@@ -117,15 +120,23 @@ def test_a_seasons_format_comes_from_the_hand_kept_format_file(archive, tmp_path
     db = tmp_path / "league.sqlite"
     build(archive, db)
     assert query(db, "select * from season_formats order by season") == [
-        (2012, 1, 1, 14), (2013, 1, 1, 3), (2025, 4, 1, 14)]
+        (2012, 1, 1, 14, 2012, "NFL.com's own"), (2013, 1, 1, 3, 2012, None),
+        (2025, 4, 1, 14, 2025, "head-to-head, then Breakdown")]
     assert query(db, "select * from season_brackets order by season, size desc, bracket") == [
-        (2012, "shit_bowl", 4, 15, 16, None),
-        (2012, "playoffs", 1, 15, 15, None),
-        (2013, "playoffs", 1, 4, 4, None),
-        (2025, "playoffs", 6, 15, 17, None),
-        (2025, "shit_bowl", 6, 15, 17, None),
-        (2025, "mediocre_bowl", 2, 15, 17, "best of three"),
+        (2012, "shit_bowl", 4, 15, 16, None, None),
+        (2012, "playoffs", 1, 15, 15, None, "as NFL.com reported"),
+        (2013, "playoffs", 1, 4, 4, None, None),
+        (2025, "playoffs", 6, 15, 17, None, "division winners 1-4"),
+        (2025, "shit_bowl", 6, 15, 17, None, None),
+        (2025, "mediocre_bowl", 2, 15, 17, "best of three", None),
     ]
+
+
+def test_a_format_without_its_realignment_cycle_fails_the_build(archive, tmp_path):
+    no_cycle = {k: v for k, v in FORMAT_2012.items() if k != "realignment"}
+    write_formats(archive, {2012: no_cycle, 2013: fmt(2, 3, (1, [4])), 2025: fmt(3, 14, (2, [15]))})
+    with pytest.raises(BuildError, match="2012.*realignment"):
+        build(archive, tmp_path / "league.sqlite")
 
 
 def test_a_season_without_a_format_fails_the_build(archive, tmp_path):

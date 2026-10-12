@@ -117,12 +117,16 @@ create table season_lines (
     primary key (franchise_id, season)
 );
 -- A season's format (#11), from the hand-kept data/formats.yaml. Its team
--- count is seasons.team_count.
+-- count is seasons.team_count. realignment is the first season of the
+-- division cycle the season belongs to; tiebreaks and seeding are the rules
+-- in words.
 create table season_formats (
     season integer primary key references seasons(year),
     divisions integer not null,
     regular_season_first_week integer not null,
-    regular_season_last_week integer not null
+    regular_season_last_week integer not null,
+    realignment integer not null,
+    tiebreaks text
 );
 create table season_brackets (
     season integer not null references season_formats(season),
@@ -131,6 +135,7 @@ create table season_brackets (
     first_week integer not null,
     last_week integer not null,
     series text,
+    seeding text,
     primary key (season, bracket)
 );
 -- The constitution and AGM documents (Google Docs links), from the hand-kept
@@ -346,8 +351,8 @@ def build(data, out):
         con.executemany("insert into coverage values (?, ?, ?, ?, ?, ?, ?)", coverage)
         con.executemany(f"insert into season_lines values ({', '.join('?' * 16)})",
                         sorted(season_lines))
-        con.executemany("insert into season_formats values (?, ?, ?, ?)", format_rows)
-        con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?)", bracket_rows)
+        con.executemany("insert into season_formats values (?, ?, ?, ?, ?, ?)", format_rows)
+        con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?, ?)", bracket_rows)
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
         con.commit()
@@ -363,9 +368,9 @@ def season_format_rows(formats):
     """Rows for season_formats and season_brackets."""
     rows, brackets = [], []
     for season, f in sorted(formats.items()):
-        rows.append((season, f.divisions, *f.regular_season))
+        rows.append((season, f.divisions, *f.regular_season, f.realignment, f.tiebreaks))
         for b in f.brackets.values():
-            brackets.append((season, b.name, b.size, b.first_week, b.last_week, b.series))
+            brackets.append((season, b.name, b.size, b.first_week, b.last_week, b.series, b.seeding))
     return rows, brackets
 
 
