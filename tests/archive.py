@@ -99,6 +99,16 @@ def write_formats(data: Path, formats):
     (data / "formats.yaml").write_text(yaml.safe_dump(formats, sort_keys=False))
 
 
+def fmt(teams, regular_last, playoffs, shit_bowl=None, mediocre_bowl=None, divisions=1,
+        realignment=2012):
+    """One season's format entry. Each bracket is (size, [weeks])."""
+    brackets = {"playoffs": playoffs, "shit_bowl": shit_bowl, "mediocre_bowl": mediocre_bowl}
+    return {"teams": teams, "divisions": divisions, "realignment": realignment,
+            "regular_season_weeks": [1, regular_last],
+            "brackets": {name: {"size": b[0], "weeks": list(b[1])}
+                         for name, b in brackets.items() if b}}
+
+
 def write_documents(data: Path, rows):
     """rows: (kind, season, title, url)."""
     write_csv(data / "documents.csv", ["kind", "season", "title", "url"], rows)

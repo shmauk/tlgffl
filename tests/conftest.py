@@ -1,7 +1,7 @@
 import pytest
 
 from tests.archive import (team, write_nfl_season, write_sleeper_season,
-                           write_franchise_keys, write_sleeper_aliases)
+                           write_franchise_keys, write_sleeper_aliases, write_formats, fmt)
 
 
 @pytest.fixture
@@ -28,4 +28,9 @@ def archive(tmp_path):
     write_sleeper_aliases(data, [(1, "Charlie Sleeper", "Charlie"),
                                  (2, "Alpha Sleeper", "Alpha Two"),
                                  (3, "Delta", "Delta")])
+    # One Playoffs place a season in the 2-team NFL.com seasons, so no bracket
+    # games. 2014 is written ahead, for the tests that add it.
+    write_formats(data, {2012: fmt(2, 3, (1, [4])), 2013: fmt(2, 3, (1, [4])),
+                         2014: fmt(2, 3, (1, [4])),
+                         2025: fmt(3, 14, (2, [15]))})
     return data

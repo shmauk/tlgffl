@@ -10,7 +10,7 @@ import pytest
 
 from recordbook.build import build, BuildError
 from tests.archive import (team, write_nfl_season, write_franchise_keys, write_sleeper_aliases,
-                           write_games)
+                           write_games, write_formats, fmt)
 
 # (week, home, away, home score, away score)
 REGULAR = [
@@ -47,6 +47,7 @@ def data(tmp_path):
     write_franchise_keys(data, [(slot, "nfl.com", slot, slot * 100) for slot in range(1, 5)])
     write_sleeper_aliases(data, [])
     write_games(data, [(2014, *g) for g in REGULAR + POSTSEASON])
+    write_formats(data, {2014: fmt(4, 3, (2, [4]), shit_bowl=(2, [4]))})
     return data
 
 
@@ -109,6 +110,19 @@ def test_coverage_is_recorded_per_season_week_and_phase(data, tmp_path):
         (2, "regular", None, 2, 2, 1),
         (3, "regular", None, 2, 1, 0),
         (4, "bracket", "playoffs", 1, 0, 0),
+    ]
+
+
+def test_the_regular_season_is_as_long_as_the_format_says(data, tmp_path):
+    # Had the season run four weeks, week 4 would be a regular-season week with
+    # no surviving games, and the Playoffs would be in week 5.
+    write_formats(data, {2014: fmt(4, 4, (2, [5]), shit_bowl=(2, [5]))})
+    write_games(data, [(2014, *g) for g in REGULAR])
+    db = built(data, tmp_path)
+    assert query(db, "select week, phase, bracket, games_expected, games_final, complete "
+                     "from coverage where season = 2014 and week > 3 order by week") == [
+        (4, "regular", None, 2, 0, 0),
+        (5, "bracket", "playoffs", 1, 0, 0),
     ]
 
 
