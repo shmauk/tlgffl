@@ -20,7 +20,7 @@ from pathlib import Path
 
 from recordbook.build import read_csv
 
-# ff-data-project field -> reported_season_lines expression.
+# ff-data-project field -> season_lines expression (derived where games allow, ADR 0001).
 SEASON_LINE_FIGURES = {
     "teamName": "t.team_name",
     "wins": "l.wins",
@@ -71,7 +71,7 @@ def compare(db_path, golden_path, allow_path):
                 if s["platform"] != "NFL.com":
                     continue  # Sleeper-era season lines aren't built yet
                 row = con.execute(
-                    f"select {', '.join(SEASON_LINE_FIGURES.values())} from reported_season_lines l "
+                    f"select {', '.join(SEASON_LINE_FIGURES.values())} from season_lines l "
                     "join team_names t on t.franchise_id = l.franchise_id and t.season = l.season "
                     "where l.franchise_id = ? and l.season = ?", (ours[name][0], int(s["year"]))
                 ).fetchone() or [None] * len(SEASON_LINE_FIGURES)

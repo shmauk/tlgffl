@@ -72,3 +72,53 @@ def test_the_constitution_and_agm_documents_are_linked(db):
     assert db.execute("select count(*) from documents where kind = 'constitution'").fetchone() == (1,)
     assert [s for (s,) in db.execute("select distinct season from documents where kind = 'agm' order by season")
             ] == [2021, 2022, 2023, 2024, 2025]
+
+
+def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
+    # 4-team Playoffs to 2014, 6-team after. 2021's final is missing from the
+    # log, and the log stops at 2022 week 9.
+    counts = dict(db.execute("select season, count(*) from games where bracket = 'playoffs' "
+                             "group by season").fetchall())
+    assert counts == {**{y: 3 for y in (2012, 2013, 2014)}, **{y: 5 for y in range(2015, 2021)},
+                      2021: 4}
+    # 2015: seed 6 beat seed 1 in the semis and met seed 2 in the final; the
+    # 1 v 4 third-place pairing that week is filler.
+    final = db.execute(
+        "select g.round, f.name, g.home_points, a.name, g.away_points from games g "
+        "join franchises f on f.id = g.home_franchise_id join franchises a on a.id = g.away_franchise_id "
+        "where g.season = 2015 and g.bracket = 'playoffs' and g.week = 16").fetchall()
+    assert final == [(3, "Mooreccan chicken with rice", 85.88, "The Hatters", 72.7)]
+    assert db.execute("select count(*) from games where bracket is not null and bracket != 'playoffs'"
+                      ).fetchone() == (0,)
+
+
+def test_coverage_marks_the_known_gaps(db):
+    def incomplete(phase):
+        return db.execute("select season, week from coverage where phase = ? and not complete "
+                          "order by season, week", (phase,)).fetchall()
+    # Regular-season scores stop at 2022 week 9.
+    assert incomplete("regular") == [(2022, w) for w in range(10, 15)] + [
+        (y, w) for y in (2023, 2024) for w in range(1, 15)]
+    # Playoffs scores stop at 2021, whose final (week 17) is missing too.
+    assert incomplete("bracket") == [(2021, 17)] + [(y, w) for y in (2022, 2023, 2024)
+                                                    for w in (15, 16, 17)]
+
+
+def test_season_lines_are_derived_through_2021_and_reported_after(db):
+    # Building at all proves the agreement check passed for 2012-2021.
+    assert db.execute("select season, group_concat(distinct source) from season_lines "
+                      "group by season order by season").fetchall() == [
+        *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)]]
+
+
+def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
+    # A franchise meets every other franchise every regular-season week:
+    # 9 x 14 in 2012, 11 x 14 in 2013-14, 15 x 13 in 2015-20, 15 x 14 in 2021.
+    rows = db.execute("select season, min(breakdown_wins + breakdown_losses + breakdown_ties), "
+                      "max(breakdown_wins + breakdown_losses + breakdown_ties), count(luck) "
+                      "from season_lines group by season order by season").fetchall()
+    per_franchise = {2012: 126, 2013: 154, 2014: 154, **{y: 195 for y in range(2015, 2021)},
+                     2021: 210}
+    teams = {2012: 10, 2013: 12, 2014: 12}
+    assert rows == [*[(y, n, n, teams.get(y, 16)) for y, n in per_franchise.items()],
+                    *[(y, None, None, 0) for y in (2022, 2023, 2024)]]
