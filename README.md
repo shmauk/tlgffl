@@ -45,5 +45,12 @@ the hand-kept franchise id table.
 ### Golden test allow-list
 
 `golden/allowlist.csv` lists figures that may differ from ff-data-project's, one per line as
-`<franchise name>|<season>|<field>,<reason>`. Every entry needs a reason, and an entry with nothing
-left to excuse fails the check.
+`<franchise name>|<season>|<field>,<reason>` (or `<season>|<field>` for a season's champion,
+runner-up and Shit Bowl winner). Every entry needs a reason, and an entry with nothing left to
+excuse fails the check.
+
+### Hand-kept bracket tables
+
+`data/formats.yaml` holds every season's format; a season without one fails the build.
+`data/shitbowl.csv` and `data/mediocre_bowl.csv` record NFL.com-era Shit Bowl and Mediocre Bowl
+winners, which no platform data can supply. A blank row is shown as unknown, and `A|B` as disputed.

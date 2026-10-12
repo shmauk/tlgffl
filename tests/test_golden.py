@@ -91,6 +91,70 @@ def test_allow_list_entry_with_nothing_to_excuse_is_stale(paths):
     assert compare(db, golden, allow).stale == ["Bravo|2012|wins"]
 
 
+def bracket_golden():
+    """ff-data-project's figures for test_games' 2014 season: Ant (seed 1) beat
+    Bee (seed 2) in the final, and Dog took the Shit Bowl."""
+    def s(name, placing, made, wins, losses, shitbowl=False):
+        return {"year": "2014", "platform": "NFL.com", "finalOrder": placing, "madePlayoffs": made,
+                "playoff": {"wins": wins, "losses": losses}, "shitbowl": shitbowl,
+                "shitbowlDisputed": False}
+    return {
+        "meta": {"finals": [{"year": "2014", "platform": "NFL.com", "champion": "Ant", "runnerUp": "Bee",
+                             "shitbowl": "Dog", "shitbowlCandidates": ["Dog"]}]},
+        "franchises": {
+            "Ant": {"active": True, "seasons": [s("Ant", 1, True, 1, 0)]},
+            "Bee": {"active": True, "seasons": [s("Bee", 2, True, 0, 1)]},
+            "Cat": {"active": True, "seasons": [s("Cat", 3, False, 0, 0)]},
+            "Dog": {"active": True, "seasons": [s("Dog", 4, False, 0, 0, shitbowl=True)]},
+        },
+    }
+
+
+@pytest.fixture
+def bracket_paths(tmp_path):
+    from tests.test_games import REGULAR, POSTSEASON, write_season
+    from tests.archive import write_franchise_keys, write_sleeper_aliases, write_games, write_formats, fmt
+    data = tmp_path / "data"
+    write_season(data)
+    write_franchise_keys(data, [(slot, "nfl.com", slot, slot * 100) for slot in range(1, 5)])
+    write_sleeper_aliases(data, [])
+    write_games(data, [(2014, *g) for g in REGULAR + POSTSEASON])
+    write_formats(data, {2014: fmt(4, 3, (2, [4]), shit_bowl=(2, [4]))})
+    write_csv(data / "shitbowl.csv", ["year", "franchise", "second_last", "source"],
+              [(2014, "Dog", "", "recalled")])
+    db = tmp_path / "league.sqlite"
+    build(data, db)
+    allow = tmp_path / "allowlist.csv"
+    write_csv(allow, ["figure", "reason"], [])
+    return db, tmp_path / "league_records.json", allow
+
+
+def test_bracket_results_and_crowns_are_compared(bracket_paths):
+    db, golden, allow = bracket_paths
+    write(golden, bracket_golden())
+    report = compare(db, golden, allow)
+    assert report.mismatches == []
+    # 4 franchises x (exists, active) + 4 seasons x 6 figures + 4 crowns
+    assert report.checked == 4 * 2 + 4 * 6 + 4
+
+
+def test_a_differing_bracket_result_or_crown_is_a_mismatch(bracket_paths):
+    db, golden, allow = bracket_paths
+    g = bracket_golden()
+    g["franchises"]["Cat"]["seasons"][0]["playoff"] = {"wins": 1, "losses": 1}
+    g["franchises"]["Cat"]["seasons"][0]["madePlayoffs"] = True
+    g["meta"]["finals"][0].update(champion="Bee", shitbowl=None, shitbowlCandidates=["Cat", "Dog"])
+    write(golden, g)
+    assert sorted((m.figure, m.ours, m.theirs) for m in compare(db, golden, allow).mismatches) == [
+        ("2014|champion", "Ant", "Bee"),
+        ("2014|shitbowl", "Dog", None),
+        ("2014|shitbowlCandidates", ["Dog"], ["Cat", "Dog"]),
+        ("Cat|2014|madePlayoffs", False, True),
+        ("Cat|2014|playoffLosses", 0, 1),
+        ("Cat|2014|playoffWins", 0, 1),
+    ]
+
+
 def test_cli_fails_on_unexplained_mismatch(paths, capsys):
     db, golden, allow = paths
     g = golden_for_archive()

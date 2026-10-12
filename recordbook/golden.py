@@ -8,8 +8,10 @@ here once. Every figure checked must match, or be listed in the allow-list
 with a reason. An allow-list entry with nothing left to excuse fails too, so
 the list can't rot. Coverage grows as the build ports more of ff-data-project.
 
-Figures are named "<franchise name>|<season>|<field>" (season lines) or
-"<franchise name>|<exists|active>" (franchises).
+Figures are named "<franchise name>|<season>|<field>" (season lines, Playoffs
+records and Shit Bowl outcomes), "<franchise name>|<exists|active>"
+(franchises) or "<season>|<field>" (each season's champion, runner-up and Shit
+Bowl winner).
 """
 import argparse
 import json
@@ -31,6 +33,56 @@ SEASON_LINE_FIGURES = {
     "playoffSeed": "l.seed",
     "finalOrder": "l.final_placing",
 }
+
+
+def bracket_figures(con, name, fid, s):
+    """A franchise-season's Playoffs record and Shit Bowl outcome, as
+    "<franchise>|<season>|<field>" figures, for the fields ff-data-project has."""
+    season = int(s["year"])
+    wins, losses = con.execute(
+        "select coalesce(sum(winner_franchise_id = ?), 0), "
+        "coalesce(sum(winner_franchise_id is not null and winner_franchise_id != ?), 0) "
+        "from games where season = ? and bracket = 'playoffs' and ? in (home_franchise_id, away_franchise_id)",
+        (fid, fid, season, fid)).fetchone()
+    crowns = con.execute("select source from bracket_winners where season = ? and bracket = 'shit_bowl' "
+                         "and franchise_id = ?", (season, fid)).fetchall()
+    ours = {
+        "madePlayoffs": wins + losses > 0 or bool(con.execute(
+            "select 1 from season_lines where season = ? and franchise_id = ? and bracket = 'championship'",
+            (season, fid)).fetchone()),
+        "playoffWins": wins,
+        "playoffLosses": losses,
+        "shitbowl": any(src != "disputed" for (src,) in crowns),
+        "shitbowlDisputed": any(src == "disputed" for (src,) in crowns),
+    }
+    theirs = {**s, "playoffWins": (s.get("playoff") or {}).get("wins"),
+              "playoffLosses": (s.get("playoff") or {}).get("losses")}
+    keys = [k for k in ours if (k in s) or (k.startswith("playoff") and "playoff" in s)]
+    return [(f"{name}|{season}|{k}", ours[k], theirs[k]) for k in keys]
+
+
+def crown_figures(con, meta):
+    """Each NFL.com season's champion, runner-up and Shit Bowl winner, as
+    "<season>|<field>" figures (a disputed Shit Bowl has no winner)."""
+    names = dict(con.execute("select id, name from franchises"))
+    found = []
+    for f in meta.get("finals", []):
+        if f.get("platform") != "NFL.com":
+            continue  # Sleeper-era brackets aren't built yet
+        season = int(f["year"])
+        final = con.execute("select winner_franchise_id, case when winner_franchise_id = home_franchise_id "
+                            "then away_franchise_id else home_franchise_id end from games "
+                            "where season = ? and bracket = 'playoffs' order by round desc limit 1",
+                            (season,)).fetchone() or (None, None)
+        shit_bowl = con.execute("select franchise_id, source from bracket_winners "
+                                "where season = ? and bracket = 'shit_bowl'", (season,)).fetchall()
+        candidates = sorted(names[fid] for fid, _ in shit_bowl if fid is not None)
+        winner = candidates[0] if len(candidates) == 1 else None
+        found += [(f"{season}|champion", names.get(final[0]), f["champion"]),
+                  (f"{season}|runnerUp", names.get(final[1]), f["runnerUp"]),
+                  (f"{season}|shitbowl", winner, f["shitbowl"]),
+                  (f"{season}|shitbowlCandidates", candidates, sorted(f["shitbowlCandidates"]))]
+    return found
 
 
 @dataclass
@@ -55,7 +107,8 @@ def compare(db_path, golden_path, allow_path):
             raise ValueError(f"allow-list entry {r['figure']!r} has no reason")
         allow[r["figure"]] = r["reason"]
 
-    golden = json.loads(Path(golden_path).read_text())["franchises"]
+    records = json.loads(Path(golden_path).read_text())
+    golden = records["franchises"]
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         ours = {name: (fid, bool(active)) for fid, name, active
@@ -76,7 +129,10 @@ def compare(db_path, golden_path, allow_path):
                     "where l.franchise_id = ? and l.season = ?", (ours[name][0], int(s["year"]))
                 ).fetchone() or [None] * len(SEASON_LINE_FIGURES)
                 for key, value in zip(SEASON_LINE_FIGURES, row):
-                    found.append((f"{name}|{s['year']}|{key}", value, s[key]))
+                    if key in s:
+                        found.append((f"{name}|{s['year']}|{key}", value, s[key]))
+                found += bracket_figures(con, name, ours[name][0], s)
+        found += crown_figures(con, records.get("meta", {}))
     finally:
         con.close()
 
