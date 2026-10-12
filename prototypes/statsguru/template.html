@@ -149,7 +149,7 @@ for (const [y, f] of DATA.lines) {
   GAP.push(g);
 }
 
-const DEFAULT = () => ({ f: [], o: [], s: [...SEASONS], ph: ['R', 'P'], w0: 1, w1: 17, res: '', act: false,
+const DEFAULT = () => ({ sub: 'franchise', pos: [], lu: '', f: [], o: [], s: [...SEASONS], ph: ['R', 'P'], w0: 1, w1: 17, res: '', act: false,
   view: 'agg', min: 0, sort: 'pct', dir: 'desc' });
 
 function run(q) {
@@ -213,7 +213,7 @@ function gameLog(q, res) {
 }
 function sortRows(rows, q) {
   const s = q.sort, d = q.dir === 'asc' ? 1 : -1;
-  const v = r => s === 'f' || s === 'o' ? (r[s] ? F[r[s]].name : '') : s === 'ph' ? r.ph : r[s];
+  const v = r => s === 'pid' ? P[r.pid].name : s === 'f' || s === 'o' ? (r[s] ? F[r[s]].name : '') : s === 'ph' ? r.ph : r[s];
   return rows.sort((a, b) => {
     const x = v(a), y = v(b);
     if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
@@ -231,13 +231,42 @@ function columns(q) {
 const fmt = (k, v, r) => {
   if (v == null) return '—';
   if (k === 'f' || k === 'o') return fname(v);
+  if (k === 'pid') return P[v].name;
   if (k === 'ph') return PH[v];
   if (k === 'pct') return (v * 100).toFixed(1);
-  if (['pf', 'pa', 'apf', 'apa', 'hi', 'lo'].includes(k)) return v.toFixed(2);
+  if (['pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'spts', 'bpts', 'avg', 'best', 'pts'].includes(k)) return v.toFixed(2);
   if (k === 'margin') return (v > 0 ? '+' : '') + v.toFixed(2);
   return v;
 };
-const NUMERIC = new Set(['gp', 'w', 'l', 't', 'pct', 'pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'margin', 'wk', 'y']);
+const NUMERIC = new Set(['gp', 'w', 'l', 't', 'pct', 'pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'margin', 'wk', 'y', 'st', 'spts', 'bpts', 'avg', 'best', 'pts', 'nfr']);
+// ---------- NFL player subject (Sleeper era only)
+const P = DATA.players;
+const PROWS = DATA.lineups.map(([y, wk, ph, f, o, pid, slot, pts]) => ({ y, wk, ph, f, o, pid, slot, pts, start: slot !== 'BN', pos: P[pid].pos }));
+const POS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+const PVIEWS = { ptot: 'Totals per player', pfr: 'Per player per franchise', pseason: 'Season by season', plog: 'Performance log' };
+const PKEY = { ptot: r => r.pid, pfr: r => r.pid + '|' + r.f, pseason: r => r.pid + '|' + r.y };
+function runPlayers(q) {
+  const ss = new Set(q.s), fs = new Set(q.f), os = new Set(q.o), ph = new Set(q.ph), pos = new Set(q.pos);
+  const rows = PROWS.filter(r => ss.has(r.y) && ph.has(r.ph) && r.wk >= q.w0 && r.wk <= q.w1 && (!fs.size || fs.has(r.f))
+    && (!q.act || F[r.f].active) && (!os.size || os.has(r.o)) && (!pos.size || pos.has(r.pos))
+    && (!q.lu || (q.lu === 'start') === r.start));
+  if (q.view === 'plog') return sortRows(rows.map(r => ({ ...r })), q);
+  const m = new Map();
+  for (const r of rows) {
+    const k = PKEY[q.view](r);
+    if (!m.has(k)) m.set(k, { pid: r.pid, f: r.f, y: r.y, pos: r.pos, nfl: P[r.pid].team || '—', gp: 0, st: 0, spts: 0, bpts: 0, best: null, fr: new Set() });
+    const a = m.get(k);
+    a.gp++; a.fr.add(r.f);
+    if (r.start) { a.st++; a.spts += r.pts; } else a.bpts += r.pts;
+    a.best = Math.max(a.best ?? -99, r.pts);
+  }
+  return sortRows([...m.values()].map(a => ({ ...a, nfr: a.fr.size, avg: a.st ? a.spts / a.st : null })).filter(a => a.gp >= q.min), q);
+}
+function pcolumns(q) {
+  if (q.view === 'plog') return [['y', 'Season'], ['wk', 'Week'], ['ph', 'Phase'], ['pid', 'Player'], ['pos', 'Pos'], ['f', 'Franchise'], ['o', 'Opponent'], ['slot', 'Slot'], ['pts', 'Points']];
+  const lead = { ptot: [['pid', 'Player'], ['pos', 'Pos'], ['nfl', 'NFL team']], pfr: [['pid', 'Player'], ['pos', 'Pos'], ['f', 'Franchise']], pseason: [['pid', 'Player'], ['pos', 'Pos'], ['y', 'Season']] }[q.view];
+  return lead.concat([['gp', 'Rostered'], ['st', 'Starts'], ['spts', 'Pts started'], ['avg', 'Avg/start'], ['bpts', 'Pts benched'], ['best', 'Best'], ...(q.view === 'ptot' ? [['nfr', 'Franchises']] : [])]);
+}
 const VIEWS = { agg: 'Totals per franchise', season: 'Season by season', opp: 'By opponent', phase: 'By phase', games: 'Game log' };
 
 // ============================================================ URL shapes
@@ -247,7 +276,8 @@ function diff(q) { const d = DEFAULT(); return Object.fromEntries(Object.entries
 
 const ENC = {
   // A: Cricinfo style — semicolon-separated, alphabetical, verbose keys
-  A(q) {
+  A(q) { return ENC.C(q); },
+  Acricinfo(q) {
     const d = diff(q), p = [];
     if (d.act) p.push('active=1');
     for (const f of q.f) p.push('franchise=' + f);
@@ -279,12 +309,15 @@ const ENC = {
   // C: conventional &-separated short keys, comma lists
   C(q) {
     const d = diff(q), p = new URLSearchParams();
+    if (q.sub === 'player') p.set('sub', 'player');
     if (q.f.length) p.set('f', q.f.join(','));
     if (q.o.length) p.set('o', q.o.join(','));
     if (d.s) p.set('s', rangeOrList(q.s));
     if (d.ph) p.set('ph', q.ph.join(','));
     if (d.w0 || d.w1) p.set('wk', q.w0 + '-' + q.w1);
     if (q.res) p.set('res', q.res);
+    if (q.pos.length) p.set('pos', q.pos.join(','));
+    if (q.lu) p.set('lu', q.lu);
     if (q.act) p.set('active', '1');
     if (d.min) p.set('min', q.min);
     if (d.view) p.set('view', q.view);
@@ -339,16 +372,23 @@ function decode(search) {
     if (p.get('ph')) q.ph = p.get('ph').split(',');
     if (p.get('wk')) [q.w0, q.w1] = p.get('wk').split('-').map(Number);
     if (p.get('res')) q.res = p.get('res');
+    if (p.get('sub')) q.sub = p.get('sub');
+    if (p.get('pos')) q.pos = p.get('pos').split(',');
+    if (p.get('lu')) q.lu = p.get('lu');
     if (p.get('active')) q.act = true;
     if (p.get('min')) q.min = +p.get('min');
     if (p.get('view')) q.view = p.get('view');
     if (p.get('sort')) [q.sort, q.dir] = p.get('sort').split('.');
   }
+  if (q.sub === 'player') {
+    if (!PVIEWS[q.view]) q.view = 'ptot';
+    if (!pcolumns(q).some(c => c[0] === q.sort)) q.sort = q.view === 'plog' ? 'pts' : 'spts';
+  }
   return q;
 }
 
 // ============================================================ app state
-const VARIANTS = { A: 'Classic Statsguru form', B: 'Sentence builder', C: 'Faceted workbench' };
+const VARIANTS = { A: 'Classic Statsguru form (C-style URL)', B: 'Sentence builder', C: 'Faceted workbench' };
 let variant = new URLSearchParams(location.search).get('variant') || 'A';
 if (!VARIANTS[variant]) variant = 'A';
 let Q = decode(location.search);
@@ -357,11 +397,12 @@ function writeUrl() {
   history.replaceState(null, '', location.pathname + '?variant=' + variant + (enc && enc !== 'q=' ? '&' + enc : ''));
 }
 function set(patch) {
-  if (patch.view && !patch.sort) Object.assign(patch, { sort: patch.view === 'games' ? 'pf' : 'pct', dir: 'desc' });
+  if (patch.view && !patch.sort) Object.assign(patch, { sort: { games: 'pf', plog: 'pts', ptot: 'spts', pfr: 'spts', pseason: 'spts' }[patch.view] || 'pct', dir: 'desc' });
   Q = { ...Q, ...patch }; writeUrl(); render();
 }
 const app = document.getElementById('app');
 function render() {
+  if (variant !== 'A' && Q.sub === 'player') { Q = DEFAULT(); writeUrl(); } // only A has the player subject
   document.getElementById('vlabel').innerHTML = `<span class="tag">${variant}</span> ${VARIANTS[variant]}`;
   ({ A: renderA, B: renderB, C: renderC })[variant]();
 }
@@ -380,37 +421,45 @@ const shareUrl = () => location.href;
 // ============================================================ Variant A: classic form + results page
 let aEditing = false, aSubmitted = new URLSearchParams(location.search).toString().replace(/^variant=[A-Z]&?/, '') !== '';
 function renderA() {
-  const res = run(Q), out = group(Q, res), cols = columns(Q);
+  const isP = Q.sub === 'player';
+  const res = run(Q), out = isP ? runPlayers(Q) : group(Q, res), cols = isP ? pcolumns(Q) : columns(Q);
+  const views = isP ? PVIEWS : VIEWS;
   const opt = (ids, sel) => ids.map(id => `<option value="${id}" ${sel.includes(id) ? 'selected' : ''}>${esc(fname(id))}${F[id].active ? '' : ' (departed)'}</option>`).join('');
   const yopt = (v) => SEASONS.map(y => `<option ${y === v ? 'selected' : ''}>${y}</option>`).join('');
   const smin = Math.min(...Q.s), smax = Math.max(...Q.s);
+  const clr = name => ` <a href="#" data-clr="${name}">clear</a>`;
   const form = `
   <form id="af">
     <fieldset><legend>Query type</legend>
-      <div class="row"><b>Subject</b><div><label class="inline"><input type="radio" checked> Franchise records</label><label class="inline muted"><input type="radio" disabled> NFL players (Sleeper era, later)</label></div></div>
-      <div class="row"><b>View format</b><div>${Object.entries(VIEWS).map(([k, v]) => `<label class="inline"><input type="radio" name="view" value="${k}" ${Q.view === k ? 'checked' : ''}> ${v}</label>`).join('')}</div></div>
+      <div class="row"><b>Subject</b><div>
+        <label class="inline"><input type="radio" name="sub" value="franchise" ${isP ? '' : 'checked'}> Franchise records</label>
+        <label class="inline"><input type="radio" name="sub" value="player" ${isP ? 'checked' : ''}> NFL players <span class="muted">(Sleeper era, 2025 on)</span></label></div></div>
+      <div class="row"><b>View format</b><div>${Object.entries(views).map(([k, v]) => `<label class="inline"><input type="radio" name="view" value="${k}" ${Q.view === k ? 'checked' : ''}> ${v}</label>`).join('')}</div></div>
     </fieldset>
     <fieldset><legend>Filters</legend>
-      <div class="row"><b>Franchise</b><div><select multiple name="f">${opt(FIDS, Q.f)}</select> <span class="muted">none selected = all</span></div></div>
-      <div class="row"><b>Opposition</b><div><select multiple name="o">${opt(FIDS, Q.o)}</select></div></div>
+      ${isP ? `<div class="row"><b>Position</b><div>${POS.map(p => `<label class="inline"><input type="checkbox" name="pos" value="${p}" ${Q.pos.includes(p) ? 'checked' : ''}> ${p}</label>`).join('')}${clr('pos')}</div></div>
+      <div class="row"><b>Lineup</b><div><select name="lu"><option value="">started or benched</option><option value="start" ${Q.lu === 'start' ? 'selected' : ''}>started only</option><option value="bench" ${Q.lu === 'bench' ? 'selected' : ''}>benched only</option></select></div></div>` : ''}
+      <div class="row"><b>${isP ? 'Rostered by' : 'Franchise'}</b><div><select multiple name="f">${opt(FIDS, Q.f)}</select>${clr('f')} <span class="muted">none selected = all</span></div></div>
+      <div class="row"><b>Opposition</b><div><select multiple name="o">${opt(FIDS, Q.o)}</select>${clr('o')}</div></div>
       <div class="row"><b>Season span</b><div>from <select name="smin">${yopt(smin)}</select> to <select name="smax">${yopt(smax)}</select>
         &nbsp; or era <select name="era"><option value="">any</option><option value="nfl">NFL.com era (2012–2024)</option><option value="sleeper">Sleeper era (2025–)</option></select></div></div>
       <div class="row"><b>Phase</b><div>${Object.entries(PH_LONG).map(([k, v]) => `<label class="inline"><input type="checkbox" name="ph" value="${k}" ${Q.ph.includes(k) ? 'checked' : ''}> ${v}</label>`).join('')}</div></div>
       <div class="row"><b>Week span</b><div>from <input name="w0" type="number" min="1" max="17" value="${Q.w0}" style="width:50px"> to <input name="w1" type="number" min="1" max="17" value="${Q.w1}" style="width:50px"></div></div>
-      <div class="row"><b>Result</b><div><select name="res"><option value="">any</option>${['W', 'L', 'T'].map(r => `<option value="${r}" ${Q.res === r ? 'selected' : ''}>${{ W: 'won', L: 'lost', T: 'tied' }[r]}</option>`).join('')}</select></div></div>
+      ${isP ? '' : `<div class="row"><b>Result</b><div><select name="res"><option value="">any</option>${['W', 'L', 'T'].map(r => `<option value="${r}" ${Q.res === r ? 'selected' : ''}>${{ W: 'won', L: 'lost', T: 'tied' }[r]}</option>`).join('')}</select></div></div>`}
       <div class="row"><b>Franchises</b><div><label class="inline"><input type="checkbox" name="act" ${Q.act ? 'checked' : ''}> active franchises only</label></div></div>
     </fieldset>
     <fieldset><legend>Display options</legend>
-      <div class="row"><b>Qualification</b><div>minimum <input name="min" type="number" min="0" value="${Q.min}" style="width:60px"> games played</div></div>
-      <div class="row"><b>Ordered by</b><div><select name="sort">${columns(Q).map(([k, l]) => `<option value="${k}" ${Q.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <div class="row"><b>Qualification</b><div>minimum <input name="min" type="number" min="0" value="${Q.min}" style="width:60px"> ${isP ? 'games rostered' : 'games played'}</div></div>
+      <div class="row"><b>Ordered by</b><div><select name="sort">${cols.map(([k, l]) => `<option value="${k}" ${Q.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <select name="dir"><option value="desc">descending</option><option value="asc" ${Q.dir === 'asc' ? 'selected' : ''}>ascending</option></select></div></div>
     </fieldset>
-    <button class="submit">Submit query</button>
+    <button class="submit">Submit query</button> <button type="button" id="areset">Reset form</button>
   </form>`;
-  const summary = [Q.f.length ? Q.f.map(fname).join(', ') : 'All franchises', Q.o.length ? 'v ' + Q.o.map(fname).join(', ') : null,
-    Q.s.length === SEASONS.length ? 'all seasons' : `seasons ${smin}–${smax}`, Q.ph.map(p => PH[p]).join(' + '),
+  const summary = [isP ? 'NFL players' : null, isP && Q.pos.length ? Q.pos.join('/') : null, isP && Q.lu ? { start: 'started', bench: 'benched' }[Q.lu] : null,
+    Q.f.length ? (isP ? 'rostered by ' : '') + Q.f.map(fname).join(', ') : isP ? null : 'All franchises', Q.o.length ? 'v ' + Q.o.map(fname).join(', ') : null,
+    Q.s.length === SEASONS.length ? 'all seasons' : smin === smax ? 'season ' + smin : `seasons ${smin}–${smax}`, Q.ph.map(p => PH[p]).join(' + '),
     Q.w0 !== 1 || Q.w1 !== 17 ? `weeks ${Q.w0}–${Q.w1}` : null, Q.res ? { W: 'won', L: 'lost', T: 'tied' }[Q.res] : null,
-    Q.act ? 'active only' : null, Q.min ? `min ${Q.min} games` : null, VIEWS[Q.view]].filter(Boolean).join(' | ');
+    Q.act ? 'active only' : null, Q.min ? `min ${Q.min} games` : null, views[Q.view]].filter(Boolean).join(' | ');
 
   const used = new Set();
   const mark = (sym) => { used.add(sym); return `<span class="fn">${sym}</span>`; };
@@ -421,40 +470,56 @@ function renderA() {
     }
     return '<tr>' + cols.map(([k]) => {
       let v = esc(fmt(k, r[k], r));
-      if (Q.view !== 'games') {
+      if (!isP && Q.view !== 'games') {
         if (['pf', 'pa', 'apf', 'apa'].includes(k) && r.rep) v += mark('†');
         if (['hi', 'lo'].includes(k) && (r.rep || r.ro)) v += mark('*');
         if (k === 'gp' && r.miss) v += mark('§');
         if (['pf', 'pa', 'apf', 'apa'].includes(k) && r.ro && !r.rep) v += mark('‡');
-      } else if ((k === 'pf' || k === 'pa') && !r.scored) v = mark('‡');
+      } else if (!isP && (k === 'pf' || k === 'pa') && !r.scored) v = mark('‡');
       return `<td class="${NUMERIC.has(k) ? 'num' : ''}">${v}</td>`;
     }).join('') + '</tr>';
   }).join('');
+  if (isP && Q.s.some(y => y < 2025)) used.add('¶');
   const head = cols.map(([k, l]) => `<th class="${Q.sort === k ? 'sorted' : ''} ${NUMERIC.has(k) ? 'num' : ''}"><a href="#" data-sort="${k}">${l}${Q.sort === k ? (Q.dir === 'desc' ? ' ▼' : ' ▲') : ''}</a></th>`).join('');
   const FN = {
     '†': 'Includes season totals reported by NFL.com for weeks with no surviving game scores (2022 wk 10 – 2024). Wins, losses and points are complete; game-level figures are not.',
     '‡': 'Playoff result known (reconstructed from seeds and placings) but the score is lost; excluded from points.',
     '*': 'High/low only from games with scores.',
     '§': 'Some games in this query have no surviving detail and cannot be filtered by week, opponent or result; they are left out.',
+    '¶': 'NFL players are only known from 2025 (the Sleeper era); seasons before that contribute nothing to this query.',
   };
-  const qnotes = (res.notes.includes('consol') ? ['Consolation games for 2022–24 are not recorded at all.'] : [])
+  const qnotes = isP ? [] : (res.notes.includes('consol') ? ['Consolation games for 2022–24 are not recorded at all.'] : [])
     .concat(res.notes.includes('consolMixed') ? ['Shit Bowl and Mediocre Bowl games are not yet separated in this data.'] : []);
   const results = `
-    <div class="summary"><b>Query:</b> ${esc(summary)} &nbsp; <a href="#" id="aedit">${aEditing ? 'Hide' : 'Edit'} query</a></div>
+    <div class="summary"><b>Query:</b> ${esc(summary)}${used.has('¶') ? ' ' + mark('¶') : ''} &nbsp; <a href="#" id="aedit">${aEditing ? 'Hide' : 'Edit'} query</a></div>
     <div class="muted">Showing ${Math.min(out.length, 400)} of ${out.length} rows</div>
     <table class="res"><thead><tr>${head}</tr></thead><tbody>${body || '<tr><td colspan="20">No records match the query</td></tr>'}</tbody></table>
     <div class="footnotes">${[...used].map(s => `<div><span class="fn">${s}</span> ${FN[s]}</div>`).join('')}${qnotes.map(n => `<div>${n}</div>`).join('')}
       <div style="margin-top:8px"><b>Link to this query:</b><div class="url">${esc(shareUrl())}</div></div></div>`;
-  app.innerHTML = `<div class="A"><h1>Statsguru — franchise records</h1>${aEditing || !aSubmitted ? form : ''}${results}</div>`;
+  app.innerHTML = `<div class="A"><h1>Statsguru — ${isP ? 'NFL player records' : 'franchise records'}</h1>${aEditing || !aSubmitted ? form : ''}${results}</div>`;
   const fm = document.getElementById('af');
-  if (fm) fm.onsubmit = e => {
-    e.preventDefault(); const d = new FormData(fm);
-    let s = SEASONS.filter(y => y >= +d.get('smin') && y <= +d.get('smax'));
-    if (d.get('era')) s = s.filter(y => era(y) === d.get('era'));
-    aEditing = false; aSubmitted = true;
-    set({ view: d.get('view'), f: d.getAll('f').map(Number), o: d.getAll('o').map(Number), s, ph: d.getAll('ph'),
-      w0: +d.get('w0'), w1: +d.get('w1'), res: d.get('res'), act: !!d.get('act'), min: +d.get('min'), sort: d.get('sort'), dir: d.get('dir') });
-  };
+  if (fm) {
+    fm.onsubmit = e => {
+      e.preventDefault(); const d = new FormData(fm);
+      let s = SEASONS.filter(y => y >= +d.get('smin') && y <= +d.get('smax'));
+      if (d.get('era')) s = s.filter(y => era(y) === d.get('era'));
+      aEditing = false; aSubmitted = true;
+      set({ view: d.get('view'), f: d.getAll('f').map(Number), o: d.getAll('o').map(Number), s, ph: d.getAll('ph'),
+        w0: +d.get('w0'), w1: +d.get('w1'), res: d.get('res') || '', act: !!d.get('act'), min: +d.get('min'), sort: d.get('sort'), dir: d.get('dir'),
+        pos: d.getAll('pos'), lu: d.get('lu') || '' });
+    };
+    // Switching subject rebuilds the form with that subject's views and filters.
+    fm.querySelectorAll('[name="sub"]').forEach(r => r.onchange = () => {
+      aEditing = true;
+      const p = r.value === 'player';
+      set({ sub: r.value, view: p ? 'ptot' : 'agg', s: p ? SEASONS.filter(y => y >= 2025) : [...SEASONS], res: '', pos: [], lu: '' });
+    });
+    fm.querySelectorAll('[data-clr]').forEach(a => a.onclick = e => {
+      e.preventDefault();
+      fm.querySelectorAll(`[name="${a.dataset.clr}"] option, input[name="${a.dataset.clr}"]`).forEach(o => { o.selected = false; o.checked = false; });
+    });
+    document.getElementById('areset').onclick = () => { aEditing = true; Q = { ...DEFAULT(), sub: Q.sub, view: Q.sub === 'player' ? 'ptot' : 'agg', sort: Q.sub === 'player' ? 'spts' : 'pct', s: Q.sub === 'player' ? SEASONS.filter(y => y >= 2025) : [...SEASONS] }; writeUrl(); render(); };
+  }
   document.getElementById('aedit').onclick = e => { e.preventDefault(); aEditing = !aEditing; render(); };
   app.querySelectorAll('[data-sort]').forEach(a => a.onclick = e => { e.preventDefault(); sortBy(a.dataset.sort); });
 }

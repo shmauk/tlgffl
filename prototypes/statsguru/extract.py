@@ -79,6 +79,25 @@ for year, wk, phase, a, sa, bb, sb in b.sleeper_games(salias):
     elif pair in lb:
         games.append([int(year), wk, "C", fid[a], sa, fid[bb], sb])
 
+# Lineups: one row per NFL player per franchise per game (Sleeper era only).
+# Only weeks where the franchise played a real game; slot is the lineup slot or BN.
+played_in = {(g[0], g[1], g[3]): (g[2], g[5]) for g in games} | {(g[0], g[1], g[5]): (g[2], g[3]) for g in games}
+lineups, seen = [], set()
+for year in ("2025", "2026"):
+    slots = json.load(open(root / "data" / "sleeper" / f"{year}-league.json"))["roster_positions"]
+    for wk in range(1, 19):
+        for m in json.load(open(root / "data" / "sleeper" / f"{year}-matchups-{wk:02d}.json")):
+            f = fid[salias[str(m["roster_id"])]]
+            hit = played_in.get((int(year), wk, f))
+            if not hit:
+                continue
+            starters = m.get("starters") or []
+            for pid, pts in (m.get("players_points") or {}).items():
+                slot = slots[starters.index(pid)] if pid in starters else "BN"
+                lineups.append([int(year), wk, hit[0], f, hit[1], pid, slot, pts])
+                seen.add(pid)
+players = json.load(open(root / "data" / "sleeper" / "players.json"))
+
 lines = [[int(s["year"]), fid[s["franchise"]], s["teamName"], s["wins"], s["losses"], s["ties"],
           s["pointsFor"], s["pointsAgainst"], s["madePlayoffs"]] for s in standings]
 
@@ -99,7 +118,10 @@ out = {
     "lines": lines,
     "coverage": cov,
     "shitbowl": {y: v["candidates"] for y, v in spoons.items()},
+    "lineups": lineups,
+    "players": {p: players.get(p, {"name": f"Unknown #{p}", "pos": "?"}) for p in sorted(seen)},
 }
+print(len(lineups), "lineup rows,", len(seen), "NFL players")
 json.dump(out, open(sys.argv[2], "w"), separators=(",", ":"))
 print(len(games), "games,", len(lines), "season lines,", len(names), "franchises")
 for y, c in cov.items():
