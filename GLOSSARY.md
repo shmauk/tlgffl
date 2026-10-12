@@ -111,8 +111,12 @@ _Avoid_: Shit Bowl loser, last place
 The current season's franchises ordered by the seed each would get if the regular season ended now, with the cut-offs between brackets. Franchises still level after every tiebreak except scissors-paper-rock share a seed.
 _Avoid_: Projected standings, live standings
 
+**Clinch**:
+A bracket place or seed range a franchise is guaranteed, whatever happens in the remaining regular-season games. Its opposite is elimination: a bracket place a franchise can no longer reach.
+_Avoid_: Lock, magic number
+
 **Mediocre Bowl**:
-The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exists since 2015; from 2026 it is a series between the two middle franchises.
+The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exists since 2015; from 2026 it is a best-of-three series between the two middle franchises.
 
 **Series**:
 A bracket round in which the same two franchises meet over several weeks.
