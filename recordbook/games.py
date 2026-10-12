@@ -124,6 +124,28 @@ def regular_season_results(games, seasons):
     return {k: (w, l, t, round(pf, 2), round(pa, 2)) for k, (w, l, t, pf, pa) in out.items()}
 
 
+def breakdown(games, seasons):
+    """{(franchise, season): (W, L, T)}: each regular-season week, a franchise's
+    score against every other franchise that played a game that week."""
+    scores = defaultdict(list)
+    for g in games:
+        if g.phase == "regular" and g.status == "final" and g.season in seasons:
+            scores[(g.season, g.week)] += [(g.home, g.home_points), (g.away, g.away_points)]
+    out = defaultdict(lambda: [0, 0, 0])
+    for (season, _week), week in scores.items():
+        for me, mine in week:
+            acc = out[(me, season)]
+            for other, theirs in week:
+                if other != me:
+                    acc[0 if mine > theirs else 1 if mine < theirs else 2] += 1
+    return {k: tuple(v) for k, v in out.items()}
+
+
+def win_pct(w, l, t):
+    """Win %, a tie counting as half a win, as a fraction."""
+    return (w + t / 2) / (w + l + t) if w + l + t else None
+
+
 def season_lines(games, coverage, reported):
     """Season lines (ADR 0001): W-L-T and points derived from games where the
     regular season is fully covered, NFL.com's reported figures otherwise.
@@ -132,16 +154,21 @@ def season_lines(games, coverage, reported):
     bracket, placing). NFL.com-era division, seed, bracket and placing are
     always as reported.
 
+    Fully covered seasons also get Breakdown and luck (win % minus Breakdown
+    %, as a fraction); other seasons leave them null.
+
     Where both exist they must agree (the ADR 0001 agreement check). Returns
     the (franchise, season, source, W, L, T, PF, PA, division, seed, bracket,
-    placing) rows and a list of disagreements, each a sentence.
+    placing, Breakdown W, L, T, luck) rows and a list of disagreements, each a
+    sentence.
     """
     covered = fully_covered(coverage)
     derived = regular_season_results(games, covered)
+    breakdowns = breakdown(games, covered)
     rows, disagreements = [], []
     for fid, season, w, l, t, pf, pa, *rest in reported:
         if season not in covered:
-            rows.append((fid, season, "reported", w, l, t, pf, pa, *rest))
+            rows.append((fid, season, "reported", w, l, t, pf, pa, *rest, None, None, None, None))
             continue
         dw, dl, dt, dpf, dpa = derived.get((fid, season), (0, 0, 0, 0.0, 0.0))
         for figure, ours, theirs in (("W-L-T", f"{dw}-{dl}-{dt}", f"{w}-{l}-{t}"),
@@ -150,5 +177,7 @@ def season_lines(games, coverage, reported):
             if ours != theirs:
                 disagreements.append(f"{season} franchise {fid}: games give {figure} {ours}, "
                                      f"NFL.com reported {theirs}")
-        rows.append((fid, season, "derived", dw, dl, dt, dpf, dpa, *rest))
+        bd = breakdowns.get((fid, season), (0, 0, 0))
+        luck = win_pct(dw, dl, dt) - win_pct(*bd) if dw + dl + dt and sum(bd) else None
+        rows.append((fid, season, "derived", dw, dl, dt, dpf, dpa, *rest, *bd, luck))
     return rows, disagreements

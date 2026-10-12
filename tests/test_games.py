@@ -158,3 +158,22 @@ def test_a_season_without_full_coverage_has_nothing_to_disagree_with(data, tmp_p
     db = built(data, tmp_path)
     assert query(db, "select source, wins, losses from season_lines where franchise_id = 1") == [
         ("reported", 1, 2)]
+
+
+def test_breakdown_and_luck_are_stored_for_a_fully_covered_season(data, tmp_path):
+    # Weekly scores, best first: wk1 Ant 100, Bee 90, Cat 80, Dog 70;
+    # wk2 Ant 110, Cat 100, Bee 95 = Dog 95; wk3 Dog 120, Bee 105, Ant 90, Cat 85.
+    db = built(data, tmp_path)
+    rows = query(db, "select franchise_id, breakdown_wins, breakdown_losses, breakdown_ties, luck "
+                     "from season_lines where season = 2014 order by franchise_id")
+    assert [r[:4] for r in rows] == [(1, 7, 2, 0), (2, 4, 4, 1), (3, 3, 6, 0), (4, 3, 5, 1)]
+    # Win % minus Breakdown %, a tie counting half: Ant 6/9 - 7/9, Dog 4.5/9 - 3.5/9.
+    assert [r[4] for r in rows] == [pytest.approx(-1 / 9), pytest.approx(0), pytest.approx(0),
+                                    pytest.approx(1 / 9)]
+
+
+def test_breakdown_and_luck_are_absent_without_full_coverage(data, tmp_path):
+    write_games(data, [(2014, *g) for g in REGULAR[:-1]])
+    db = built(data, tmp_path)
+    assert query(db, "select distinct breakdown_wins, breakdown_losses, breakdown_ties, luck "
+                     "from season_lines") == [(None, None, None, None)]

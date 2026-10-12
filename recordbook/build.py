@@ -103,6 +103,12 @@ create table season_lines (
     seed integer,
     bracket text,
     final_placing integer,
+    -- Breakdown and luck (win % minus Breakdown %, a tie counting half, as a
+    -- fraction) only exist for fully covered seasons.
+    breakdown_wins integer,
+    breakdown_losses integer,
+    breakdown_ties integer,
+    luck real,
     primary key (franchise_id, season)
 );
 """
@@ -274,7 +280,7 @@ def build(data, out):
                         f"values ({', '.join('?' * len(GAME_COLUMNS))})",
                         [astuple(g) for g in games])
         con.executemany("insert into coverage values (?, ?, ?, ?, ?, ?, ?)", coverage)
-        con.executemany(f"insert into season_lines values ({', '.join('?' * 12)})",
+        con.executemany(f"insert into season_lines values ({', '.join('?' * 16)})",
                         sorted(season_lines))
         con.commit()
     finally:

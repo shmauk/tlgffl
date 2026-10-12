@@ -84,3 +84,16 @@ def test_season_lines_are_derived_through_2021_and_reported_after(db):
     assert db.execute("select season, group_concat(distinct source) from season_lines "
                       "group by season order by season").fetchall() == [
         *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)]]
+
+
+def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
+    # A franchise meets every other franchise every regular-season week:
+    # 9 x 14 in 2012, 11 x 14 in 2013-14, 15 x 13 in 2015-20, 15 x 14 in 2021.
+    rows = db.execute("select season, min(breakdown_wins + breakdown_losses + breakdown_ties), "
+                      "max(breakdown_wins + breakdown_losses + breakdown_ties), count(luck) "
+                      "from season_lines group by season order by season").fetchall()
+    per_franchise = {2012: 126, 2013: 154, 2014: 154, **{y: 195 for y in range(2015, 2021)},
+                     2021: 210}
+    teams = {2012: 10, 2013: 12, 2014: 12}
+    assert rows == [*[(y, n, n, teams.get(y, 16)) for y, n in per_franchise.items()],
+                    *[(y, None, None, 0) for y in (2022, 2023, 2024)]]
