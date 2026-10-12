@@ -112,8 +112,11 @@ A franchise's record had it played every other franchise each week. Used as a ti
 _Avoid_: All-play record
 
 **Award**:
-A named per-season title with a fixed formula, given to the franchise that ranks first on it.
+A named per-season title with a fixed formula, given to the franchise that ranks first on it (tied franchises are co-winners) once the regular season ends. Light-hearted: the champion, the Shit Bowl winner and Breakdown are not awards.
 _Avoid_: Trophy, prize
+
+**Award leader**:
+The franchise ranking first on an award while the regular season is still being played.
 
 **Award result**:
 One franchise's value and rank for one award in one season.
