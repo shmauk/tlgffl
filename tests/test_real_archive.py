@@ -75,12 +75,20 @@ def test_the_constitution_and_agm_documents_are_linked(db):
 
 
 def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
-    # 4-team Playoffs to 2014, 6-team after. 2021's final is missing from the
-    # log, and the log stops at 2022 week 9.
-    counts = dict(db.execute("select season, count(*) from games where bracket = 'playoffs' "
-                             "group by season").fetchall())
-    assert counts == {**{y: 3 for y in (2012, 2013, 2014)}, **{y: 5 for y in range(2015, 2021)},
-                      2021: 4}
+    # 4-team Playoffs to 2014, 6-team after, every game rebuilt from seeds and
+    # final placings. 2021's final is missing from the log, and the log stops
+    # at 2022 week 9, so those games have no score.
+    counts = db.execute("select season, count(*), count(home_points) from games "
+                        "where bracket = 'playoffs' group by season").fetchall()
+    assert counts == [*[(y, 3, 3) for y in (2012, 2013, 2014)], *[(y, 5, 5) for y in range(2015, 2021)],
+                      (2021, 5, 4), *[(y, 5, 0) for y in (2022, 2023, 2024)]]
+    # 2022's final: SERPION beat Kurlewless, score lost.
+    assert db.execute(
+        "select f.name, a.name, w.name, g.home_points from games g "
+        "join franchises f on f.id = g.home_franchise_id join franchises a on a.id = g.away_franchise_id "
+        "join franchises w on w.id = g.winner_franchise_id "
+        "where g.season = 2022 and g.bracket = 'playoffs' and g.round = 3").fetchall() == [
+        ("SERPION", "Kurlewless", "SERPION", None)]
     # 2015: seed 6 beat seed 1 in the semis and met seed 2 in the final; the
     # 1 v 4 third-place pairing that week is filler.
     final = db.execute(

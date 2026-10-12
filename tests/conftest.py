@@ -31,6 +31,6 @@ def archive(tmp_path):
     # One Playoffs place a season in the 2-team NFL.com seasons, so no bracket
     # games. 2014 is written ahead, for the tests that add it.
     write_formats(data, {2012: fmt(2, 3, (1, [4])), 2013: fmt(2, 3, (1, [4])),
-                         2014: fmt(2, 3, (1, [4])),
+                         2014: fmt(2, 3, None),
                          2025: fmt(3, 14, (2, [15]))})
     return data

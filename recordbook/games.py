@@ -18,9 +18,10 @@ class Game:
     round: int | None
     status: str           # 'scheduled', 'live' or 'final'
     home: int             # franchise ids
-    home_points: float
+    home_points: float | None   # null when the score is lost
     away: int
-    away_points: float
+    away_points: float | None
+    winner: int | None = None   # null for a tie
 
 
 def read_log(path):
@@ -31,41 +32,33 @@ def read_log(path):
         return list(csv.DictReader(line for line in f if not line.startswith("#")))
 
 
-def nfl_games(rows, franchise_of, regular_weeks, playoff_teams):
-    """Games from the log's rows.
+def nfl_games(rows, franchise_of, regular_weeks):
+    """Regular-season games from the log's rows, and the post-season rows as
+    {season: {(week, frozenset of the two franchises): Game}}.
 
-    franchise_of(season, team name) gives the franchise id, regular_weeks maps
-    a season to its regular-season length, and playoff_teams a season to the
-    franchises NFL.com put in its championship bracket.
+    franchise_of(season, team name) gives the franchise id and regular_weeks
+    maps a season to its regular season's last week.
 
     After the regular season the log mixes the Playoffs with NFL.com's
-    placement and consolation pairings, unlabelled. A Playoffs game is one
-    between two championship-bracket franchises that have both still to lose a
-    Playoffs game; any other pairing in a Playoffs week (a third-place game,
-    say) is platform filler. NFL.com's consolation bracket advanced winners,
-    unlike the Shit Bowl, so its pairings are not taken as Shit Bowl or
-    Mediocre Bowl games: those are recorded by hand.
+    placement and consolation pairings, unlabelled, so post-season rows are
+    only evidence: the brackets decide which of them are games.
     """
     rows = sorted(rows, key=lambda r: (int(r["year"]), int(r["round"])))
     games = []
-    eliminated = set()
+    postseason = defaultdict(dict)
     for r in rows:
         season, week = int(r["year"]), int(r["round"])
         if season not in regular_weeks:
             continue
         home, away = franchise_of(season, r["home_team"]), franchise_of(season, r["away_team"])
         hp, ap = float(r["home_score"]), float(r["away_score"])
+        winner = home if hp > ap else away if ap > hp else None
         if week <= regular_weeks[season]:
-            games.append(Game(season, week, "regular", None, None, "final", home, hp, away, ap))
-            continue
-        alive = playoff_teams.get(season, set())
-        if not ({home, away} <= alive and not {(season, home), (season, away)} & eliminated):
-            continue
-        games.append(Game(season, week, "bracket", "playoffs", week - regular_weeks[season],
-                          "final", home, hp, away, ap))
-        if hp != ap:
-            eliminated.add((season, away if hp > ap else home))
-    return games
+            games.append(Game(season, week, "regular", None, None, "final", home, hp, away, ap, winner))
+        else:
+            postseason[season][(week, frozenset((home, away)))] = Game(
+                season, week, "bracket", None, None, "final", home, hp, away, ap, winner)
+    return games, postseason
 
 
 def playoffs_rounds(teams):
@@ -82,11 +75,11 @@ def playoffs_rounds(teams):
 
 
 def coverage(games, team_counts, regular_weeks, playoff_teams):
-    """Rows of (season, week, phase, bracket, games expected, final games,
-    complete) for every NFL.com regular-season and Playoffs week."""
+    """Rows of (season, week, phase, bracket, games expected, final games
+    with a score, complete) for every NFL.com regular-season and Playoffs week."""
     final = defaultdict(int)
     for g in games:
-        if g.status == "final":
+        if g.status == "final" and g.home_points is not None:
             final[(g.season, g.week, g.phase, g.bracket)] += 1
     rows = []
     for season, weeks in sorted(regular_weeks.items()):

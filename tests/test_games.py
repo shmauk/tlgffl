@@ -88,6 +88,22 @@ def test_playoffs_games_carry_bracket_and_round_and_other_postseason_pairings_ar
         (4, "bracket", "playoffs", 1, "final", 1, 130.0, 2, 120.0)]
 
 
+def test_a_playoffs_game_whose_score_is_lost_is_rebuilt_from_seeds_and_final_placings(data, tmp_path):
+    # Ant (seed 1) finished first and Bee (seed 2) second, so they met in the
+    # final, and Ant won it, even though no score survives.
+    write_games(data, [(2014, *g) for g in REGULAR])
+    db = built(data, tmp_path)
+    assert query(db, "select week, bracket, round, status, home_franchise_id, home_points, "
+                     "away_franchise_id, away_points, winner_franchise_id from games "
+                     "where phase = 'bracket'") == [(4, "playoffs", 1, "final", 1, None, 2, None, 1)]
+
+
+def test_a_logged_playoffs_score_that_contradicts_the_final_placings_fails_the_build(data, tmp_path):
+    write_games(data, [(2014, *g) for g in REGULAR] + [(2014, 4, "Ant", "Bee", 110, 120)])
+    with pytest.raises(BuildError, match="2014 week 4.*final placings"):
+        built(data, tmp_path)
+
+
 def test_a_game_naming_an_unknown_team_fails_the_build(data, tmp_path):
     write_games(data, [(2014, *g) for g in REGULAR] + [(2014, 4, "Ant", "Eel", 130, 120)])
     with pytest.raises(BuildError, match="2014 .*'Eel'"):

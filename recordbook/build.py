@@ -15,6 +15,7 @@ from collections import defaultdict
 from dataclasses import astuple
 from pathlib import Path
 
+from recordbook import brackets as bracketlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
 
@@ -73,6 +74,9 @@ create table games (
     home_points real,
     away_franchise_id integer not null references franchises(id),
     away_points real,
+    -- Null for a tie. A bracket game whose score is lost (null points) still
+    -- has the winner its bracket says it had.
+    winner_franchise_id integer references franchises(id),
     check ((phase = 'regular') = (bracket is null and round is null))
 );
 -- How many of a week's games survive, per phase and bracket. The site's gap
@@ -140,7 +144,7 @@ create table documents (
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
-                "home_points", "away_franchise_id", "away_points")
+                "home_points", "away_franchise_id", "away_points", "winner_franchise_id")
 
 class BuildError(Exception):
     """The canonical data is inconsistent; the build must not go on."""
@@ -264,13 +268,26 @@ def build(data, out):
             raise BuildError(f"the {year} game log names {name!r}, but no team had that name in {year}")
         return franchise_by_team_name[(year, name)]
 
+    games, postseason = gamelog.nfl_games(gamelog.read_log(data / "league_h2h.csv"), franchise_of,
+                                          regular_weeks)
     playoff_teams = defaultdict(set)
-    for fid, year, *_, bracket, _placing in lines:
-        if bracket == "championship":
-            playoff_teams[year].add(fid)
-
-    games = gamelog.nfl_games(gamelog.read_log(data / "league_h2h.csv"), franchise_of,
-                              regular_weeks, playoff_teams)
+    for year in sorted(nfl):
+        seeds = {fid: seed for fid, y, *_, seed, bracket, _p in lines
+                 if y == year and bracket == "championship"}
+        placings = {fid: placing for fid, y, *_, placing in lines if y == year}
+        playoffs = formats[year].brackets.get("playoffs")
+        size = playoffs.size if playoffs else 0
+        if len(seeds) != size:
+            raise BuildError(f"data/formats.yaml gives {year} a {size}-team Playoffs, "
+                             f"but NFL.com seeded {len(seeds)}")
+        playoff_teams[year] = set(seeds)
+        if not seeds:
+            continue
+        try:
+            games += bracketlib.playoffs_games(year, seeds, placings, playoffs.weeks,
+                                               postseason.get(year, {}))
+        except bracketlib.BracketError as e:
+            raise BuildError(str(e)) from e
     check_one_game_a_week(games)
     team_counts = {year: count for year, _, count in seasons}
     coverage = gamelog.coverage(games, team_counts, regular_weeks, playoff_teams)
@@ -304,6 +321,7 @@ def build(data, out):
                         [(f, y, n) for (f, y), n in sorted(team_names.items())])
         con.executemany(f"insert into reported_season_lines values ({', '.join('?' * 11)})",
                         sorted(lines))
+        games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
         con.executemany(f"insert into games ({', '.join(GAME_COLUMNS)}) "
                         f"values ({', '.join('?' * len(GAME_COLUMNS))})",
                         [astuple(g) for g in games])

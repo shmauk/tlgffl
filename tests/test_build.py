@@ -100,7 +100,7 @@ def test_an_empty_archive_fails_the_build(tmp_path):
 
 
 FORMAT_2012 = {"teams": 2, "divisions": 1, "regular_season_weeks": [1, 14],
-               "brackets": {"playoffs": {"size": 4, "weeks": [15, 16]},
+               "brackets": {"playoffs": {"size": 1, "weeks": [15]},
                             "shit_bowl": {"size": 4, "weeks": [15, 16]}}}
 
 
@@ -119,8 +119,8 @@ def test_a_seasons_format_comes_from_the_hand_kept_format_file(archive, tmp_path
     assert query(db, "select * from season_formats order by season") == [
         (2012, 1, 1, 14), (2013, 1, 1, 3), (2025, 4, 1, 14)]
     assert query(db, "select * from season_brackets order by season, size desc, bracket") == [
-        (2012, "playoffs", 4, 15, 16, None),
         (2012, "shit_bowl", 4, 15, 16, None),
+        (2012, "playoffs", 1, 15, 15, None),
         (2013, "playoffs", 1, 4, 4, None),
         (2025, "playoffs", 6, 15, 17, None),
         (2025, "shit_bowl", 6, 15, 17, None),
