@@ -97,3 +97,58 @@ def coverage(games, team_counts, regular_weeks, playoff_teams):
             got = final[(season, week, phase, bracket)]
             rows.append((season, week, phase, bracket, count, got, int(got == count)))
     return rows
+
+
+def fully_covered(coverage, phase="regular"):
+    """Seasons where every week of the phase has all its games."""
+    weeks = defaultdict(list)
+    for season, _week, ph, _bracket, _expected, _final, complete in coverage:
+        if ph == phase:
+            weeks[season].append(complete)
+    return {season for season, flags in weeks.items() if all(flags)}
+
+
+def regular_season_results(games, seasons):
+    """{(franchise, season): [W, L, T, PF, PA]} from the final regular-season
+    games of the given seasons. Equal scores are a tie."""
+    out = defaultdict(lambda: [0, 0, 0, 0.0, 0.0])
+    for g in games:
+        if g.phase != "regular" or g.status != "final" or g.season not in seasons:
+            continue
+        for me, mine, theirs in ((g.home, g.home_points, g.away_points),
+                                 (g.away, g.away_points, g.home_points)):
+            acc = out[(me, g.season)]
+            acc[0 if mine > theirs else 1 if mine < theirs else 2] += 1
+            acc[3] += mine
+            acc[4] += theirs
+    return {k: (w, l, t, round(pf, 2), round(pa, 2)) for k, (w, l, t, pf, pa) in out.items()}
+
+
+def season_lines(games, coverage, reported):
+    """Season lines (ADR 0001): W-L-T and points derived from games where the
+    regular season is fully covered, NFL.com's reported figures otherwise.
+
+    reported rows are (franchise, season, W, L, T, PF, PA, division, seed,
+    bracket, placing). NFL.com-era division, seed, bracket and placing are
+    always as reported.
+
+    Where both exist they must agree (the ADR 0001 agreement check). Returns
+    the (franchise, season, source, W, L, T, PF, PA, division, seed, bracket,
+    placing) rows and a list of disagreements, each a sentence.
+    """
+    covered = fully_covered(coverage)
+    derived = regular_season_results(games, covered)
+    rows, disagreements = [], []
+    for fid, season, w, l, t, pf, pa, *rest in reported:
+        if season not in covered:
+            rows.append((fid, season, "reported", w, l, t, pf, pa, *rest))
+            continue
+        dw, dl, dt, dpf, dpa = derived.get((fid, season), (0, 0, 0, 0.0, 0.0))
+        for figure, ours, theirs in (("W-L-T", f"{dw}-{dl}-{dt}", f"{w}-{l}-{t}"),
+                                     ("points for", dpf, round(pf, 2)),
+                                     ("points against", dpa, round(pa, 2))):
+            if ours != theirs:
+                disagreements.append(f"{season} franchise {fid}: games give {figure} {ours}, "
+                                     f"NFL.com reported {theirs}")
+        rows.append((fid, season, "derived", dw, dl, dt, dpf, dpa, *rest))
+    return rows, disagreements

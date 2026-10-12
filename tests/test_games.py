@@ -110,3 +110,51 @@ def test_coverage_is_recorded_per_season_week_and_phase(data, tmp_path):
         (3, "regular", None, 2, 1, 0),
         (4, "bracket", "playoffs", 1, 0, 0),
     ]
+
+
+def test_a_fully_covered_season_derives_its_season_lines_from_games(data, tmp_path):
+    db = built(data, tmp_path)
+    assert query(db, "select franchise_id, source, wins, losses, ties, points_for, points_against, "
+                     "seed, bracket, final_placing from season_lines where season = 2014 "
+                     "order by franchise_id") == [
+        (1, "derived", 2, 1, 0, 300.0, 310.0, 1, "championship", 1),
+        (2, "derived", 1, 1, 1, 290.0, 280.0, 2, "championship", 2),
+        (3, "derived", 1, 2, 0, 265.0, 285.0, 1, "consolation", 3),
+        (4, "derived", 1, 1, 1, 285.0, 265.0, 2, "consolation", 4),
+    ]
+
+
+def test_adding_a_seasons_missing_games_switches_its_season_lines_to_derived(data, tmp_path):
+    # The log stops before week 3, as 2022's does after week 9.
+    write_games(data, [(2014, *g) for g in REGULAR if g[0] < 3])
+    db = built(data, tmp_path / "before")
+    assert query(db, "select franchise_id, source, wins, losses, ties, points_for, points_against "
+                     "from season_lines where season = 2014 order by franchise_id") == [
+        (1, "reported", 2, 1, 0, 300.0, 310.0),
+        (2, "reported", 1, 1, 1, 290.0, 280.0),
+        (3, "reported", 1, 2, 0, 265.0, 285.0),
+        (4, "reported", 1, 1, 1, 285.0, 265.0),
+    ]
+    # The recovered games are appended as plain rows; nothing else changes.
+    write_games(data, [(2014, *g) for g in REGULAR])
+    db = built(data, tmp_path / "after")
+    assert query(db, "select distinct source from season_lines where season = 2014") == [("derived",)]
+
+
+@pytest.mark.parametrize("planted, figure", [
+    ((1, 2, 0, 300, 310), "W-L-T"),
+    ((2, 1, 0, 300.02, 310), "points for"),
+    ((2, 1, 0, 300, 309.5), "points against"),
+])
+def test_a_reported_line_that_disagrees_with_the_games_fails_the_build(data, tmp_path, planted, figure):
+    write_season(data, {**REPORTED, "Ant": planted})
+    with pytest.raises(BuildError, match=f"2014 franchise 1:.*{figure}"):
+        built(data, tmp_path)
+
+
+def test_a_season_without_full_coverage_has_nothing_to_disagree_with(data, tmp_path):
+    write_season(data, {**REPORTED, "Ant": (1, 2, 0, 300, 310)})
+    write_games(data, [(2014, *g) for g in REGULAR[:-1]])
+    db = built(data, tmp_path)
+    assert query(db, "select source, wins, losses from season_lines where franchise_id = 1") == [
+        ("reported", 1, 2)]

@@ -77,3 +77,10 @@ def test_coverage_marks_the_known_gaps(db):
     # Playoffs scores stop at 2021, whose final (week 17) is missing too.
     assert incomplete("bracket") == [(2021, 17)] + [(y, w) for y in (2022, 2023, 2024)
                                                     for w in (15, 16, 17)]
+
+
+def test_season_lines_are_derived_through_2021_and_reported_after(db):
+    # Building at all proves the agreement check passed for 2012-2021.
+    assert db.execute("select season, group_concat(distinct source) from season_lines "
+                      "group by season order by season").fetchall() == [
+        *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)]]

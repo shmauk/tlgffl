@@ -87,6 +87,24 @@ create table coverage (
     complete integer not null check (complete in (0, 1))
 );
 create unique index coverage_key on coverage (season, week, phase, coalesce(bracket, ''));
+-- The season line the site shows (ADR 0001): W-L-T and points derived from
+-- games where the season's regular season is fully covered, reported by
+-- NFL.com otherwise. `source` records which.
+create table season_lines (
+    franchise_id integer not null references franchises(id),
+    season integer not null references seasons(year),
+    source text not null check (source in ('derived', 'reported')),
+    wins integer not null,
+    losses integer not null,
+    ties integer not null,
+    points_for real not null,
+    points_against real not null,
+    division text,
+    seed integer,
+    bracket text,
+    final_placing integer,
+    primary key (franchise_id, season)
+);
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -223,6 +241,10 @@ def build(data, out):
     check_one_game_a_week(games)
     team_counts = {year: count for year, _, count in seasons}
     coverage = gamelog.coverage(games, team_counts, regular_weeks, playoff_teams)
+    season_lines, disagreements = gamelog.season_lines(games, coverage, lines)
+    if disagreements:
+        raise BuildError("the games and NFL.com's reported season lines disagree (ADR 0001):\n  "
+                         + "\n  ".join(disagreements))
 
     if not seasons:
         raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
@@ -252,6 +274,8 @@ def build(data, out):
                         f"values ({', '.join('?' * len(GAME_COLUMNS))})",
                         [astuple(g) for g in games])
         con.executemany("insert into coverage values (?, ?, ?, ?, ?, ?, ?)", coverage)
+        con.executemany(f"insert into season_lines values ({', '.join('?' * 12)})",
+                        sorted(season_lines))
         con.commit()
     finally:
         con.close()
