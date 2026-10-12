@@ -56,6 +56,10 @@ An NFL player a franchise keeps from one season into the next instead of releasi
 One year of the league, from draft to the end of the brackets.
 _Avoid_: Year, league (for a single year)
 
+**Current season**:
+The season being played or, between seasons, the one that finished most recently, until the next season's week 1. "This season" always means the current season.
+_Avoid_: Live season, latest season
+
 **Format**:
 How a season is played: team count, divisions, regular-season length, and each bracket's size, seeding, tiebreaks and weeks. It changes between seasons.
 _Avoid_: Rules, settings
@@ -102,6 +106,10 @@ _Avoid_: Toilet bowl, losers bracket, consolation bracket
 **Shit Bowl winner**:
 The franchise the Shit Bowl crowns worst of the season.
 _Avoid_: Shit Bowl loser, last place
+
+**Playoff picture**:
+The current season's franchises ordered by the seed each would get if the regular season ended now, with the cut-offs between brackets. Franchises still level after every tiebreak except scissors-paper-rock share a seed.
+_Avoid_: Projected standings, live standings
 
 **Mediocre Bowl**:
 The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exists since 2015; from 2026 it is a series between the two middle franchises.
