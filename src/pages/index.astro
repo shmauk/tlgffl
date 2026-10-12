@@ -1,0 +1,17 @@
+---
+// / is reserved for the current-season hub (#14); its contents are a later
+// ticket. Until then it points into the sections.
+import Base from '../layouts/Base.astro';
+import Row from '../components/Row.astro';
+import { MENU } from '../lib/urls';
+---
+
+<Base title="Home">
+  <Row label="The Fantasy League" sub="The record book, since 2012">
+    <h1>The record book</h1>
+    <p class="sub">The current season's hub is still to come.</p>
+  </Row>
+  <Row label="Sections">
+    {MENU.map(({ href, label }) => <p><a class="more" href={href}>{label} →</a></p>)}
+  </Row>
+</Base>

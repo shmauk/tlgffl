@@ -1,5 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import FranchiseLink from '../../components/FranchiseLink.astro';
+import SeasonLink from '../../components/SeasonLink.astro';
 import { franchises } from '../../lib/db';
 
 const all = franchises();
@@ -8,19 +11,39 @@ const departed = all.filter((f) => !f.active);
 ---
 
 <Base title="Franchises">
-  <h1>Franchises</h1>
-  <h2>Active</h2>
-  <ul>
-    {active.map((f) => <li><a href={`/franchises/${f.id}/`}>{f.name}</a> ({f.firstSeason}–)</li>)}
-  </ul>
-  <h2>Departed</h2>
-  <ul>
-    {
-      departed.map((f) => (
-        <li>
-          <a href={`/franchises/${f.id}/`}>{f.name}</a> ({f.firstSeason}–{f.lastSeason})
-        </li>
-      ))
-    }
-  </ul>
+  <Row label="Franchises" sub={`${active.length} active, ${departed.length} departed`}>
+    <h1>Franchises</h1>
+  </Row>
+  <Row label="Active">
+    <table class="t">
+      <thead><tr><th>Franchise</th><th class="num">Since</th></tr></thead>
+      <tbody>
+        {
+          active.map((f) => (
+            <tr>
+              <td><FranchiseLink franchise={f} /></td>
+              <td class="num"><SeasonLink season={f.firstSeason} /></td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </Row>
+  <Row label="Departed">
+    <table class="t">
+      <thead><tr><th>Franchise</th><th class="num">Seasons</th></tr></thead>
+      <tbody>
+        {
+          departed.map((f) => (
+            <tr class="dep">
+              <td><FranchiseLink franchise={f} /></td>
+              <td class="num">
+                <SeasonLink season={f.firstSeason} />–<SeasonLink season={f.lastSeason} />
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </Row>
 </Base>

@@ -1,0 +1,29 @@
+---
+// A placeholder season page so /seasons/<year>/ links resolve from the start.
+// The full season page is a later ticket.
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import { seasons, seasonFormats, type Season } from '../../lib/db';
+import { formatSummary } from '../../lib/format';
+
+export function getStaticPaths() {
+  return seasons().map((season) => ({ params: { year: String(season.year) }, props: { season } }));
+}
+
+const { season } = Astro.props as { season: Season };
+const format = seasonFormats().find((f) => f.season === season.year);
+---
+
+<Base title={String(season.year)}>
+  <Row label="Season" sub={season.era === 'nfl.com' ? 'Played on NFL.com' : 'Played on Sleeper'}>
+    <h1>{season.year}</h1>
+    <p class="sub">The full season page is still to come.</p>
+  </Row>
+  {
+    format && (
+      <Row label="Format">
+        {formatSummary(format).map((line) => <p>{line}</p>)}
+      </Row>
+    )
+  }
+</Base>

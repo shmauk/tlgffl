@@ -37,6 +37,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Component tests
+        run: npm run test:components
       - run: npm run build
       - name: Site tests
         run: npm run test:site

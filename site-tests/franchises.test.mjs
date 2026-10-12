@@ -18,7 +18,7 @@ test('/franchises/ links every franchise by its id, active and departed apart', 
   assert.ok(departed, 'has a Departed section');
   for (const f of franchises) {
     const section = f.active ? active : departed;
-    const link = new RegExp(`<a href="/franchises/${f.id}/">([^<]*)</a>`);
+    const link = new RegExp(`<a [^>]*href="/franchises/${f.id}/"[^>]*>([^<]*)</a>`);
     assert.equal(section.match(link)?.[1], f.name, `franchise ${f.id}`);
   }
 });

@@ -1,8 +1,14 @@
 ---
+// The site shell (#14, #21): the site name linking home, then the menu, on
+// every page. The menu marks the section the page belongs to.
+import '../styles/swiss.css';
+import { MENU } from '../lib/urls';
+
 interface Props {
   title: string;
 }
 const { title } = Astro.props;
+const path = Astro.url.pathname;
 ---
 
 <!doctype html>
@@ -10,10 +16,16 @@ const { title } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>{title} · The Fantasy League</title>
   </head>
   <body>
-    <nav><a href="/franchises/">Franchises</a></nav>
+    <header class="top">
+      <a class="logo" href="/">The Fantasy League</a>
+      <nav aria-label="Sections">
+        {MENU.map(({ href, label }) => <a href={href} aria-current={path.startsWith(href) ? 'page' : undefined}>{label}</a>)}
+      </nav>
+    </header>
     <main>
       <slot />
     </main>

@@ -2,6 +2,11 @@
 // A placeholder franchise page so /franchises/<id>/ URLs exist from the start.
 // The full profile is a later ticket.
 import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import Badge from '../../components/Badge.astro';
+import Marker from '../../components/Marker.astro';
+import Notes from '../../components/Notes.astro';
+import SeasonLink from '../../components/SeasonLink.astro';
 import { franchises, teamNames, reportedSeasonLines, type Franchise } from '../../lib/db';
 
 export function getStaticPaths() {
@@ -9,35 +14,43 @@ export function getStaticPaths() {
 }
 
 const { franchise } = Astro.props as { franchise: Franchise };
-const names = teamNames(franchise.id);
+const names = teamNames(franchise.id).reverse();
 const lines = new Map(reportedSeasonLines(franchise.id).map((l) => [l.season, l]));
+const reported = 'As NFL.com reported it';
 ---
 
 <Base title={franchise.name}>
-  <h1>{franchise.name}</h1>
-  <p>{franchise.active ? 'Active' : 'Departed'} · {franchise.firstSeason}–{franchise.active ? '' : franchise.lastSeason}</p>
-  <table>
-    <thead>
-      <tr><th>Season</th><th>Team name</th><th>W-L-T</th><th>PF</th><th>PA</th><th>Seed</th><th>Final</th></tr>
-    </thead>
-    <tbody>
-      {
-        names.map(({ season, teamName }) => {
-          const l = lines.get(season);
-          return (
-            <tr>
-              <td>{season}</td>
-              <td>{teamName}</td>
-              <td>{l ? `${l.wins}-${l.losses}-${l.ties}` : ''}</td>
-              <td>{l?.pointsFor.toFixed(2) ?? ''}</td>
-              <td>{l?.pointsAgainst.toFixed(2) ?? ''}</td>
-              <td>{l?.seed ?? ''}</td>
-              <td>{l?.finalPlacing ?? ''}</td>
-            </tr>
-          );
-        })
-      }
-    </tbody>
-  </table>
-  <p>Season lines are as NFL.com reported them. Sleeper-era seasons are still to come.</p>
+  <Row label="Franchise" sub={`${franchise.firstSeason}–${franchise.active ? '' : franchise.lastSeason}`}>
+    <h1>{franchise.name}</h1>
+    {!franchise.active && <p class="sub"><Badge kind="departed" /></p>}
+  </Row>
+  <Row label="Season by season">
+    <table class="t">
+      <thead>
+        <tr>
+          <th>Season</th><th>Team name</th><th class="num">W-L-T</th><th class="num">PF</th>
+          <th class="num">PA</th><th class="num">Seed</th><th class="num">Final</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          names.map(({ season, teamName }) => {
+            const l = lines.get(season);
+            return (
+              <tr>
+                <td><SeasonLink season={season} /></td>
+                <td>{teamName}</td>
+                <td class="num">{l && <>{`${l.wins}-${l.losses}-${l.ties}`}<Marker glyph="†" title={reported} /></>}</td>
+                <td class="num">{l?.pointsFor.toFixed(2) ?? ''}</td>
+                <td class="num">{l?.pointsAgainst.toFixed(2) ?? ''}</td>
+                <td class="num">{l?.seed ?? ''}</td>
+                <td class="num">{l?.finalPlacing ?? ''}</td>
+              </tr>
+            );
+          })
+        }
+      </tbody>
+    </table>
+    <Notes notes={[{ glyph: '†', text: `${reported}. Sleeper-era seasons are still to come.` }]} />
+  </Row>
 </Base>

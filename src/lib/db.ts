@@ -54,6 +54,71 @@ export function teamNames(franchiseId: number): TeamName[] {
     .all(franchiseId) as unknown as TeamName[];
 }
 
+export interface Season {
+  year: number;
+  era: 'nfl.com' | 'sleeper';
+  teamCount: number;
+}
+
+/** Every season, newest first. */
+export function seasons(): Season[] {
+  return open()
+    .prepare('select year, era, team_count as teamCount from seasons order by year desc')
+    .all() as unknown as Season[];
+}
+
+export interface SeasonFormat {
+  season: number;
+  teams: number;
+  divisions: number;
+  regularSeason: [number, number];
+  brackets: {
+    bracket: 'playoffs' | 'shit_bowl' | 'mediocre_bowl';
+    size: number;
+    firstWeek: number;
+    lastWeek: number;
+    series: string | null;
+  }[];
+}
+
+/** Every season's format (#11), oldest first. */
+export function seasonFormats(): SeasonFormat[] {
+  const brackets = open()
+    .prepare(
+      `select season, bracket, size, first_week as firstWeek, last_week as lastWeek, series
+       from season_brackets`,
+    )
+    .all() as unknown as (SeasonFormat['brackets'][number] & { season: number })[];
+  return open()
+    .prepare(
+      `select f.season, s.team_count as teams, f.divisions,
+              f.regular_season_first_week as first, f.regular_season_last_week as last
+       from season_formats f join seasons s on s.year = f.season order by f.season`,
+    )
+    .all()
+    .map((r: any) => ({
+      season: r.season,
+      teams: r.teams,
+      divisions: r.divisions,
+      regularSeason: [r.first, r.last],
+      brackets: brackets.filter((b) => b.season === r.season).map(({ season, ...b }) => b),
+    }));
+}
+
+export interface LeagueDocument {
+  kind: 'constitution' | 'agm';
+  season: number | null;
+  title: string;
+  url: string;
+}
+
+/** The constitution and the AGM docs, in the order they are kept. */
+export function documents(): LeagueDocument[] {
+  return open()
+    .prepare('select kind, season, title, url from documents order by rowid')
+    .all() as unknown as LeagueDocument[];
+}
+
 /** NFL.com's reported season lines (ADR 0001). */
 export function reportedSeasonLines(franchiseId: number): SeasonLine[] {
   return open()
