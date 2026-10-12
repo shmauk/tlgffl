@@ -27,7 +27,7 @@ The name a franchise played under in a given season. It changes most years and n
 _Avoid_: Franchise
 
 **NFL player**:
-A real-world NFL athlete rostered, drafted, kept or traded by franchises. Only known from the Sleeper era on.
+A real-world NFL athlete rostered, drafted, kept or traded by franchises. Known from 2017 for drafts, 2021 for keepers, and the Sleeper era for everything else.
 _Avoid_: Player (unqualified)
 
 ### Rosters
@@ -45,10 +45,10 @@ A franchise's bid for an NFL player in one waiver run, won or lost.
 _Avoid_: Waiver (unqualified), bid
 
 **Draft pick**:
-A slot in a season's draft, owned by a franchise and tradeable before it's used.
+A slot in a season's draft, belonging to one franchise and tradeable, so it may be used by another.
 
 **Keeper**:
-An NFL player a franchise keeps from one season into the next instead of releasing them into the draft.
+An NFL player a franchise actually keeps from one season into the next instead of releasing them into the draft, at the cost of a draft round. Being eligible to keep a player doesn't make them a keeper.
 
 ### Structure
 
