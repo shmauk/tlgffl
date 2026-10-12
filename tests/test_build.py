@@ -89,3 +89,10 @@ def test_franchise_ids_must_agree_with_ff_data_projects_sleeper_aliases(archive,
         (3, "sleeper", 2, ""), (1, "sleeper", 1, ""), (4, "sleeper", 3, "")])
     with pytest.raises(BuildError, match="roster 1"):
         build(archive, tmp_path / "league.sqlite")
+
+
+def test_an_empty_archive_fails_the_build(tmp_path):
+    write_franchise_keys(tmp_path, [(1, "nfl.com", 1, 100)])
+    write_sleeper_aliases(tmp_path, [])
+    with pytest.raises(BuildError, match="no seasons"):
+        build(tmp_path, tmp_path / "league.sqlite")

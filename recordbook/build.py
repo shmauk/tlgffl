@@ -166,6 +166,8 @@ def build(data, out):
             played[fid].add(year)
             sleeper_ids[fid] = r["roster_id"]
 
+    if not seasons:
+        raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
     all_ids = sorted(set(keys.values()))
     current = max(year for year, _, _ in seasons)
     franchises = []
