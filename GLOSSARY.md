@@ -109,6 +109,10 @@ The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exist
 **Series**:
 A bracket round in which the same two franchises meet over several weeks.
 
+**Roll of honour**:
+Each season's champion, runner-up, Shit Bowl winner and Mediocre Bowl winner, one row per season.
+_Avoid_: Honours board, history
+
 **Disputed**:
 A hand-recorded outcome the league can't agree on, with more than one candidate. It counts for nobody until it's settled.
 
@@ -127,3 +131,10 @@ The franchise ranking first on an award while the regular season is still being 
 
 **Award result**:
 One franchise's value and rank for one award in one season.
+
+**Luck**:
+A franchise's win % in a season minus its Breakdown %, a tie counting as half a win. Positive is lucky.
+
+**Record**:
+A ranked list of franchises, seasons, games or divisions on one measure, such as highest score or most championships. The record book is made of them.
+_Avoid_: Leaderboard, record (for a W-L-T line)
