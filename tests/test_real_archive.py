@@ -100,6 +100,23 @@ def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
                       ).fetchone() == (0,)
 
 
+def test_every_nfl_com_season_crowns_a_champion_and_a_shit_bowl_winner(db):
+    def crowned(bracket):
+        return db.execute("select season, group_concat(coalesce(f.name, '?'), '|'), source "
+                          "from bracket_winners w left join franchises f on f.id = w.franchise_id "
+                          "where bracket = ? and season <= 2024 group by season order by season",
+                          (bracket,)).fetchall()
+    champions = crowned("playoffs")
+    assert [s for s, *_ in champions] == list(range(2012, 2025))
+    assert champions[-1] == (2024, "Kurlewless", "derived")
+    shit_bowl = dict((s, (n, src)) for s, n, src in crowned("shit_bowl"))
+    assert shit_bowl[2012] == ("Mikkels Manatees", "confirmed")
+    assert shit_bowl[2021] == ("London Tanqs|The Dirty Birds", "disputed")
+    assert shit_bowl[2024] == ("SERPION", "recalled")
+    # Nothing records a Mediocre Bowl winner before the Sleeper era.
+    assert crowned("mediocre_bowl") == [(y, "?", "unknown") for y in range(2015, 2025)]
+
+
 def test_coverage_marks_the_known_gaps(db):
     def incomplete(phase):
         return db.execute("select season, week from coverage where phase = ? and not complete "

@@ -141,6 +141,18 @@ create table documents (
     title text not null,
     url text not null
 );
+-- Who each bracket crowned: the champion (Playoffs), the Shit Bowl winner and
+-- the Mediocre Bowl winner. The champion is derived from the Playoffs; the
+-- NFL.com era's other winners come from hand-kept tables. A disputed outcome
+-- has one row per candidate and counts for nobody; an unknown one has a single
+-- row with no franchise.
+create table bracket_winners (
+    season integer not null references seasons(year),
+    bracket text not null check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
+    franchise_id integer references franchises(id),
+    source text not null check (source in ('derived', 'confirmed', 'recalled', 'disputed', 'unknown')),
+    check ((franchise_id is null) = (source = 'unknown'))
+);
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -306,7 +318,13 @@ def build(data, out):
                            int(current in played[fid]), min(played[fid]), max(played[fid])))
     check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
     format_rows, bracket_rows = season_format_rows(formats)
-    documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
+    hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
+    try:
+        winners = bracketlib.winner_rows(games, formats, nfl, hand_kept,
+                                         {name: fid for fid, name, *_ in franchises})
+    except bracketlib.BracketError as e:
+        raise BuildError(str(e)) from e
+    documents =[(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
 
     if out.exists():
@@ -331,6 +349,7 @@ def build(data, out):
         con.executemany("insert into season_formats values (?, ?, ?, ?)", format_rows)
         con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?)", bracket_rows)
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
+        con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
         con.commit()
     finally:
         con.close()

@@ -1,0 +1,24 @@
+# Who won the Mediocre Bowl, by NFL.com-era season. Hand-kept, like
+# shitbowl.csv: NFL.com never seeded a Mediocre Bowl, so nothing in the archive
+# records its games or its winner, and ff-data-project kept no list.
+#
+# Blank means nobody has recorded it; the site shows it as unknown rather than
+# a guess. Fill a row in only on the league's word, naming the franchise as
+# data/franchises.csv's franchise name (the last team name it played under).
+# "A|B" means genuinely disputed: both are shown and neither counts.
+#
+# source:
+#   confirmed  worked out from the game log, then checked by the league
+#   recalled   from memory; no surviving data could have supplied it
+#   disputed   two candidates and nothing to separate them
+year,franchise,source
+2015,,
+2016,,
+2017,,
+2018,,
+2019,,
+2020,,
+2021,,
+2022,,
+2023,,
+2024,,

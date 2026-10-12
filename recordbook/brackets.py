@@ -79,3 +79,58 @@ def playoffs_games(season, seeds, placings, weeks, logged):
         games.append(Game(season, week, "bracket", "playoffs", n, "final",
                           g.home, g.home_points, g.away, g.away_points, winner))
     return games
+
+
+# Hand-kept sources (ff-data-project's words on the left) -> GLOSSARY.md's.
+SOURCES = {"derived-confirmed": "confirmed", "confirmed": "confirmed", "derived": "derived",
+           "recalled": "recalled", "inconclusive": "disputed", "disputed": "disputed"}
+
+HAND_KEPT = {"shit_bowl": ("shitbowl.csv", "Shit Bowl"),
+             "mediocre_bowl": ("mediocre_bowl.csv", "Mediocre Bowl")}
+
+
+def champions(games):
+    """{season: franchise} from each season's Playoffs final."""
+    finals = {}
+    for g in games:
+        if g.bracket == "playoffs" and g.round >= finals.get(g.season, (0, None))[0]:
+            finals[g.season] = (g.round, g.winner)
+    return {season: winner for season, (_, winner) in finals.items()}
+
+
+def winner_rows(games, formats, seasons, hand_kept, franchise_by_name):
+    """bracket_winners rows (season, bracket, franchise or None, source).
+
+    The champion is derived from the Playoffs. Shit Bowl and Mediocre Bowl
+    winners of the given (NFL.com-era) seasons come from their hand-kept
+    tables, hand_kept[bracket] being that table's rows: "A|B" is disputed,
+    with one row per candidate, and a blank or missing row is unknown.
+    """
+    rows = [(s, "playoffs", f, "derived") for s, f in sorted(champions(games).items())]
+    for bracket, (table, title) in HAND_KEPT.items():
+        recorded = {}
+        for r in hand_kept.get(bracket, []):
+            season = int(r["year"])
+            if season not in formats:
+                raise BracketError(f"data/{table}: {season} is not a season")
+            if bracket not in formats[season].brackets:
+                raise BracketError(f"data/{table}: {season} had no {title} (data/formats.yaml)")
+            recorded[season] = r
+        for season in sorted(seasons):
+            if bracket not in formats[season].brackets:
+                continue
+            r = recorded.get(season) or {}
+            names = [n.strip() for n in (r.get("franchise") or "").split("|") if n.strip()]
+            if not names:
+                rows.append((season, bracket, None, "unknown"))
+                continue
+            source = "disputed" if len(names) > 1 else SOURCES.get((r.get("source") or "").strip())
+            if source is None:
+                raise BracketError(f"data/{table}: {season} source {r.get('source')!r} is not one of "
+                                   f"{', '.join(SOURCES)}")
+            for name in names:
+                if name not in franchise_by_name:
+                    raise BracketError(f"data/{table}: {season} names {name!r}, which is not a "
+                                       "franchise name")
+                rows.append((season, bracket, franchise_by_name[name], source))
+    return rows
