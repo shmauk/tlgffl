@@ -1,0 +1,12 @@
+---
+// Big-number stats (a franchise's career): large figures over uppercase
+// captions, separated by vertical rules.
+interface Props {
+  stats: { label: string; value: string | number }[];
+}
+const { stats } = Astro.props;
+---
+
+<dl class="kpis">
+  {stats.map(({ label, value }) => <div><dd>{value}</dd><dt>{label}</dt></div>)}
+</dl>

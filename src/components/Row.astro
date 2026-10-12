@@ -1,0 +1,17 @@
+---
+// One row of the asymmetric grid every page is made of: an uppercase label
+// (with an optional grey sub-label) in the left column, the content on the
+// right, and a 1px rule under it. On narrow screens the label stacks on top.
+interface Props {
+  label: string;
+  sub?: string;
+}
+const { label, sub } = Astro.props;
+---
+
+<section class="row">
+  <h2 class="lab">{label}{sub && <small>{sub}</small>}</h2>
+  <div class="con">
+    <slot />
+  </div>
+</section>

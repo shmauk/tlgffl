@@ -9,9 +9,13 @@
     "build:data": "python3 -m recordbook.build",
     "build": "astro build",
     "dev": "astro dev",
-    "test:site": "node --test \"site-tests/*.test.mjs\""
+    "test:site": "node --test \"site-tests/*.test.mjs\"",
+    "test:components": "vitest run"
   },
   "dependencies": {
     "astro": "7.3.8"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
   }
 }

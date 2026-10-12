@@ -1,0 +1,12 @@
+---
+// A footnote marker: a small red superscript glyph. Its meaning is spelled out
+// in the Notes block under the table and repeated as a tooltip.
+export type Glyph = '†' | '‡' | '*' | '§' | '¶';
+interface Props {
+  glyph: Glyph;
+  title?: string;
+}
+const { glyph, title } = Astro.props;
+---
+
+<sup class="mk" title={title}>{glyph}</sup>
