@@ -56,6 +56,10 @@ An NFL player a franchise keeps from one season into the next instead of releasi
 One year of the league, from draft to the end of the brackets.
 _Avoid_: Year, league (for a single year)
 
+**Format**:
+How a season is played: team count, divisions, regular-season length, and each bracket's size, seeding, tiebreaks and weeks. It changes between seasons.
+_Avoid_: Rules, settings
+
 **Era**:
 The platform a season was played on: the NFL.com era (2012–2024) or the Sleeper era (2025 on).
 
@@ -100,7 +104,10 @@ The franchise the Shit Bowl crowns worst of the season.
 _Avoid_: Shit Bowl loser, last place
 
 **Mediocre Bowl**:
-The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exists since 2015.
+The bracket for franchises in neither the Playoffs nor the Shit Bowl. Only exists since 2015; from 2026 it is a series between the two middle franchises.
+
+**Series**:
+A bracket round in which the same two franchises meet over several weeks.
 
 **Disputed**:
 A hand-recorded outcome the league can't agree on, with more than one candidate. It counts for nobody until it's settled.
@@ -108,7 +115,7 @@ A hand-recorded outcome the league can't agree on, with more than one candidate.
 ### Measures
 
 **Breakdown**:
-A franchise's record had it played every other franchise each week. Used as a tiebreaker.
+A franchise's W-L-T record had it played every other franchise each regular-season week. Used as a tiebreaker.
 _Avoid_: All-play record
 
 **Award**:
