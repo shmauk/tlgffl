@@ -1,0 +1,637 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Statsguru for The Fantasy League (shmauk/tlgffl#9).
+  Three structurally different variants of one query tool, switchable via ?variant=A|B|C
+  (bottom bar, or ← / →). All three share one query engine and real ff-data-project data,
+  and each writes the query into the URL in a different shape so URL styles can be compared.
+  Regenerate: python3 extract.py <ff-data-project> data.json && python3 inline.py
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Statsguru — PROTOTYPE</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 -apple-system, system-ui, sans-serif; color: #1d1d1f; background: #fff; padding-bottom: 80px; }
+  a { color: #0b57d0; }
+  table { border-collapse: collapse; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: #888; }
+  .site { background: #1f3b2c; color: #fff; padding: 10px 24px; display: flex; gap: 24px; align-items: baseline; }
+  .site b { font-size: 18px; }
+  .site span { opacity: .75; }
+  .url { font: 12px ui-monospace, monospace; background: #f4f4f4; border: 1px solid #ddd; padding: 6px 8px; word-break: break-all; }
+
+  /* ---------- switcher ---------- */
+  #switcher { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #111; color: #fff;
+    border-radius: 999px; padding: 6px 10px; display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+    font: 13px ui-monospace, monospace; z-index: 99; }
+  #switcher button { background: #333; color: #fff; border: 0; border-radius: 999px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; }
+  #switcher .tag { background: #e8b400; color: #111; border-radius: 4px; padding: 1px 5px; font-weight: bold; }
+
+  /* ---------- A: classic ---------- */
+  .A { max-width: 1100px; margin: 0 auto; padding: 16px 24px; font-family: Verdana, Geneva, sans-serif; font-size: 12px; }
+  .A h1 { font-size: 20px; margin: 4px 0 12px; }
+  .A fieldset { border: 1px solid #ccc; margin: 0 0 10px; padding: 8px 12px; }
+  .A legend { font-weight: bold; color: #1f3b2c; }
+  .A .row { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; align-items: center; margin: 4px 0; }
+  .A label.inline { margin-right: 12px; white-space: nowrap; }
+  .A select[multiple] { height: 110px; min-width: 260px; }
+  .A .submit { background: #1f3b2c; color: #fff; border: 0; padding: 6px 18px; font-weight: bold; cursor: pointer; }
+  .A .summary { background: #eef3ef; border-left: 4px solid #1f3b2c; padding: 6px 10px; margin: 10px 0; }
+  .A table.res { width: 100%; font-size: 12px; }
+  .A table.res th { background: #1f3b2c; color: #fff; padding: 4px 6px; text-align: left; white-space: nowrap; }
+  .A table.res th a { color: #fff; text-decoration: none; }
+  .A table.res th.sorted { background: #3b6b50; }
+  .A table.res td { padding: 3px 6px; border-bottom: 1px solid #e4e4e4; white-space: nowrap; }
+  .A table.res tr:nth-child(even) td { background: #f7f7f7; }
+  .A .fn { color: #b00; font-weight: bold; }
+  .A .footnotes { margin-top: 10px; font-size: 11px; color: #444; }
+  .A .footnotes div { margin: 2px 0; }
+
+  /* ---------- B: sentence ---------- */
+  .B { max-width: 1000px; margin: 0 auto; padding: 28px 24px; }
+  .B .sentence { font-size: 24px; line-height: 2.1; font-weight: 300; }
+  .B .pill { display: inline-block; position: relative; font-weight: 600; color: #0b57d0; border-bottom: 2px dashed #0b57d0; cursor: pointer; line-height: 1.2; }
+  .B .pop { position: absolute; top: 110%; left: 0; background: #fff; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    padding: 10px; z-index: 10; font-size: 13px; font-weight: 400; color: #222; line-height: 1.6; max-height: 340px; overflow: auto; min-width: 240px; }
+  .B .pop label { display: block; white-space: nowrap; }
+  .B .strip { display: flex; gap: 3px; margin: 22px 0 6px; }
+  .B .strip div { flex: 1; text-align: center; font-size: 11px; }
+  .B .strip .bar { height: 22px; border-radius: 3px; margin-bottom: 3px; }
+  .B .full { background: #2e7d32; } .B .partial { background: repeating-linear-gradient(45deg,#2e7d32 0 6px,#c8e6c9 6px 12px); }
+  .B .reported { background: #c8e6c9; } .B .none { background: #eee; }
+  .B .off .bar { opacity: .15; } .B .off { color: #bbb; }
+  .B .legend span { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin: 0 4px 0 12px; }
+  .B .missing-note { background: #fff8e1; border: 1px solid #f0d78c; border-radius: 8px; padding: 10px 14px; margin: 12px 0 18px; }
+  .B table.res { width: 100%; }
+  .B table.res th { text-align: left; font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; padding: 6px 8px; border-bottom: 2px solid #222; cursor: pointer; white-space: nowrap; }
+  .B table.res td { padding: 7px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  .B .metric { position: relative; }
+  .B .metric i { position: absolute; left: 0; top: 4px; bottom: 4px; background: #e3ecfb; z-index: -1; border-radius: 2px; }
+  .B .partialcell { border-bottom: 1px dotted #b26a00; cursor: help; }
+  .B .badge { display: inline-block; background: #eee; color: #555; border-radius: 10px; padding: 0 8px; font-size: 11px; margin-left: 6px; }
+  .B .badge.warn { background: #fff0c2; color: #8a5a00; }
+  .B .share { margin-top: 18px; }
+
+  /* ---------- C: workbench ---------- */
+  .C { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 40px); }
+  .C aside { background: #f6f7f9; border-right: 1px solid #e2e4e8; padding: 12px; overflow: auto; max-height: calc(100vh - 40px); position: sticky; top: 0; }
+  .C aside h4 { margin: 14px 0 4px; font-size: 11px; text-transform: uppercase; color: #667; letter-spacing: .05em; display: flex; justify-content: space-between; }
+  .C aside h4 a { font-weight: 400; text-transform: none; font-size: 11px; cursor: pointer; }
+  .C aside label { display: flex; justify-content: space-between; font-size: 13px; padding: 1px 2px; cursor: pointer; border-radius: 3px; }
+  .C aside label:hover { background: #e9ebef; }
+  .C aside label .c { color: #99a; font-size: 11px; }
+  .C aside label.zero { color: #bbb; }
+  .C main { padding: 12px 20px; min-width: 0; }
+  .C .tabs { display: flex; gap: 2px; border-bottom: 1px solid #ccd; margin-bottom: 12px; }
+  .C .tabs button { border: 0; background: none; padding: 8px 14px; cursor: pointer; font-size: 13px; border-bottom: 3px solid transparent; }
+  .C .tabs button.on { border-color: #0b57d0; color: #0b57d0; font-weight: 600; }
+  .C .heat { display: grid; gap: 1px; font-size: 10px; margin-bottom: 4px; }
+  .C .heat div { height: 14px; }
+  .C .heat .lbl { color: #667; text-align: right; padding-right: 4px; cursor: pointer; }
+  .C .heat .lbl:hover { color: #0b57d0; }
+  .C .h-s { background: #3f7ad8; } .C .h-r { background: #b9cdf0; } .C .h-x { background: repeating-linear-gradient(45deg,#ddd 0 3px,#fff 3px 6px); }
+  .C .h-o { background: #a0e0b0; } .C .h-n { background: transparent; } .C .h-dim { opacity: .15; }
+  .C table.res { width: 100%; font-size: 13px; }
+  .C table.res th { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ccd; padding: 5px 8px; text-align: left; cursor: pointer; white-space: nowrap; font-weight: 600; }
+  .C table.res td { padding: 4px 8px; border-bottom: 1px solid #f0f0f3; white-space: nowrap; }
+  .C .cov { display: inline-flex; width: 90px; height: 8px; border-radius: 2px; overflow: hidden; background: #eee; vertical-align: middle; }
+  .C .cov i { display: block; height: 100%; }
+  .C .matrix td, .C .matrix th { width: 34px; height: 26px; text-align: center; font-size: 11px; padding: 0; border: 1px solid #fff; }
+  .C .matrix th.r { text-align: right; width: auto; padding-right: 6px; white-space: nowrap; }
+  .C .matrix th.c { writing-mode: vertical-rl; transform: rotate(180deg); height: 120px; vertical-align: bottom; font-weight: 400; }
+  .C .bar-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="site"><b>The Fantasy League</b><span>Records</span><span>Statsguru</span><span>Franchises</span><span>Seasons</span><span style="margin-left:auto">PROTOTYPE</span></div>
+<div id="app"></div>
+<div id="switcher"><button id="prev">←</button><span id="vlabel"></span><button id="next">→</button></div>
+
+<script>
+const DATA = __DATA__;
+
+// ============================================================ engine (shared)
+const F = Object.fromEntries(DATA.franchises.map(f => [f.id, f]));
+const FIDS = DATA.franchises.map(f => f.id).sort((a, b) => F[a].name.localeCompare(F[b].name));
+const SEASONS = Object.keys(DATA.coverage).map(Number);
+const PH = { R: 'Regular season', P: 'Playoffs', C: 'Consolation' };
+const PH_LONG = { R: 'Regular season', P: 'Playoffs', C: 'Shit Bowl + Mediocre Bowl (not yet separated)' };
+const era = y => y <= 2024 ? 'nfl' : 'sleeper';
+const fname = id => (F[id].emoji ? F[id].emoji + ' ' : '') + F[id].name;
+
+// One row per franchise per game (both perspectives).
+const ROWS = [];
+for (const [y, wk, ph, a, sa, b, sb] of DATA.games) {
+  const scored = sa !== null;
+  const resA = !scored ? 'W' : sa > sb ? 'W' : sa < sb ? 'L' : 'T';
+  const flip = { W: 'L', L: 'W', T: 'T' };
+  ROWS.push({ y, wk, ph, f: a, o: b, pf: sa, pa: sb, res: resA, scored });
+  ROWS.push({ y, wk, ph, f: b, o: a, pf: sb, pa: sa, res: flip[resA], scored });
+}
+const LINE = {};
+for (const [y, f, team, w, l, t, pf, pa] of DATA.lines) LINE[y + '|' + f] = { team, w, l, t, pf, pa };
+// Regular-season weeks with no game scores, per season.
+const MISSING_WK = {};
+for (const [y, c] of Object.entries(DATA.coverage)) {
+  const have = new Set(c.regScored);
+  MISSING_WK[y] = [...Array(c.regWeeks).keys()].map(i => i + 1).filter(w => !have.has(w));
+}
+// Reported season line minus the games we do have = the part with no game detail.
+const GAP = [];
+for (const [y, f] of DATA.lines) {
+  if (!MISSING_WK[y].length) continue;
+  const L = LINE[y + '|' + f], g = { y, f, w: L.w, l: L.l, t: L.t, pf: L.pf, pa: L.pa, n: MISSING_WK[y].length };
+  for (const r of ROWS) if (r.y === y && r.f === f && r.ph === 'R') {
+    g[r.res.toLowerCase()]--; g.pf -= r.pf; g.pa -= r.pa;
+  }
+  GAP.push(g);
+}
+
+const DEFAULT = () => ({ f: [], o: [], s: [...SEASONS], ph: ['R', 'P'], w0: 1, w1: 17, res: '', act: false,
+  view: 'agg', min: 0, sort: 'pct', dir: 'desc' });
+
+function run(q) {
+  const ss = new Set(q.s), fs = new Set(q.f), os = new Set(q.o), ph = new Set(q.ph);
+  const okF = f => (!fs.size || fs.has(f)) && (!q.act || F[f].active);
+  const rows = ROWS.filter(r => ss.has(r.y) && ph.has(r.ph) && r.wk >= q.w0 && r.wk <= q.w1 && okF(r.f)
+    && (!os.size || os.has(r.o)) && (!q.res || r.res === q.res));
+  // Gaps: reported totals can stand in only when the query is whole-season, any opponent, any result.
+  const reported = [], uncovered = [];
+  if (ph.has('R')) for (const g of GAP) {
+    if (!ss.has(g.y) || !okF(g.f)) continue;
+    const mw = MISSING_WK[g.y].filter(w => w >= q.w0 && w <= q.w1);
+    if (!mw.length) continue;
+    if (!os.size && !q.res && mw.length === MISSING_WK[g.y].length) reported.push(g);
+    else uncovered.push({ y: g.y, f: g.f, n: mw.length });
+  }
+  const notes = [];
+  if (ph.has('C') && q.s.some(y => y >= 2022 && y <= 2024)) notes.push('consol');
+  if (ph.has('C')) notes.push('consolMixed');
+  return { rows, reported, uncovered, notes };
+}
+
+const KEYFN = { agg: r => r.f, season: r => r.f + '|' + r.y, opp: r => r.f + '|' + r.o, phase: r => r.f + '|' + r.ph };
+function group(q, res) {
+  if (q.view === 'games') return gameLog(q, res);
+  const k = KEYFN[q.view], m = new Map();
+  const acc = (key, r) => {
+    if (!m.has(key)) m.set(key, { f: r.f, y: r.y, o: r.o, ph: r.ph, gp: 0, w: 0, l: 0, t: 0, pf: 0, pa: 0, sn: 0, hi: null, lo: null, rep: 0, ro: 0, miss: 0 });
+    return m.get(key);
+  };
+  for (const r of res.rows) {
+    const a = acc(k(r), r);
+    a.gp++; a[r.res.toLowerCase()]++;
+    if (r.scored) { a.sn++; a.pf += r.pf; a.pa += r.pa; a.hi = Math.max(a.hi ?? -1, r.pf); a.lo = Math.min(a.lo ?? 1e9, r.pf); }
+    else a.ro++;
+  }
+  for (const g of res.reported) {
+    if (q.view === 'opp') continue; // can't attribute to an opponent; reported only reaches non-opp views
+    const a = acc(k({ ...g, ph: 'R', o: null }), { ...g, ph: 'R', o: null });
+    a.gp += g.n; a.w += g.w; a.l += g.l; a.t += g.t; a.pf += g.pf; a.pa += g.pa; a.rep += g.n;
+  }
+  for (const u of res.uncovered) {
+    const key = k({ ...u, ph: 'R', o: null });
+    if (m.has(key)) m.get(key).miss += u.n;
+    else if (q.view !== 'opp') { const a = acc(key, { ...u, ph: 'R', o: null }); a.miss += u.n; }
+  }
+  const out = [...m.values()].map(a => ({ ...a,
+    pct: a.gp ? (a.w + a.t / 2) / a.gp : null,
+    apf: a.sn + a.rep ? a.pf / (a.sn + a.rep) : null, apa: a.sn + a.rep ? a.pa / (a.sn + a.rep) : null,
+    pf: a.sn + a.rep ? a.pf : null, pa: a.sn + a.rep ? a.pa : null }))
+    .filter(a => a.gp >= q.min);
+  return sortRows(out, q);
+}
+function gameLog(q, res) {
+  const out = res.rows.map(r => ({ ...r, margin: r.scored ? r.pf - r.pa : null, kind: 'game' }));
+  for (const g of res.reported.concat(res.uncovered.map(u => ({ ...u, w: null })))) {
+    const mw = MISSING_WK[g.y].filter(w => w >= q.w0 && w <= q.w1);
+    out.push({ kind: 'gap', y: g.y, wk: mw[0], wkTo: mw[mw.length - 1], f: g.f, n: g.n, g, ph: 'R' });
+  }
+  return sortRows(out, q);
+}
+function sortRows(rows, q) {
+  const s = q.sort, d = q.dir === 'asc' ? 1 : -1;
+  const v = r => s === 'f' || s === 'o' ? (r[s] ? F[r[s]].name : '') : s === 'ph' ? r.ph : r[s];
+  return rows.sort((a, b) => {
+    const x = v(a), y = v(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    if (typeof x === 'string') return d * x.localeCompare(y);
+    return d * (x - y) || (a.y ?? 0) - (b.y ?? 0) || (a.wk ?? 0) - (b.wk ?? 0);
+  });
+}
+function columns(q) {
+  if (q.view === 'games') return [['y', 'Season'], ['wk', 'Week'], ['ph', 'Phase'], ['f', 'Franchise'], ['pf', 'Score'],
+    ['pa', 'Opp score'], ['o', 'Opponent'], ['res', 'Result'], ['margin', 'Margin']];
+  const lead = { agg: [['f', 'Franchise']], season: [['f', 'Franchise'], ['y', 'Season']], opp: [['f', 'Franchise'], ['o', 'Opponent']], phase: [['f', 'Franchise'], ['ph', 'Phase']] }[q.view];
+  return lead.concat([['gp', 'GP'], ['w', 'W'], ['l', 'L'], ['t', 'T'], ['pct', 'Win %'], ['pf', 'PF'], ['pa', 'PA'],
+    ['apf', 'Avg PF'], ['apa', 'Avg PA'], ['hi', 'High'], ['lo', 'Low']]);
+}
+const fmt = (k, v, r) => {
+  if (v == null) return '—';
+  if (k === 'f' || k === 'o') return fname(v);
+  if (k === 'ph') return PH[v];
+  if (k === 'pct') return (v * 100).toFixed(1);
+  if (['pf', 'pa', 'apf', 'apa', 'hi', 'lo'].includes(k)) return v.toFixed(2);
+  if (k === 'margin') return (v > 0 ? '+' : '') + v.toFixed(2);
+  return v;
+};
+const NUMERIC = new Set(['gp', 'w', 'l', 't', 'pct', 'pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'margin', 'wk', 'y']);
+const VIEWS = { agg: 'Totals per franchise', season: 'Season by season', opp: 'By opponent', phase: 'By phase', games: 'Game log' };
+
+// ============================================================ URL shapes
+const rangeOrList = s => { const c = [...s].sort(); return c.length > 1 && c[c.length - 1] - c[0] === c.length - 1 ? c[0] + '-' + c[c.length - 1] : c.join(','); };
+const parseYears = v => v.includes('-') ? (([a, b]) => SEASONS.filter(y => y >= a && y <= b))(v.split('-').map(Number)) : v.split(',').map(Number);
+function diff(q) { const d = DEFAULT(); return Object.fromEntries(Object.entries(q).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(d[k]))); }
+
+const ENC = {
+  // A: Cricinfo style — semicolon-separated, alphabetical, verbose keys
+  A(q) {
+    const d = diff(q), p = [];
+    if (d.act) p.push('active=1');
+    for (const f of q.f) p.push('franchise=' + f);
+    for (const o of q.o) p.push('opposition=' + o);
+    if (d.dir || d.sort) p.push('orderby=' + q.sort, 'orderbyad=' + (q.dir === 'asc' ? 'ascending' : 'descending'));
+    if (d.ph) for (const x of q.ph) p.push('phase=' + x);
+    if (d.min) p.push('qualmin1=' + q.min, 'qualval1=games');
+    if (d.res) p.push('result=' + { W: 1, L: 2, T: 3 }[q.res]);
+    if (d.s) { const c = [...q.s].sort(); if (rangeOrList(c).includes('-')) p.push('spanmax1=' + c[c.length - 1], 'spanmin1=' + c[0]); else for (const y of c) p.push('season=' + y); }
+    p.push('type=franchise', 'view=' + q.view);
+    if (d.w0 || d.w1) p.push('weekmax=' + q.w1, 'weekmin=' + q.w0);
+    return p.sort().join(';');
+  },
+  // B: one human-readable q= string
+  B(q) {
+    const d = diff(q), t = [];
+    if (q.f.length) t.push('franchise:' + q.f.join(','));
+    if (q.o.length) t.push('vs:' + q.o.join(','));
+    if (d.s) t.push('seasons:' + rangeOrList(q.s));
+    if (d.ph) t.push('phase:' + q.ph.map(p => ({ R: 'regular', P: 'playoffs', C: 'consolation' })[p]).join(','));
+    if (d.w0 || d.w1) t.push('weeks:' + q.w0 + '-' + q.w1);
+    if (q.res) t.push('result:' + { W: 'won', L: 'lost', T: 'tied' }[q.res]);
+    if (q.act) t.push('active');
+    if (d.min) t.push('min-games:' + q.min);
+    if (d.view) t.push('view:' + q.view);
+    if (d.sort || d.dir) t.push('sort:' + (q.dir === 'asc' ? '' : '-') + q.sort);
+    return 'q=' + t.join('+');
+  },
+  // C: conventional &-separated short keys, comma lists
+  C(q) {
+    const d = diff(q), p = new URLSearchParams();
+    if (q.f.length) p.set('f', q.f.join(','));
+    if (q.o.length) p.set('o', q.o.join(','));
+    if (d.s) p.set('s', rangeOrList(q.s));
+    if (d.ph) p.set('ph', q.ph.join(','));
+    if (d.w0 || d.w1) p.set('wk', q.w0 + '-' + q.w1);
+    if (q.res) p.set('res', q.res);
+    if (q.act) p.set('active', '1');
+    if (d.min) p.set('min', q.min);
+    if (d.view) p.set('view', q.view);
+    if (d.sort || d.dir) p.set('sort', q.sort + '.' + q.dir);
+    return p.toString().replace(/%2C/g, ',');
+  },
+};
+function decode(search) {
+  const q = DEFAULT(), raw = search.replace(/^\?/, '').split('&').filter(x => !x.startsWith('variant='));
+  const s = raw.join('&');
+  if (!s) return q;
+  if (s.startsWith('q=')) {
+    for (const tok of decodeURIComponent(s.slice(2)).split(/[+ ]/)) {
+      const [k, v = ''] = tok.split(':');
+      if (k === 'franchise') q.f = v.split(',').map(Number);
+      if (k === 'vs') q.o = v.split(',').map(Number);
+      if (k === 'seasons') q.s = parseYears(v);
+      if (k === 'phase') q.ph = v.split(',').map(p => ({ regular: 'R', playoffs: 'P', consolation: 'C' })[p]);
+      if (k === 'weeks') [q.w0, q.w1] = v.split('-').map(Number);
+      if (k === 'result') q.res = { won: 'W', lost: 'L', tied: 'T' }[v];
+      if (k === 'active') q.act = true;
+      if (k === 'min-games') q.min = +v;
+      if (k === 'view') q.view = v;
+      if (k === 'sort') { q.dir = v.startsWith('-') ? 'desc' : 'asc'; q.sort = v.replace('-', ''); }
+    }
+  } else if (s.includes(';') || /type=franchise/.test(s)) {
+    let smin, smax; const seasons = [], ph = [];
+    q.f = []; q.o = [];
+    for (const kv of s.split(';')) {
+      const [k, v] = kv.split('=');
+      if (k === 'franchise') q.f.push(+v);
+      if (k === 'opposition') q.o.push(+v);
+      if (k === 'orderby') q.sort = v;
+      if (k === 'orderbyad') q.dir = v === 'ascending' ? 'asc' : 'desc';
+      if (k === 'phase') ph.push(v);
+      if (k === 'qualmin1') q.min = +v;
+      if (k === 'result') q.res = { 1: 'W', 2: 'L', 3: 'T' }[v];
+      if (k === 'spanmin1') smin = +v; if (k === 'spanmax1') smax = +v;
+      if (k === 'season') seasons.push(+v);
+      if (k === 'view') q.view = v;
+      if (k === 'weekmin') q.w0 = +v; if (k === 'weekmax') q.w1 = +v;
+      if (k === 'active') q.act = true;
+    }
+    if (ph.length) q.ph = ph;
+    if (smin) q.s = SEASONS.filter(y => y >= smin && y <= smax);
+    if (seasons.length) q.s = seasons;
+  } else {
+    const p = new URLSearchParams(s);
+    if (p.get('f')) q.f = p.get('f').split(',').map(Number);
+    if (p.get('o')) q.o = p.get('o').split(',').map(Number);
+    if (p.get('s')) q.s = parseYears(p.get('s'));
+    if (p.get('ph')) q.ph = p.get('ph').split(',');
+    if (p.get('wk')) [q.w0, q.w1] = p.get('wk').split('-').map(Number);
+    if (p.get('res')) q.res = p.get('res');
+    if (p.get('active')) q.act = true;
+    if (p.get('min')) q.min = +p.get('min');
+    if (p.get('view')) q.view = p.get('view');
+    if (p.get('sort')) [q.sort, q.dir] = p.get('sort').split('.');
+  }
+  return q;
+}
+
+// ============================================================ app state
+const VARIANTS = { A: 'Classic Statsguru form', B: 'Sentence builder', C: 'Faceted workbench' };
+let variant = new URLSearchParams(location.search).get('variant') || 'A';
+if (!VARIANTS[variant]) variant = 'A';
+let Q = decode(location.search);
+function writeUrl() {
+  const enc = ENC[variant](Q);
+  history.replaceState(null, '', location.pathname + '?variant=' + variant + (enc && enc !== 'q=' ? '&' + enc : ''));
+}
+function set(patch) {
+  if (patch.view && !patch.sort) Object.assign(patch, { sort: patch.view === 'games' ? 'pf' : 'pct', dir: 'desc' });
+  Q = { ...Q, ...patch }; writeUrl(); render();
+}
+const app = document.getElementById('app');
+function render() {
+  document.getElementById('vlabel').innerHTML = `<span class="tag">${variant}</span> ${VARIANTS[variant]}`;
+  ({ A: renderA, B: renderB, C: renderC })[variant]();
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const keys = Object.keys(VARIANTS);
+const cycle = d => { variant = keys[(keys.indexOf(variant) + d + keys.length) % keys.length]; writeUrl(); render(); };
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea,select,[contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1);
+});
+function sortBy(k) { set({ sort: k, dir: Q.sort === k && Q.dir === 'desc' ? 'asc' : 'desc' }); }
+const shareUrl = () => location.href;
+
+// ============================================================ Variant A: classic form + results page
+let aEditing = false, aSubmitted = new URLSearchParams(location.search).toString().replace(/^variant=[A-Z]&?/, '') !== '';
+function renderA() {
+  const res = run(Q), out = group(Q, res), cols = columns(Q);
+  const opt = (ids, sel) => ids.map(id => `<option value="${id}" ${sel.includes(id) ? 'selected' : ''}>${esc(fname(id))}${F[id].active ? '' : ' (departed)'}</option>`).join('');
+  const yopt = (v) => SEASONS.map(y => `<option ${y === v ? 'selected' : ''}>${y}</option>`).join('');
+  const smin = Math.min(...Q.s), smax = Math.max(...Q.s);
+  const form = `
+  <form id="af">
+    <fieldset><legend>Query type</legend>
+      <div class="row"><b>Subject</b><div><label class="inline"><input type="radio" checked> Franchise records</label><label class="inline muted"><input type="radio" disabled> NFL players (Sleeper era, later)</label></div></div>
+      <div class="row"><b>View format</b><div>${Object.entries(VIEWS).map(([k, v]) => `<label class="inline"><input type="radio" name="view" value="${k}" ${Q.view === k ? 'checked' : ''}> ${v}</label>`).join('')}</div></div>
+    </fieldset>
+    <fieldset><legend>Filters</legend>
+      <div class="row"><b>Franchise</b><div><select multiple name="f">${opt(FIDS, Q.f)}</select> <span class="muted">none selected = all</span></div></div>
+      <div class="row"><b>Opposition</b><div><select multiple name="o">${opt(FIDS, Q.o)}</select></div></div>
+      <div class="row"><b>Season span</b><div>from <select name="smin">${yopt(smin)}</select> to <select name="smax">${yopt(smax)}</select>
+        &nbsp; or era <select name="era"><option value="">any</option><option value="nfl">NFL.com era (2012–2024)</option><option value="sleeper">Sleeper era (2025–)</option></select></div></div>
+      <div class="row"><b>Phase</b><div>${Object.entries(PH_LONG).map(([k, v]) => `<label class="inline"><input type="checkbox" name="ph" value="${k}" ${Q.ph.includes(k) ? 'checked' : ''}> ${v}</label>`).join('')}</div></div>
+      <div class="row"><b>Week span</b><div>from <input name="w0" type="number" min="1" max="17" value="${Q.w0}" style="width:50px"> to <input name="w1" type="number" min="1" max="17" value="${Q.w1}" style="width:50px"></div></div>
+      <div class="row"><b>Result</b><div><select name="res"><option value="">any</option>${['W', 'L', 'T'].map(r => `<option value="${r}" ${Q.res === r ? 'selected' : ''}>${{ W: 'won', L: 'lost', T: 'tied' }[r]}</option>`).join('')}</select></div></div>
+      <div class="row"><b>Franchises</b><div><label class="inline"><input type="checkbox" name="act" ${Q.act ? 'checked' : ''}> active franchises only</label></div></div>
+    </fieldset>
+    <fieldset><legend>Display options</legend>
+      <div class="row"><b>Qualification</b><div>minimum <input name="min" type="number" min="0" value="${Q.min}" style="width:60px"> games played</div></div>
+      <div class="row"><b>Ordered by</b><div><select name="sort">${columns(Q).map(([k, l]) => `<option value="${k}" ${Q.sort === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select name="dir"><option value="desc">descending</option><option value="asc" ${Q.dir === 'asc' ? 'selected' : ''}>ascending</option></select></div></div>
+    </fieldset>
+    <button class="submit">Submit query</button>
+  </form>`;
+  const summary = [Q.f.length ? Q.f.map(fname).join(', ') : 'All franchises', Q.o.length ? 'v ' + Q.o.map(fname).join(', ') : null,
+    Q.s.length === SEASONS.length ? 'all seasons' : `seasons ${smin}–${smax}`, Q.ph.map(p => PH[p]).join(' + '),
+    Q.w0 !== 1 || Q.w1 !== 17 ? `weeks ${Q.w0}–${Q.w1}` : null, Q.res ? { W: 'won', L: 'lost', T: 'tied' }[Q.res] : null,
+    Q.act ? 'active only' : null, Q.min ? `min ${Q.min} games` : null, VIEWS[Q.view]].filter(Boolean).join(' | ');
+
+  const used = new Set();
+  const mark = (sym) => { used.add(sym); return `<span class="fn">${sym}</span>`; };
+  const body = out.slice(0, 400).map(r => {
+    if (r.kind === 'gap') {
+      const tx = r.g.w != null ? `${r.n} games, no scores — reported ${r.g.w}-${r.g.l}-${r.g.t}, ${r.g.pf.toFixed(2)} PF` : `${r.n} games not covered`;
+      return `<tr><td>${r.y}</td><td>${r.wk}–${r.wkTo}</td><td>${PH.R}</td><td>${esc(fname(r.f))}</td><td colspan="5" class="muted"><i>${tx}</i> ${mark('†')}</td></tr>`;
+    }
+    return '<tr>' + cols.map(([k]) => {
+      let v = esc(fmt(k, r[k], r));
+      if (Q.view !== 'games') {
+        if (['pf', 'pa', 'apf', 'apa'].includes(k) && r.rep) v += mark('†');
+        if (['hi', 'lo'].includes(k) && (r.rep || r.ro)) v += mark('*');
+        if (k === 'gp' && r.miss) v += mark('§');
+        if (['pf', 'pa', 'apf', 'apa'].includes(k) && r.ro && !r.rep) v += mark('‡');
+      } else if ((k === 'pf' || k === 'pa') && !r.scored) v = mark('‡');
+      return `<td class="${NUMERIC.has(k) ? 'num' : ''}">${v}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+  const head = cols.map(([k, l]) => `<th class="${Q.sort === k ? 'sorted' : ''} ${NUMERIC.has(k) ? 'num' : ''}"><a href="#" data-sort="${k}">${l}${Q.sort === k ? (Q.dir === 'desc' ? ' ▼' : ' ▲') : ''}</a></th>`).join('');
+  const FN = {
+    '†': 'Includes season totals reported by NFL.com for weeks with no surviving game scores (2022 wk 10 – 2024). Wins, losses and points are complete; game-level figures are not.',
+    '‡': 'Playoff result known (reconstructed from seeds and placings) but the score is lost; excluded from points.',
+    '*': 'High/low only from games with scores.',
+    '§': 'Some games in this query have no surviving detail and cannot be filtered by week, opponent or result; they are left out.',
+  };
+  const qnotes = (res.notes.includes('consol') ? ['Consolation games for 2022–24 are not recorded at all.'] : [])
+    .concat(res.notes.includes('consolMixed') ? ['Shit Bowl and Mediocre Bowl games are not yet separated in this data.'] : []);
+  const results = `
+    <div class="summary"><b>Query:</b> ${esc(summary)} &nbsp; <a href="#" id="aedit">${aEditing ? 'Hide' : 'Edit'} query</a></div>
+    <div class="muted">Showing ${Math.min(out.length, 400)} of ${out.length} rows</div>
+    <table class="res"><thead><tr>${head}</tr></thead><tbody>${body || '<tr><td colspan="20">No records match the query</td></tr>'}</tbody></table>
+    <div class="footnotes">${[...used].map(s => `<div><span class="fn">${s}</span> ${FN[s]}</div>`).join('')}${qnotes.map(n => `<div>${n}</div>`).join('')}
+      <div style="margin-top:8px"><b>Link to this query:</b><div class="url">${esc(shareUrl())}</div></div></div>`;
+  app.innerHTML = `<div class="A"><h1>Statsguru — franchise records</h1>${aEditing || !aSubmitted ? form : ''}${results}</div>`;
+  const fm = document.getElementById('af');
+  if (fm) fm.onsubmit = e => {
+    e.preventDefault(); const d = new FormData(fm);
+    let s = SEASONS.filter(y => y >= +d.get('smin') && y <= +d.get('smax'));
+    if (d.get('era')) s = s.filter(y => era(y) === d.get('era'));
+    aEditing = false; aSubmitted = true;
+    set({ view: d.get('view'), f: d.getAll('f').map(Number), o: d.getAll('o').map(Number), s, ph: d.getAll('ph'),
+      w0: +d.get('w0'), w1: +d.get('w1'), res: d.get('res'), act: !!d.get('act'), min: +d.get('min'), sort: d.get('sort'), dir: d.get('dir') });
+  };
+  document.getElementById('aedit').onclick = e => { e.preventDefault(); aEditing = !aEditing; render(); };
+  app.querySelectorAll('[data-sort]').forEach(a => a.onclick = e => { e.preventDefault(); sortBy(a.dataset.sort); });
+}
+
+// ============================================================ Variant B: sentence builder, live results
+let bOpen = null;
+function renderB() {
+  const res = run(Q), out = group(Q, res), cols = columns(Q);
+  const smin = Math.min(...Q.s), smax = Math.max(...Q.s);
+  const list = (ids, none) => !ids.length ? none : ids.length <= 2 ? ids.map(fname).join(' & ') : `${ids.length} franchises`;
+  const pill = (id, text) => `<span class="pill" data-pop="${id}">${esc(text)}${bOpen === id ? pop(id) : ''}</span>`;
+  const phText = Q.ph.length === 3 ? 'every game' : Q.ph.map(p => ({ R: 'the regular season', P: 'the playoffs', C: 'the consolation brackets' })[p]).join(' and ');
+  const s = `Show ${pill('view', { agg: 'career totals', season: 'season-by-season lines', opp: 'head-to-head records', phase: 'records by phase', games: 'every game' }[Q.view])}
+    for ${pill('f', list(Q.f, 'every franchise'))}${Q.act ? '' : ''}
+    against ${pill('o', list(Q.o, 'anyone'))}
+    in ${pill('ph', phText)}
+    ${pill('s', Q.s.length === SEASONS.length ? 'across all seasons' : smin === smax ? 'in ' + smin : `from ${smin} to ${smax}`)}${Q.w0 !== 1 || Q.w1 !== 17 ? ', ' + pill('wk', `weeks ${Q.w0}–${Q.w1}`) : ''}${Q.res ? ', ' + pill('res', 'games ' + { W: 'won', L: 'lost', T: 'tied' }[Q.res]) : ''},
+    ranked by ${pill('sort', (cols.find(c => c[0] === Q.sort) || ['', Q.sort])[1].toLowerCase())}.
+    <span style="font-size:14px">${pill('more', '+ more conditions')}</span>`;
+
+  // Coverage strip: what this query can see, per season.
+  const strip = SEASONS.map(y => {
+    const c = DATA.coverage[y], inQ = Q.s.includes(y);
+    const st = c.regScored.length === c.regWeeks ? 'full' : c.regScored.length ? 'partial' : 'reported';
+    return `<div class="${inQ ? '' : 'off'}" title="${y}: ${c.regScored.length}/${c.regWeeks} regular-season weeks with scores; ${c.poScored}/${c.poGames} playoff games scored"><div class="bar ${st}"></div>${String(y).slice(2)}</div>`;
+  }).join('');
+  const sentences = [];
+  if (res.reported.length) sentences.push(`<b>${res.reported.reduce((a, g) => a + g.n, 0)} games</b> from ${[...new Set(res.reported.map(g => g.y))].join(', ')} have no surviving scores. Wins, losses and points come from NFL.com's season totals, so highs, lows and the game log can't include them.`);
+  if (res.uncovered.length) sentences.push(`<b>Up to ${res.uncovered.reduce((a, g) => a + g.n, 0)} games</b> are left out entirely: with a week, opponent or result filter, the ${[...new Set(res.uncovered.map(g => g.y))].join(', ')} games with no scores can't be checked.`);
+  const ro = res.rows.filter(r => !r.scored).length / 2;
+  if (ro) sentences.push(`<b>${ro} playoff games</b> have a known winner but no score; they count in W-L but not in points.`);
+  if (res.notes.includes('consol')) sentences.push('Consolation games from 2022–24 were never recorded.');
+
+  const metric = Q.sort, max = Math.max(...out.map(r => Math.abs(r[metric] ?? 0)), 0.0001);
+  const body = out.slice(0, 300).map((r, i) => {
+    if (r.kind === 'gap') return `<tr><td class="muted">${r.y}</td><td class="muted">wk ${r.wk}–${r.wkTo}</td><td></td><td>${esc(fname(r.f))}</td><td colspan="5"><span class="badge warn">${r.n} games — scores lost${r.g.w != null ? ` · went ${r.g.w}-${r.g.l}-${r.g.t}` : ''}</span></td></tr>`;
+    return '<tr>' + cols.map(([k]) => {
+      let v = esc(fmt(k, r[k], r)), cls = NUMERIC.has(k) ? 'num' : '';
+      if (Q.view !== 'games' && ['pf', 'pa', 'apf', 'apa'].includes(k) && r.rep) v = `<span class="partialcell" title="Includes ${r.rep} games known only from NFL.com season totals">${v}</span>`;
+      if (Q.view !== 'games' && ['hi', 'lo'].includes(k) && r.rep) v = `<span class="partialcell" title="Only from games with scores; ${r.rep} games have none">${v}</span>`;
+      if (k === 'f' && Q.view !== 'games' && r.miss) v += `<span class="badge warn" title="Games with no detail that can't be checked against this filter">+${r.miss} unknown</span>`;
+      if (Q.view === 'games' && (k === 'pf' || k === 'pa') && !r.scored) v = '<span class="badge">no score</span>';
+      if (k === metric && NUMERIC.has(k) && r[k] != null) { cls += ' metric'; v = `<i style="width:${Math.abs(r[k]) / max * 100}%"></i>` + v; }
+      return `<td class="${cls}">${v}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+  app.innerHTML = `<div class="B">
+    <div class="sentence">${s}</div>
+    <div class="strip">${strip}</div>
+    <div class="legend muted" style="font-size:12px"><span class="full"></span>every game scored<span class="partial"></span>some weeks scored<span class="reported"></span>season totals only<span class="none" style="background:#eee"></span>outside query</div>
+    ${sentences.length ? `<div class="missing-note">${sentences.join('<br>')}</div>` : '<div style="height:18px"></div>'}
+    <table class="res"><thead><tr>${cols.map(([k, l]) => `<th data-sort="${k}" class="${NUMERIC.has(k) ? 'num' : ''}">${l}${Q.sort === k ? (Q.dir === 'desc' ? ' ↓' : ' ↑') : ''}</th>`).join('')}</tr></thead>
+    <tbody>${body || '<tr><td>Nothing matches.</td></tr>'}</tbody></table>
+    <div class="share muted">${out.length} rows · Share: <span class="url">${esc(shareUrl())}</span></div></div>`;
+  app.querySelectorAll('[data-sort]').forEach(th => th.onclick = () => sortBy(th.dataset.sort));
+  app.querySelectorAll('.pill').forEach(p => p.onclick = e => { if (e.target.closest('.pop')) return; bOpen = bOpen === p.dataset.pop ? null : p.dataset.pop; render(); });
+  app.querySelectorAll('.pop [data-set]').forEach(el => el.onchange = () => {
+    const k = el.dataset.set;
+    if (k === 'f' || k === 'o' || k === 'ph' || k === 's') {
+      const vals = [...app.querySelectorAll(`.pop [data-set="${k}"]:checked`)].map(x => k === 'ph' ? x.value : +x.value);
+      set({ [k]: vals });
+    } else if (k === 's0' || k === 's1') {
+      const a = +app.querySelector('[data-set="s0"]').value, b = +app.querySelector('[data-set="s1"]').value;
+      set({ s: SEASONS.filter(y => y >= Math.min(a, b) && y <= Math.max(a, b)) });
+    } else if (k === 'era') set({ s: SEASONS.filter(y => !el.value || era(y) === el.value) });
+    else if (k === 'w0' || k === 'w1' || k === 'min') set({ [k]: +el.value });
+    else if (k === 'act') set({ act: el.checked });
+    else set({ [k]: el.value });
+  });
+}
+function pop(id) {
+  const box = (k, ids, sel) => ids.map(i => `<label><input type="checkbox" data-set="${k}" value="${i}" ${sel.includes(i) ? 'checked' : ''}> ${esc(k === 'ph' ? PH_LONG[i] : fname(i))}${k === 'ph' || F[i].active ? '' : ' <span class="muted">(departed)</span>'}</label>`).join('');
+  const smin = Math.min(...Q.s), smax = Math.max(...Q.s);
+  const ys = v => SEASONS.map(y => `<option ${y === v ? 'selected' : ''}>${y}</option>`).join('');
+  const inner = {
+    view: Object.entries(VIEWS).map(([k, v]) => `<label><input type="radio" name="bv" data-set="view" value="${k}" ${Q.view === k ? 'checked' : ''}> ${v}</label>`).join(''),
+    f: `<label><input type="checkbox" data-set="act" ${Q.act ? 'checked' : ''}> <b>active franchises only</b></label><hr>` + box('f', FIDS, Q.f),
+    o: box('o', FIDS, Q.o),
+    ph: box('ph', ['R', 'P', 'C'], Q.ph),
+    s: `from <select data-set="s0">${ys(smin)}</select> to <select data-set="s1">${ys(smax)}</select><br>or <select data-set="era"><option value="">all eras</option><option value="nfl">NFL.com era</option><option value="sleeper">Sleeper era</option></select>`,
+    wk: `weeks <input type="number" data-set="w0" value="${Q.w0}" style="width:50px"> to <input type="number" data-set="w1" value="${Q.w1}" style="width:50px">`,
+    res: `<select data-set="res"><option value="">any result</option><option value="W" ${Q.res === 'W' ? 'selected' : ''}>won</option><option value="L" ${Q.res === 'L' ? 'selected' : ''}>lost</option><option value="T" ${Q.res === 'T' ? 'selected' : ''}>tied</option></select>`,
+    sort: columns(Q).map(([k, l]) => `<label><input type="radio" name="bs" data-set="sort" value="${k}" ${Q.sort === k ? 'checked' : ''}> ${l}</label>`).join(''),
+    more: `weeks <input type="number" data-set="w0" value="${Q.w0}" style="width:50px"> to <input type="number" data-set="w1" value="${Q.w1}" style="width:50px"><br>
+      result <select data-set="res"><option value="">any</option><option value="W" ${Q.res === 'W' ? 'selected' : ''}>won</option><option value="L" ${Q.res === 'L' ? 'selected' : ''}>lost</option><option value="T" ${Q.res === 'T' ? 'selected' : ''}>tied</option></select><br>
+      at least <input type="number" data-set="min" value="${Q.min}" style="width:50px"> games`,
+  }[id];
+  return `<div class="pop">${inner}</div>`;
+}
+
+// ============================================================ Variant C: faceted workbench
+function renderC() {
+  const res = run(Q), out = group(Q, res), cols = columns(Q);
+  // Facet counts: games matching every other filter.
+  const count = (dim) => { const q = { ...Q, [dim]: dim === 's' ? SEASONS : dim === 'ph' ? ['R', 'P', 'C'] : dim === 'res' ? '' : [] }; return run(q).rows; };
+  const tally = (rows, fn) => rows.reduce((m, r) => (m[fn(r)] = (m[fn(r)] || 0) + 1, m), {});
+  const cf = tally(count('f'), r => r.f), co = tally(count('o'), r => r.o), cs = tally(count('s'), r => r.y),
+    cp = tally(count('ph'), r => r.ph), cr = tally(count('res'), r => r.res);
+  const facet = (title, key, items, counts, label, sel) => `<h4>${title}${sel.length ? `<a data-clear="${key}">clear</a>` : ''}</h4>` +
+    items.map(i => `<label class="${counts[i] ? '' : 'zero'}"><span><input type="checkbox" data-fac="${key}" value="${i}" ${sel.includes(i) ? 'checked' : ''}> ${esc(label(i))}</span><span class="c">${counts[i] || 0}</span></label>`).join('');
+  const side = `<aside>
+    <h4>Franchises</h4><label><span><input type="checkbox" data-act ${Q.act ? 'checked' : ''}> active only</span></label>
+    ${facet('Franchise', 'f', FIDS, cf, fname, Q.f)}
+    ${facet('Opponent', 'o', FIDS, co, fname, Q.o)}
+    ${facet('Phase', 'ph', ['R', 'P', 'C'], cp, p => PH[p], Q.ph)}
+    ${facet('Season', 's', SEASONS, cs, y => y + (y === 2025 ? ' · Sleeper' : ''), Q.s.length === SEASONS.length ? [] : Q.s)}
+    ${facet('Result', 'res', ['W', 'L', 'T'], cr, r => ({ W: 'Won', L: 'Lost', T: 'Tied' })[r], Q.res ? [Q.res] : [])}
+    <h4>Weeks</h4><div style="font-size:13px"><input type="number" data-wk="w0" value="${Q.w0}" style="width:48px"> – <input type="number" data-wk="w1" value="${Q.w1}" style="width:48px"></div>
+    <h4>Min. games</h4><input type="number" data-min value="${Q.min}" style="width:60px">
+  </aside>`;
+  // Coverage heatmap: season × week, the query's footprint over what exists.
+  const maxWk = 17;
+  let heat = `<div class="heat" style="grid-template-columns: 40px repeat(${maxWk}, 1fr)"><div></div>${[...Array(maxWk)].map((_, i) => `<div class="muted" style="text-align:center">${i + 1}</div>`).join('')}`;
+  for (const y of SEASONS) {
+    const c = DATA.coverage[y], inS = Q.s.includes(y);
+    heat += `<div class="lbl" data-year="${y}" title="Only ${y}">${y}</div>`;
+    for (let w = 1; w <= maxWk; w++) {
+      let cls = 'h-n', tip = '';
+      if (w <= c.regWeeks) { cls = c.regScored.includes(w) ? 'h-s' : 'h-r'; tip = c.regScored.includes(w) ? 'scored' : 'season totals only'; }
+      else if (w <= c.regWeeks + 3) {
+        const po = DATA.games.filter(g => g[0] === y && g[1] === w && g[2] !== 'R');
+        if (po.length) { cls = po.some(g => g[4] === null) ? 'h-x' : 'h-o'; tip = po.some(g => g[4] === null) ? 'bracket results, no scores' : 'bracket games scored'; }
+        else if (y >= 2022 && y <= 2024) { cls = 'h-x'; tip = 'bracket results, no scores'; }
+      }
+      const inQ = inS && w >= Q.w0 && w <= Q.w1;
+      heat += `<div class="${cls} ${inQ ? '' : 'h-dim'}" title="${y} wk ${w}: ${tip}"></div>`;
+    }
+  }
+  heat += '</div><div class="muted" style="font-size:11px;margin-bottom:10px"><span class="h-s" style="display:inline-block;width:10px;height:10px"></span> regular season, scored &nbsp; <span class="h-r" style="display:inline-block;width:10px;height:10px"></span> season totals only &nbsp; <span class="h-o" style="display:inline-block;width:10px;height:10px"></span> bracket scored &nbsp; <span class="h-x" style="display:inline-block;width:10px;height:10px"></span> bracket, result only · faded = outside query · click a season to isolate it</div>';
+
+  let table;
+  if (Q.view === 'opp' && !Q.f.length) {
+    // Head-to-head matrix: franchise rows × opponent columns, win % shaded.
+    const ids = FIDS.filter(id => out.some(r => r.f === id));
+    const cell = {}; for (const r of out) cell[r.f + '|' + r.o] = r;
+    table = `<table class="matrix"><tr><th></th>${ids.map(id => `<th class="c">${esc(fname(id))}</th>`).join('')}</tr>` +
+      ids.map(a => `<tr><th class="r">${esc(fname(a))}</th>${ids.map(b => {
+        const r = cell[a + '|' + b]; if (!r) return '<td style="background:#fafafa"></td>';
+        const p = r.pct, bg = `hsl(${p * 120},60%,${85 - Math.abs(p - .5) * 40}%)`;
+        return `<td style="background:${bg}" title="${esc(F[a].name)} v ${esc(F[b].name)}: ${r.w}-${r.l}-${r.t}">${r.w}-${r.l}${r.t ? '-' + r.t : ''}</td>`;
+      }).join('')}</tr>`).join('') + '</table><div class="muted" style="font-size:11px">Pick one franchise to get the opponent list instead. Head-to-head only covers games with surviving detail.</div>';
+  } else {
+    const covCell = r => {
+      if (r.kind) return '';
+      const tot = r.gp + r.miss, seg = (n, c) => n ? `<i style="width:${n / tot * 100}%;background:${c}"></i>` : '';
+      return `<span class="cov" title="${r.sn} scored · ${r.rep} season totals only · ${r.ro} result only · ${r.miss} unknown">${seg(r.sn, '#3f7ad8')}${seg(r.rep, '#b9cdf0')}${seg(r.ro, '#a0e0b0')}${seg(r.miss, '#e57373')}</span>`;
+    };
+    table = `<table class="res"><thead><tr>${cols.map(([k, l]) => `<th data-sort="${k}" class="${NUMERIC.has(k) ? 'num' : ''}">${l}${Q.sort === k ? (Q.dir === 'desc' ? ' ▾' : ' ▴') : ''}</th>`).join('')}${Q.view === 'games' ? '' : '<th>Coverage</th>'}</tr></thead><tbody>` +
+      out.slice(0, 500).map(r => r.kind === 'gap'
+        ? `<tr style="background:repeating-linear-gradient(45deg,#fafafa 0 6px,#f0f0f0 6px 12px)"><td>${r.y}</td><td>${r.wk}–${r.wkTo}</td><td>${PH.R}</td><td>${esc(fname(r.f))}</td><td colspan="5" class="muted">${r.n} games without detail${r.g.w != null ? ` (season totals: ${r.g.w}-${r.g.l}-${r.g.t})` : ''}</td></tr>`
+        : '<tr>' + cols.map(([k]) => `<td class="${NUMERIC.has(k) ? 'num' : ''}">${(Q.view === 'games' && (k === 'pf' || k === 'pa') && !r.scored) ? '<span class="muted">n/a</span>' : esc(fmt(k, r[k], r))}</td>`).join('') + (Q.view === 'games' ? '' : `<td>${covCell(r)}</td>`) + '</tr>').join('') + '</tbody></table>';
+  }
+  app.innerHTML = `<div class="C">${side}<main>
+    <div class="tabs">${Object.entries({ agg: 'Totals', season: 'Seasons', opp: 'Head-to-head', phase: 'By phase', games: 'Game log' }).map(([k, v]) => `<button data-view="${k}" class="${Q.view === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+    ${heat}
+    <div class="bar-top"><span class="muted">${out.length} rows</span><span class="url" style="flex:1">${esc(shareUrl())}</span><button id="reset">Reset</button></div>
+    ${table}</main></div>`;
+  app.querySelectorAll('[data-view]').forEach(b => b.onclick = () => set({ view: b.dataset.view }));
+  app.querySelectorAll('[data-sort]').forEach(th => th.onclick = () => sortBy(th.dataset.sort));
+  app.querySelectorAll('[data-year]').forEach(l => l.onclick = () => set({ s: Q.s.length === 1 && Q.s[0] === +l.dataset.year ? [...SEASONS] : [+l.dataset.year] }));
+  app.querySelectorAll('[data-fac]').forEach(cb => cb.onchange = () => {
+    const k = cb.dataset.fac;
+    const vals = [...app.querySelectorAll(`[data-fac="${k}"]:checked`)].map(x => k === 'ph' || k === 'res' ? x.value : +x.value);
+    if (k === 'res') set({ res: cb.checked ? cb.value : '' });
+    else if (k === 's') set({ s: vals.length ? vals : [...SEASONS] });
+    else if (k === 'ph') set({ ph: vals.length ? vals : ['R', 'P', 'C'] });
+    else set({ [k]: vals });
+  });
+  app.querySelectorAll('[data-clear]').forEach(a => a.onclick = () => { const k = a.dataset.clear; set({ [k]: k === 's' ? [...SEASONS] : k === 'res' ? '' : [] }); });
+  app.querySelector('[data-act]').onchange = e => set({ act: e.target.checked });
+  app.querySelectorAll('[data-wk]').forEach(i => i.onchange = () => set({ [i.dataset.wk]: +i.value }));
+  app.querySelector('[data-min]').onchange = e => set({ min: +e.target.value });
+  document.getElementById('reset').onclick = () => { Q = DEFAULT(); writeUrl(); render(); };
+}
+
+writeUrl();
+render();
+</script>
+</body>
+</html>
