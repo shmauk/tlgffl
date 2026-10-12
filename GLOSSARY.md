@@ -18,6 +18,10 @@ _Avoid_: Team name (for the franchise as a whole)
 The person who runs a franchise. One manager may run several franchises over time; real names are never published.
 _Avoid_: Owner, user, player
 
+**Commissioner**:
+The manager with the final say on the league's rulings. The role belongs to the person, not their franchise, and can be handed over on its own.
+_Avoid_: Commish, admin
+
 **Active franchise**:
 A franchise playing in the current season. Departed franchises keep every record they set.
 _Avoid_: Current team
@@ -124,6 +128,10 @@ A bracket round in which the same two franchises meet over several weeks.
 **Roll of honour**:
 Each season's champion, runner-up, Shit Bowl winner and Mediocre Bowl winner, one row per season.
 _Avoid_: Honours board, history
+
+**Ruling**:
+A decision the league makes rather than one the data records: a franchise identity call, a scissors-paper-rock result, a settled dispute, or a season's format. The record book only records rulings and never makes them.
+_Avoid_: Decision, correction
 
 **Disputed**:
 A hand-recorded outcome the league can't agree on, with more than one candidate. It counts for nobody until it's settled.
