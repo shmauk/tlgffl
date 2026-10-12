@@ -233,12 +233,12 @@ const fmt = (k, v, r) => {
   if (k === 'f' || k === 'o') return fname(v);
   if (k === 'pid') return P[v].name;
   if (k === 'ph') return PH[v];
-  if (k === 'pct') return (v * 100).toFixed(1);
-  if (['pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'spts', 'bpts', 'avg', 'best', 'pts'].includes(k)) return v.toFixed(2);
+  if (k === 'pct' || k === 'share') return (v * 100).toFixed(1);
+  if (['pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'spts', 'bpts', 'avg', 'best', 'pts', 'ppg'].includes(k)) return v.toFixed(2);
   if (k === 'margin') return (v > 0 ? '+' : '') + v.toFixed(2);
   return v;
 };
-const NUMERIC = new Set(['gp', 'w', 'l', 't', 'pct', 'pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'margin', 'wk', 'y', 'st', 'spts', 'bpts', 'avg', 'best', 'pts', 'nfr']);
+const NUMERIC = new Set(['gp', 'w', 'l', 't', 'pct', 'pf', 'pa', 'apf', 'apa', 'hi', 'lo', 'margin', 'wk', 'y', 'st', 'spts', 'bpts', 'avg', 'best', 'pts', 'nfr', 'share', 'rank', 'ppg']);
 // ---------- NFL player subject (Sleeper era only)
 const P = DATA.players;
 const PROWS = DATA.lineups.map(([y, wk, ph, f, o, pid, slot, pts]) => ({ y, wk, ph, f, o, pid, slot, pts, start: slot !== 'BN', pos: P[pid].pos }));
@@ -267,7 +267,30 @@ function pcolumns(q) {
   const lead = { ptot: [['pid', 'Player'], ['pos', 'Pos'], ['nfl', 'NFL team']], pfr: [['pid', 'Player'], ['pos', 'Pos'], ['f', 'Franchise']], pseason: [['pid', 'Player'], ['pos', 'Pos'], ['y', 'Season']] }[q.view];
   return lead.concat([['gp', 'Rostered'], ['st', 'Starts'], ['spts', 'Pts started'], ['avg', 'Avg/start'], ['bpts', 'Pts benched'], ['best', 'Best'], ...(q.view === 'ptot' ? [['nfr', 'Franchises']] : [])]);
 }
-const VIEWS = { agg: 'Totals per franchise', season: 'Season by season', opp: 'By opponent', phase: 'By phase', games: 'Game log' };
+const VIEWS = { agg: 'Totals per franchise', season: 'Season by season', opp: 'By opponent', phase: 'By phase', pos: 'By position (2025 on)', games: 'Game log' };
+// Franchise points split by NFL player position; only possible where lineups exist (Sleeper era).
+const GAME_RES = Object.fromEntries(ROWS.map(r => [r.y + '|' + r.wk + '|' + r.f, r.res]));
+function runPositions(q) {
+  const ss = new Set(q.s), fs = new Set(q.f), os = new Set(q.o), ph = new Set(q.ph);
+  const rows = PROWS.filter(r => ss.has(r.y) && ph.has(r.ph) && r.wk >= q.w0 && r.wk <= q.w1
+    && (!q.act || F[r.f].active) && (!os.size || os.has(r.o)) && (!q.res || GAME_RES[r.y + '|' + r.wk + '|' + r.f] === q.res));
+  const m = new Map(), games = {}, total = {};
+  for (const r of rows) {
+    (games[r.f] ||= new Set()).add(r.y + '|' + r.wk);
+    const k = r.f + '|' + r.pos;
+    if (!m.has(k)) m.set(k, { f: r.f, pos: r.pos, st: 0, spts: 0, bpts: 0, best: null });
+    const a = m.get(k);
+    if (r.start) { a.st++; a.spts += r.pts; a.best = Math.max(a.best ?? -99, r.pts); total[r.f] = (total[r.f] || 0) + r.pts; }
+    else a.bpts += r.pts;
+  }
+  const out = [...m.values()].map(a => ({ ...a, gp: games[a.f].size, ppg: a.spts / games[a.f].size,
+    avg: a.st ? a.spts / a.st : null, share: total[a.f] ? a.spts / total[a.f] : null }));
+  // Rank each franchise against the others at the same position (by points per game, so short runs compare fairly).
+  for (const pos of POS) out.filter(a => a.pos === pos).sort((a, b) => b.ppg - a.ppg).forEach((a, i) => a.rank = i + 1);
+  return sortRows(out.filter(a => a.gp >= q.min && (!fs.size || fs.has(a.f))), q);
+}
+const POS_COLS = [['f', 'Franchise'], ['pos', 'Pos'], ['gp', 'Games'], ['st', 'Starts'], ['spts', 'Pts started'], ['ppg', 'Pts/game'],
+  ['avg', 'Avg/start'], ['share', 'Share %'], ['rank', 'Lg rank'], ['bpts', 'Pts benched'], ['best', 'Best']];
 
 // ============================================================ URL shapes
 const rangeOrList = s => { const c = [...s].sort(); return c.length > 1 && c[c.length - 1] - c[0] === c.length - 1 ? c[0] + '-' + c[c.length - 1] : c.join(','); };
@@ -380,6 +403,7 @@ function decode(search) {
     if (p.get('view')) q.view = p.get('view');
     if (p.get('sort')) [q.sort, q.dir] = p.get('sort').split('.');
   }
+  if (q.view === 'pos' && !POS_COLS.some(c => c[0] === q.sort)) q.sort = 'spts';
   if (q.sub === 'player') {
     if (!PVIEWS[q.view]) q.view = 'ptot';
     if (!pcolumns(q).some(c => c[0] === q.sort)) q.sort = q.view === 'plog' ? 'pts' : 'spts';
@@ -397,12 +421,12 @@ function writeUrl() {
   history.replaceState(null, '', location.pathname + '?variant=' + variant + (enc && enc !== 'q=' ? '&' + enc : ''));
 }
 function set(patch) {
-  if (patch.view && !patch.sort) Object.assign(patch, { sort: { games: 'pf', plog: 'pts', ptot: 'spts', pfr: 'spts', pseason: 'spts' }[patch.view] || 'pct', dir: 'desc' });
+  if (patch.view && !patch.sort) Object.assign(patch, { sort: { games: 'pf', plog: 'pts', ptot: 'spts', pfr: 'spts', pseason: 'spts', pos: 'spts' }[patch.view] || 'pct', dir: 'desc' });
   Q = { ...Q, ...patch }; writeUrl(); render();
 }
 const app = document.getElementById('app');
 function render() {
-  if (variant !== 'A' && Q.sub === 'player') { Q = DEFAULT(); writeUrl(); } // only A has the player subject
+  if (variant !== 'A' && (Q.sub === 'player' || Q.view === 'pos')) { Q = DEFAULT(); writeUrl(); } // only A has the player subject
   document.getElementById('vlabel').innerHTML = `<span class="tag">${variant}</span> ${VARIANTS[variant]}`;
   ({ A: renderA, B: renderB, C: renderC })[variant]();
 }
@@ -421,8 +445,8 @@ const shareUrl = () => location.href;
 // ============================================================ Variant A: classic form + results page
 let aEditing = false, aSubmitted = new URLSearchParams(location.search).toString().replace(/^variant=[A-Z]&?/, '') !== '';
 function renderA() {
-  const isP = Q.sub === 'player';
-  const res = run(Q), out = isP ? runPlayers(Q) : group(Q, res), cols = isP ? pcolumns(Q) : columns(Q);
+  const isP = Q.sub === 'player', isPos = !isP && Q.view === 'pos';
+  const res = run(Q), out = isP ? runPlayers(Q) : isPos ? runPositions(Q) : group(Q, res), cols = isP ? pcolumns(Q) : isPos ? POS_COLS : columns(Q);
   const views = isP ? PVIEWS : VIEWS;
   const opt = (ids, sel) => ids.map(id => `<option value="${id}" ${sel.includes(id) ? 'selected' : ''}>${esc(fname(id))}${F[id].active ? '' : ' (departed)'}</option>`).join('');
   const yopt = (v) => SEASONS.map(y => `<option ${y === v ? 'selected' : ''}>${y}</option>`).join('');
@@ -470,25 +494,25 @@ function renderA() {
     }
     return '<tr>' + cols.map(([k]) => {
       let v = esc(fmt(k, r[k], r));
-      if (!isP && Q.view !== 'games') {
+      if (!isP && !isPos && Q.view !== 'games') {
         if (['pf', 'pa', 'apf', 'apa'].includes(k) && r.rep) v += mark('†');
         if (['hi', 'lo'].includes(k) && (r.rep || r.ro)) v += mark('*');
         if (k === 'gp' && r.miss) v += mark('§');
         if (['pf', 'pa', 'apf', 'apa'].includes(k) && r.ro && !r.rep) v += mark('‡');
-      } else if (!isP && (k === 'pf' || k === 'pa') && !r.scored) v = mark('‡');
+      } else if (!isP && !isPos && (k === 'pf' || k === 'pa') && !r.scored) v = mark('‡');
       return `<td class="${NUMERIC.has(k) ? 'num' : ''}">${v}</td>`;
     }).join('') + '</tr>';
   }).join('');
-  if (isP && Q.s.some(y => y < 2025)) used.add('¶');
+  if ((isP || isPos) && Q.s.some(y => y < 2025)) used.add('¶');
   const head = cols.map(([k, l]) => `<th class="${Q.sort === k ? 'sorted' : ''} ${NUMERIC.has(k) ? 'num' : ''}"><a href="#" data-sort="${k}">${l}${Q.sort === k ? (Q.dir === 'desc' ? ' ▼' : ' ▲') : ''}</a></th>`).join('');
   const FN = {
     '†': 'Includes season totals reported by NFL.com for weeks with no surviving game scores (2022 wk 10 – 2024). Wins, losses and points are complete; game-level figures are not.',
     '‡': 'Playoff result known (reconstructed from seeds and placings) but the score is lost; excluded from points.',
     '*': 'High/low only from games with scores.',
     '§': 'Some games in this query have no surviving detail and cannot be filtered by week, opponent or result; they are left out.',
-    '¶': 'NFL players are only known from 2025 (the Sleeper era); seasons before that contribute nothing to this query.',
+    '¶': 'Lineups and NFL players are only known from 2025 (the Sleeper era); seasons before that contribute nothing to this query.',
   };
-  const qnotes = isP ? [] : (res.notes.includes('consol') ? ['Consolation games for 2022–24 are not recorded at all.'] : [])
+  const qnotes = isP || isPos ? [] : (res.notes.includes('consol') ? ['Consolation games for 2022–24 are not recorded at all.'] : [])
     .concat(res.notes.includes('consolMixed') ? ['Shit Bowl and Mediocre Bowl games are not yet separated in this data.'] : []);
   const results = `
     <div class="summary"><b>Query:</b> ${esc(summary)}${used.has('¶') ? ' ' + mark('¶') : ''} &nbsp; <a href="#" id="aedit">${aEditing ? 'Hide' : 'Edit'} query</a></div>
