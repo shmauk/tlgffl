@@ -15,6 +15,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 a { color: inherit; }
+.bd, .src { white-space: nowrap; }
 .num { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
 table { border-collapse: collapse; }
 
@@ -22,7 +23,7 @@ table { border-collapse: collapse; }
 #proto-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 99;
   display: flex; gap: 10px; align-items: center; background: #111; color: #fff; border: 2px solid #ff3d7f;
   border-radius: 999px; padding: 6px 10px; font: 600 13px/1 system-ui, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
-#proto-bar button { background: #333; color: #fff; border: 0; border-radius: 999px; padding: 6px 10px; cursor: pointer; font: inherit; }
+#proto-bar button { white-space: nowrap; background: #333; color: #fff; border: 0; border-radius: 999px; padding: 6px 10px; cursor: pointer; font: inherit; }
 #proto-bar button.on { background: #ff3d7f; }
 #proto-bar .lbl { min-width: 150px; text-align: center; }
 #proto-bar .sep { width: 1px; height: 20px; background: #555; }
@@ -182,6 +183,7 @@ table { border-collapse: collapse; }
 .vC .qsum { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .vC .btn { background: #5ee3cf; color: #062a26; padding: 6px 14px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; }
 .vC .ghost { color: #5ee3cf; text-decoration: none; font-weight: 600; }
+/*__CSS2__*/
 </style>
 </head>
 <body>
@@ -191,7 +193,7 @@ table { border-collapse: collapse; }
 const D = __DATA__;
 const CUR = 2025; // PROTOTYPE: the data stops at 2025, so it plays "this season"
 const P = new URLSearchParams(location.search);
-const VARIANTS = { A: 'Scorecard', B: 'Almanack', C: 'Night desk' };
+const VARIANTS = { A: 'Scorecard', B: 'Almanack', C: 'Night desk', D: 'Broadsheet', E: 'Ceefax', F: 'Swiss', G: 'Sidenotes', H: 'Ledger', I: 'Programme', J: 'Almanack, yellow jacket', K: 'Almanack by lamplight' };
 const PAGES = { records: 'Record list', franchise: 'Franchise profile', statsguru: 'Statsguru results' };
 let variant = VARIANTS[P.get('variant')] ? P.get('variant') : 'A';
 let page = PAGES[P.get('page')] ? P.get('page') : 'records';
@@ -483,9 +485,11 @@ const C = {
   },
 };
 
+//__JS2__
+
 // ---------- render ----------
-const V = { A, B, C }[variant];
-document.body.className = 'v' + variant;
+const V = { A, B, C, D: Dv, E: Ev, F: Fv, G: Gv, H: Hv, I: Iv, J: B, K: B }[variant];
+document.body.className = (variant === 'J' || variant === 'K' ? 'vB ' : '') + 'v' + variant;
 const fid = +(P.get('f') || 15);
 const vm = page === 'records' ? recordVM() : page === 'franchise' ? profileVM(F[fid] ? fid : 15) : sgVM();
 document.getElementById('app').innerHTML = V[page](vm);
@@ -495,12 +499,13 @@ document.title = `PROTOTYPE · ${variant} ${VARIANTS[variant]} · ${PAGES[page]}
 const keys = Object.keys(VARIANTS);
 const go = v => location.search = url({ variant: v });
 const cycle = d => go(keys[(keys.indexOf(variant) + d + keys.length) % keys.length]);
-document.getElementById('proto-bar').innerHTML = `<button id="pv">←</button><span class="lbl">${variant} (${VARIANTS[variant]})</span><button id="nv">→</button><span class="sep"></span>
+document.getElementById('proto-bar').innerHTML = `<button id="pv">←</button><select id="vs">${Object.entries(VARIANTS).map(([k, l]) => `<option value="${k}" ${k === variant ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select><button id="nv">→</button><span class="sep"></span>
   ${Object.entries(PAGES).map(([k, l]) => `<button data-p="${k}" class="${k === page ? 'on' : ''}">${l}</button>`).join('')}`;
+document.getElementById('vs').onchange = e => go(e.target.value);
 document.getElementById('pv').onclick = () => cycle(-1);
 document.getElementById('nv').onclick = () => cycle(1);
 document.querySelectorAll('#proto-bar [data-p]').forEach(b => b.onclick = () => location.search = url({ page: b.dataset.p, sort: null }));
-addEventListener('keydown', e => { if (e.target.closest('input,textarea,[contenteditable]')) return; if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1); });
+addEventListener('keydown', e => { if (e.target.closest('input,textarea,select,[contenteditable]')) return; if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1); });
 </script>
 </body>
 </html>
