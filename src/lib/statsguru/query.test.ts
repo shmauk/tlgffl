@@ -117,3 +117,50 @@ describe('the NFL-player subject', () => {
     expect(encodeQuery(q({ players: ['4046'], positions: ['QB'], lineup: 'start' }))).toBe('');
   });
 });
+
+describe('the draft-picks subject (#37)', () => {
+  test('opens on the pick list', () => {
+    const query = decodeQuery('sub=pick');
+    expect(query).toEqual(q({ subject: 'pick', view: 'list' }));
+    expect(encodeQuery(query)).toBe('sub=pick');
+    // A link built from the defaults still means the pick list.
+    expect(encodeQuery(q({ subject: 'pick' }))).toBe('sub=pick');
+  });
+
+  test('every filter and view round-trips, written in the same order', () => {
+    const search = 'sub=pick&p=4046&f=2,5&fby=slot&s=2025-2026&rd=1-3&pk=1-16&pos=QB,WR&kd=kept&view=fr&by=round&sort=n.desc';
+    const query = decodeQuery(search);
+    expect(query).toEqual(
+      q({
+        subject: 'pick',
+        players: ['4046'],
+        franchises: [2, 5],
+        franchiseAs: 'slot',
+        seasons: [2025, 2026],
+        rounds: [1, 3],
+        picks: [1, 16],
+        positions: ['QB', 'WR'],
+        kept: 'kept',
+        view: 'fr',
+        grouping: 'round',
+        sort: { key: 'n', dir: 'desc' },
+      }),
+    );
+    expect(encodeQuery(query)).toBe(search);
+    for (const view of ['list', 'fr', 'pl'] as const)
+      expect(decodeQuery(encodeQuery(q({ subject: 'pick', view }))).view).toBe(view);
+    expect(decodeQuery('sub=pick&kd=drafted').kept).toBe('drafted');
+  });
+
+  test('per franchise groups by position unless told to group by round', () => {
+    expect(encodeQuery(q({ subject: 'pick', view: 'fr' }))).toBe('sub=pick&view=fr');
+    expect(decodeQuery('sub=pick&view=fr').grouping).toBe('pos');
+  });
+
+  test("game filters and the other subjects' filters mean nothing to draft picks", () => {
+    expect(decodeQuery('sub=pick&opp=9&ph=P&wk=1-3&res=W&act=1&lu=start&min=3&view=totals')).toEqual(
+      q({ subject: 'pick', view: 'list' }),
+    );
+    expect(decodeQuery('rd=1-2&pk=3-4&kd=kept&fby=slot')).toEqual(DEFAULT_QUERY);
+  });
+});

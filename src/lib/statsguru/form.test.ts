@@ -8,6 +8,8 @@ const CTX: FormContext = {
     era: year < 2025 ? 'nfl.com' : 'sleeper',
   })),
   lastWeek: 17,
+  lastRound: 14,
+  lastPick: 224,
 };
 const fields = (patch: Record<string, string[]>) => ({ ...formValues(DEFAULT_QUERY, CTX), ...patch });
 
@@ -26,6 +28,9 @@ describe('the query form', () => {
       'sub=player',
       'sub=player&p=4046,LV&f=2,5&opp=9&s=2025-2026&pos=QB,WR&lu=start&ph=R,P&wk=1-9&min=3&view=fr&sort=best.desc',
       'sub=player&lu=bench&view=log',
+      'sub=pick',
+      'sub=pick&p=4046&f=2,5&fby=slot&s=2025-2026&rd=1-3&pk=1-16&pos=QB,WR&kd=kept&view=fr&by=round&sort=n.desc',
+      'sub=pick&kd=drafted&view=pl',
     ]) {
       const q = decodeQuery(search);
       expect(queryFromForm(formValues(q, CTX), CTX), search).toEqual(q);
@@ -53,5 +58,9 @@ describe('the query form', () => {
     expect(player).toMatchObject({ subject: 'player', result: null, active: false, view: 'season' });
     const franchise = queryFromForm(fields({ p: ['4046'], pos: ['QB'], lu: ['start'], view: ['pos'], by: ['slot'] }), CTX);
     expect(franchise).toMatchObject({ subject: 'franchise', players: [], positions: [], lineup: null, view: 'pos', grouping: 'slot' });
+    const pick = queryFromForm(fields({ subject: ['pick'], opp: ['9'], res: ['W'], lu: ['start'], kview: ['pl'], rdFrom: ['2'] }), CTX);
+    expect(pick).toMatchObject({ subject: 'pick', opponents: [], result: null, lineup: null, view: 'pl', rounds: [2, 14] });
+    const notPick = queryFromForm(fields({ rdFrom: ['2'], kd: ['kept'], fby: ['slot'] }), CTX);
+    expect(notPick).toMatchObject({ subject: 'franchise', rounds: null, kept: null, franchiseAs: 'pick' });
   });
 });
