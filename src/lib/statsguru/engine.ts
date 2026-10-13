@@ -4,7 +4,10 @@
 // up what the database holds (ADR 0004): games, and for weeks whose games don't
 // survive, NFL.com's reported season line less the games that do (ADR 0001).
 // Nothing is estimated: games a filter can't check are left out and counted.
-import { sortOf, type Phase, type Query, type Result } from './query';
+import { playerRows, positionRows, type PerformanceRow, type PlayerRow, type PositionRow } from './lineups';
+import { positionRank, sortOf, type Phase, type Query, type Result } from './query';
+
+export type { NflPlayer, PerformanceRow, PlayerRow, PositionRow } from './lineups';
 
 /** The one thing the engine needs from a database: rows for a query. */
 export interface Db {
@@ -76,14 +79,18 @@ export interface GapRow {
   pa: number | null;
 }
 
-export type Row = GroupRow | GameRow | GapRow;
+export type Row = GroupRow | GameRow | GapRow | PositionRow | PlayerRow | PerformanceRow;
 
 /** Query-level remarks, not tied to any row. */
 export type QueryNote =
   /** Seasons whose Shit Bowl and Mediocre Bowl games were never recorded. */
   | { kind: 'unrecorded'; seasons: number[] }
   /** The Shit Bowl and the Mediocre Bowl are counted together. */
-  | { kind: 'mixed' };
+  | { kind: 'mixed' }
+  /** ¶ Lineups and NFL players only exist from the Sleeper era. */
+  | { kind: 'lineups' }
+  /** The query's seasons all come before lineups do: there is nothing to show. */
+  | { kind: 'beforeLineups'; firstSeason: number | null };
 
 export interface QueryResult {
   rows: Row[];
@@ -174,6 +181,15 @@ export function runQuery(db: Db, q: Query): QueryResult {
   const okFranchise = (f: number) =>
     (!q.franchises.length || q.franchises.includes(f)) && (!q.active || franchises.get(f)!.active);
   const phases = new Set(q.phases);
+
+  if (q.subject === 'player' || q.view === 'pos') {
+    const sleeper = db.all(`select year from seasons where era = 'sleeper' order by year`).map((r) => r.year as number);
+    if (!sleeper.some((y) => seasons.has(y)))
+      return { rows: [], notes: [{ kind: 'beforeLineups', firstSeason: sleeper[0] ?? null }] };
+    const scope = { seasons, named, isActive: (f: number) => franchises.get(f)!.active };
+    const rows = q.subject === 'player' ? playerRows(db, q, scope) : positionRows(db, q, scope);
+    return { rows: sortRows(rows, q), notes: [{ kind: 'lineups' }] };
+  }
 
   const all = units(db);
   const games = all.filter(
@@ -314,12 +330,18 @@ function value(r: Row, key: string): number | string | null {
   const name = (n: Named | null) => n?.name.toLowerCase() ?? null;
   switch (key) {
     case 'f': return name(r.franchise);
-    case 'o': return r.kind === 'group' || r.kind === 'game' ? name(r.opponent) : null;
-    case 's': return r.kind === 'group' ? r.season : r.season;
-    case 'wk': return r.kind === 'game' ? r.week : r.kind === 'group' ? null : r.weeks[0];
-    case 'ph': return 'R P C'.indexOf(r.phase ?? '');
+    case 'o': return 'opponent' in r ? name(r.opponent) : null;
+    case 's': return 'season' in r ? r.season : null;
+    case 'wk': return 'week' in r ? r.week : 'weeks' in r ? r.weeks[0] : null;
+    case 'ph': return 'phase' in r ? 'R P C'.indexOf(r.phase ?? '') : null;
+    case 'pl': return 'player' in r ? (r.player.name ?? r.player.id).toLowerCase() : null;
+    case 'pos': return r.kind === 'position' ? positionRank(r.pos) : 'player' in r ? positionRank(r.player.position) : null;
+    case 'slot': return r.kind === 'performance' ? positionRank(r.slot === 'BN' ? '~BN' : r.slot) : null;
     case 'res': return r.kind === 'game' ? r.result : null;
     case 'mar': return r.kind === 'game' ? r.margin : null;
+    // A gap row's points are several weeks' totals, not one game's score.
+    case 'pf':
+    case 'pa': return r.kind === 'reported' || r.kind === 'unchecked' ? null : r[key];
     default: return (r as any)[key] ?? null;
   }
 }
@@ -327,7 +349,7 @@ function value(r: Row, key: string): number | string | null {
 function sortRows(rows: Row[], q: Query): Row[] {
   const { key, dir } = sortOf(q);
   const sign = dir === 'asc' ? 1 : -1;
-  const tiebreak = ['s', 'wk', 'f', 'o', 'ph'];
+  const tiebreak = ['s', 'wk', 'f', 'pos', 'pl', 'o', 'ph'];
   const cmp = (a: Row, b: Row, k: string, s: number) => {
     const x = value(a, k), y = value(b, k);
     if (x === y) return 0;

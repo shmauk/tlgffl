@@ -6,15 +6,19 @@ import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
 import { franchises, seasons, seasonFormats } from '../../lib/db';
 import { databaseFile } from '../../lib/database-file';
-import { HEADINGS, PHASE_NAMES, VIEW_NAMES } from '../../lib/statsguru/render';
-import { PHASES, VIEWS } from '../../lib/statsguru/query';
+import { lineupPlayers, lineupPositions } from '../../lib/nfl-players';
+import { HEADINGS, PHASE_NAMES, PLAYER_VIEW_NAMES, VIEW_NAMES } from '../../lib/statsguru/render';
+import { FRANCHISE_VIEWS, PHASES, PLAYER_VIEWS } from '../../lib/statsguru/query';
 import type { FormContext } from '../../lib/statsguru/form';
 
 const all = franchises();
 const years = seasons().reverse();
 const lastWeek = Math.max(...seasonFormats().flatMap((f) => [f.regularSeason[1], ...f.brackets.map((b) => b.lastWeek)]));
-const context: FormContext & { franchises: { id: number; name: string }[] } = {
+const players = lineupPlayers();
+const positions = lineupPositions();
+const context: FormContext & { franchises: { id: number; name: string }[]; players: { id: string; name: string | null }[] } = {
   franchises: all.map(({ id, name }) => ({ id, name })),
+  players: players.map(({ id, name }) => ({ id, name })),
   seasons: years.map(({ year, era }) => ({ year, era })),
   lastWeek,
 };
@@ -24,7 +28,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
 
 <Base title="Statsguru">
   <div id="statsguru" data-db={databaseFile().url} data-context={JSON.stringify(context)}>
-    <Row label="Statsguru" sub="Franchise records">
+    <Row label="Statsguru" sub="Franchise and NFL player records">
       <h1>Statsguru</h1>
       <p class="sub"><span id="sg-summary">Every franchise, every season</span> <a href="#sg-form" id="sg-edit" hidden>Edit query</a></p>
     </Row>
@@ -34,15 +38,54 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
         <fieldset>
           <legend>Subject</legend>
           <label><input type="radio" name="subject" value="franchise" checked /> Franchises</label>
+          <label><input type="radio" name="subject" value="player" /> NFL players <small>(2025 on)</small></label>
         </fieldset>
         <fieldset>
           <legend>View</legend>
-          {VIEWS.map((v) => <label><input type="radio" name="view" value={v} checked={v === 'totals'} /> {VIEW_NAMES[v]}</label>)}
+          <div data-subject="franchise">
+            {FRANCHISE_VIEWS.map((v) => <label><input type="radio" name="view" value={v} checked={v === 'totals'} /> {VIEW_NAMES[v]}{v === 'pos' && <small> (2025 on)</small>}</label>)}
+            <div class="sg-field">
+              <span class="sg-name">By position</span>
+              <span>
+                group by <select name="by">
+                  <option value="pos">NFL player position (FLEX folded into RB/WR/TE)</option>
+                  <option value="slot">lineup slot (FLEX on its own)</option>
+                </select>
+              </span>
+            </div>
+          </div>
+          <div data-subject="player" hidden>
+            {PLAYER_VIEWS.map((v) => <label><input type="radio" name="pview" value={v} checked={v === 'totals'} /> {PLAYER_VIEW_NAMES[v]}</label>)}
+          </div>
         </fieldset>
         <fieldset>
           <legend>Filters</legend>
+          <div class="sg-field" data-subject="player" hidden>
+            <span class="sg-name">NFL player</span>
+            <span>
+              <select name="p" multiple size="8">
+                {players.map((p) => <option value={p.id}>{p.name ?? `Unknown NFL player (Sleeper id ${p.id})`}{p.position && ` (${p.position})`}</option>)}
+              </select>
+              <a href="#" data-clear="p">clear</a> <small>none = every NFL player</small>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="player" hidden>
+            <span class="sg-name">Position</span>
+            <span>
+              {positions.map((p) => <label><input type="checkbox" name="pos" value={p} /> {p}</label>)}
+              <a href="#" data-clear="pos">clear</a> <small>none = every position</small>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="player" hidden>
+            <span class="sg-name">Lineup</span>
+            <span>
+              <select name="lu">
+                <option value="">started or benched</option><option value="start">started only</option><option value="bench">benched only</option>
+              </select>
+            </span>
+          </div>
           <div class="sg-field">
-            <span class="sg-name">Franchise</span>
+            <span class="sg-name"><span data-subject="franchise">Franchise</span><span data-subject="player" hidden>Rostered by</span></span>
             <span>
               <select name="f" multiple size="8">
                 {all.map((f) => <option value={f.id}>{f.name}{!f.active && ' (departed)'}</option>)}
@@ -82,7 +125,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
               to <input name="wkTo" type="number" min="1" max={lastWeek} value={lastWeek} />
             </span>
           </div>
-          <div class="sg-field">
+          <div class="sg-field" data-subject="franchise">
             <span class="sg-name">Result</span>
             <span>
               <select name="res">
@@ -90,13 +133,13 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
               </select>
             </span>
           </div>
-          <div class="sg-field">
+          <div class="sg-field" data-subject="franchise">
             <span class="sg-name">Franchises</span>
             <span><label><input type="checkbox" name="act" /> active franchises only</label></span>
           </div>
           <div class="sg-field">
             <span class="sg-name">Minimum</span>
-            <span><input name="min" type="number" min="0" value="0" /> games played</span>
+            <span><input name="min" type="number" min="0" value="0" /> games <span data-subject="franchise">played</span><span data-subject="player" hidden>rostered</span></span>
           </div>
         </fieldset>
         <fieldset>
@@ -120,6 +163,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
 </script>
 
 <style is:global>
+  .sg-form [hidden] { display: none !important; }
   .sg-form fieldset { border: 0; border-top: 1px solid var(--hair); margin: 0; padding: 10px 0; }
   .sg-form legend { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey); padding: 0; }
   .sg-form label { margin-right: 16px; white-space: nowrap; }

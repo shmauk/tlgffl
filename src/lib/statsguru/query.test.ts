@@ -55,3 +55,65 @@ describe('a Statsguru query in the URL', () => {
     expect(decodeQuery('?f=x&ph=Q&res=Z&view=nope&sort=zz.up&wk=9&min=-3')).toEqual(DEFAULT_QUERY);
   });
 });
+
+describe('the by-position view', () => {
+  test('groups by NFL player position unless told to group by lineup slot', () => {
+    expect(encodeQuery(q({ view: 'pos' }))).toBe('view=pos');
+    expect(decodeQuery('view=pos').grouping).toBe('pos');
+    const bySlot = q({ view: 'pos', grouping: 'slot', sort: { key: 'ppg', dir: 'desc' } });
+    expect(encodeQuery(bySlot)).toBe('view=pos&by=slot&sort=ppg.desc');
+    expect(decodeQuery(encodeQuery(bySlot))).toEqual(bySlot);
+  });
+
+  test('a grouping means nothing outside the view', () => {
+    expect(encodeQuery(q({ grouping: 'slot' }))).toBe('');
+    expect(decodeQuery('by=slot').grouping).toBe('pos');
+  });
+});
+
+describe('the NFL-player subject', () => {
+  test("an NFL player's own link", () => {
+    const query = decodeQuery('?sub=player&p=4046');
+    expect(query).toEqual(q({ subject: 'player', players: ['4046'] }));
+    expect(encodeQuery(query)).toBe('sub=player&p=4046');
+  });
+
+  test('every filter and view round-trips, written in the same order', () => {
+    const search = 'sub=player&p=4046,LV&f=2,5&opp=9&s=2025-2026&pos=QB,WR&lu=start&ph=R,P&wk=1-9&min=3&view=fr&sort=best.desc';
+    const query = decodeQuery(search);
+    expect(query).toEqual(
+      q({
+        subject: 'player',
+        players: ['4046', 'LV'],
+        franchises: [2, 5],
+        opponents: [9],
+        seasons: [2025, 2026],
+        positions: ['QB', 'WR'],
+        lineup: 'start',
+        phases: ['R', 'P'],
+        weeks: [1, 9],
+        minGames: 3,
+        view: 'fr',
+        sort: { key: 'best', dir: 'desc' },
+      }),
+    );
+    expect(encodeQuery(query)).toBe(search);
+    for (const view of ['totals', 'fr', 'season', 'log'] as const)
+      expect(decodeQuery(encodeQuery(q({ subject: 'player', view }))).view).toBe(view);
+    expect(decodeQuery('sub=player&lu=bench').lineup).toBe('bench');
+  });
+
+  test("positions are written in the lineup's order", () => {
+    expect(encodeQuery(q({ subject: 'player', positions: ['DEF', 'K', 'QB', 'TE'] }))).toBe('sub=player&pos=QB,TE,K,DEF');
+  });
+
+  test("a franchise view, or a franchise filter the subject lacks, isn't an NFL-player query's", () => {
+    expect(decodeQuery('sub=player&view=opp&res=W&act=1')).toEqual(q({ subject: 'player' }));
+    expect(decodeQuery('sub=player&sort=pct.desc').sort).toBeNull();
+  });
+
+  test('NFL-player filters mean nothing to the franchise subject', () => {
+    expect(decodeQuery('p=4046&pos=QB&lu=start&view=log')).toEqual(DEFAULT_QUERY);
+    expect(encodeQuery(q({ players: ['4046'], positions: ['QB'], lineup: 'start' }))).toBe('');
+  });
+});

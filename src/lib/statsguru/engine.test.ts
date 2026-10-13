@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import { runQuery, type Db, type GroupRow } from './engine';
+import { runQuery, type Db, type GroupRow, type PerformanceRow, type PlayerRow, type PositionRow } from './engine';
 import { sqlJsDb } from './sqljs';
 import { DEFAULT_QUERY, type Query } from './query';
 
@@ -126,6 +126,15 @@ describe('who is counted', () => {
     expect(groups({ minGames: 30 }).map((r) => r.franchise.id)).not.toContain(5);
   });
 
+  test("sorting a game log by score puts the weeks with no scores last: they aren't one game", () => {
+    for (const key of ['pf', 'pa', 'mar'])
+      for (const dir of ['asc', 'desc'] as const) {
+        const rows = run({ franchises: [SERPION], seasons: [2022], view: 'games', sort: { key, dir } }).rows;
+        expect(rows.at(-1)!.kind, `${key} ${dir}`).toBe('reported');
+        expect(rows.slice(0, -1).every((r) => r.kind === 'game'), `${key} ${dir}`).toBe(true);
+      }
+  });
+
   test('rows sort on any column, either way', () => {
     const pf = (dir: 'asc' | 'desc') => groups({ seasons: [2015], sort: { key: 'pf', dir } }).map((r) => r.pf!);
     expect(pf('desc')).toEqual([...pf('desc')].sort((a, b) => b - a));
@@ -145,6 +154,8 @@ describe('in the browser', () => {
       { view: 'season' },
       { view: 'games', franchises: [SERPION], seasons: [2022], phases: ['R', 'P'] },
       { view: 'opp', result: 'T' },
+      { view: 'pos', grouping: 'slot' },
+      { subject: 'player', view: 'fr', lineup: 'bench' },
     ] as Partial<Query>[]) {
       const query = { ...DEFAULT_QUERY, ...patch };
       expect(runQuery(browserDb, query)).toEqual(runQuery(db, query));
@@ -160,5 +171,116 @@ describe('query-level notes', () => {
   test('they say which seasons have no Shit Bowl or Mediocre Bowl games, and that the two are counted together', () => {
     const { notes } = run({ phases: ['C'], seasons: [2021, 2022] });
     expect(notes).toEqual([{ kind: 'unrecorded', seasons: [2021, 2022] }, { kind: 'mixed' }]);
+  });
+});
+
+// Figures below were worked out by hand from 2025's lineups, outside the engine.
+const ALLEN = '4984';
+const HUNTER = '12530'; // Sleeper lists him as DB, the WR/DB two-way player.
+const ALIGATORS = 6;
+
+describe('the by-position view (2025 on)', () => {
+  const positions = (patch: Partial<Query>) => run({ view: 'pos', seasons: [2025], ...patch }).rows as PositionRow[];
+  const at = (rows: PositionRow[], pos: string | null) => rows.find((r) => r.pos === pos)!;
+
+  test("a franchise's starter points by NFL player position, FLEX folded in", () => {
+    const rows = positions({ franchises: [SERPION] });
+    expect(rows.map((r) => r.pos)).toEqual(['QB', 'RB', 'WR', 'TE', 'K', 'DEF']);
+    expect(at(rows, 'QB')).toMatchObject({
+      franchise: { id: SERPION }, gp: 14, st: 14, spts: 231.36, ppg: 16.53, avg: 16.53, rank: 13, bpts: 0, best: 29.36,
+    });
+    expect(at(rows, 'QB').share).toBeCloseTo(231.36 / 1260.46, 6);
+    // Two WR slots over 14 games make 28 starts; the rest are FLEX starts.
+    expect(at(rows, 'WR')).toMatchObject({ st: 41, spts: 421, bpts: 40.2, best: 19.7 });
+    expect(at(rows, 'TE')).toMatchObject({ st: 15, spts: 111.5 });
+    expect(rows.reduce((s, r) => s + r.share!, 0)).toBeCloseTo(1, 9);
+  });
+
+  test('by lineup slot, FLEX gets its own row and has no bench', () => {
+    const rows = positions({ franchises: [SERPION], grouping: 'slot' });
+    expect(rows.map((r) => r.pos)).toEqual(['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF']);
+    expect(at(rows, 'FLEX')).toMatchObject({ st: 14, spts: 120.4, best: 19.6, bpts: null });
+    expect(at(rows, 'WR')).toMatchObject({ st: 28, spts: 302.2, bpts: 40.2 });
+  });
+
+  test("an NFL player is counted at Sleeper's position for them, whatever slot they started in", () => {
+    const rows = positions({ franchises: [ALIGATORS] });
+    expect(at(rows, 'DB')).toMatchObject({ st: 5, spts: 24, bpts: 25.8, best: 7.9 });
+  });
+
+  test('the league rank is against every franchise at that position, by points per game', () => {
+    const qbs = positions({}).filter((r) => r.pos === 'QB');
+    expect(qbs).toHaveLength(16);
+    expect(qbs.find((r) => r.rank === 1)!.franchise.id).toBe(16);
+    expect(qbs.find((r) => r.franchise.id === SERPION)!.rank).toBe(13);
+  });
+
+  test('every 2025 lineup, whichever seasons are asked for', () => {
+    expect(run({ view: 'pos' }).rows).toEqual(run({ view: 'pos', seasons: [2025, 2026] }).rows);
+  });
+});
+
+describe('the NFL-player subject (2025 on)', () => {
+  const players = (patch: Partial<Query>) =>
+    run({ subject: 'player', seasons: [2025], ...patch }).rows as (PlayerRow | PerformanceRow)[];
+
+  test('totals per NFL player', () => {
+    const [allen] = players({ players: [ALLEN] }) as PlayerRow[];
+    expect(allen).toMatchObject({
+      player: { id: ALLEN, name: 'Josh Allen', position: 'QB' },
+      ro: 14, st: 13, spts: 310.02, avg: 23.85, bpts: 0, best: 42.68, nfr: 1,
+    });
+    // The default order is points started, highest first.
+    expect((players({}) as PlayerRow[]).slice(0, 3).map((r) => r.player.id)).toEqual([ALLEN, '6813', '4034']);
+  });
+
+  test('started or benched only', () => {
+    const [started] = players({ players: [HUNTER], lineup: 'start' }) as PlayerRow[];
+    expect(started).toMatchObject({ ro: 5, st: 5, spts: 24, bpts: 0, best: 7.9 });
+    const [benched] = players({ players: [HUNTER], lineup: 'bench' }) as PlayerRow[];
+    expect(benched).toMatchObject({ ro: 3, st: 0, spts: 0, avg: null, bpts: 25.8, best: 20.1 });
+  });
+
+  test('by position, rostered by, and a minimum of games rostered', () => {
+    const qbs = players({ positions: ['QB'], franchises: [SERPION], minGames: 5 }) as PlayerRow[];
+    expect(qbs.length).toBeGreaterThan(0);
+    expect(qbs.every((r) => r.player.position === 'QB' && r.ro >= 5)).toBe(true);
+  });
+
+  test('per player per franchise, and season by season', () => {
+    const [fr] = players({ players: [HUNTER], view: 'fr' }) as PlayerRow[];
+    expect(fr).toMatchObject({ franchise: { id: ALIGATORS }, ro: 8 });
+    const seasons = players({ players: [HUNTER], view: 'season', seasons: [] }) as PlayerRow[];
+    expect(seasons[0]).toMatchObject({ season: 2025, ro: 8, franchise: null });
+    expect(new Set(seasons.map((r) => r.season)).size).toBe(seasons.length);
+  });
+
+  test('a performance log, one line a week', () => {
+    const log = players({ players: [HUNTER], view: 'log' }) as PerformanceRow[];
+    expect(log.map((r) => [r.week, r.slot, r.points])).toEqual([
+      [1, 'WR', 6.3], [2, 'WR', 3.7], [3, 'WR', 2.6], [4, 'BN', 5.7], [5, 'FLEX', 7.9], [6, 'FLEX', 3.5], [7, 'BN', 20.1], [8, 'BN', 0],
+    ]);
+    expect(log[0]).toMatchObject({ season: 2025, phase: 'R', franchise: { id: ALIGATORS }, starter: true });
+    expect(log[0].opponent.id).not.toBe(ALIGATORS);
+  });
+
+  test('an opposition filter', () => {
+    const log = players({ players: [ALLEN], view: 'log' }) as PerformanceRow[];
+    const opp = log[0].opponent.id;
+    expect((players({ players: [ALLEN], view: 'log', opponents: [opp] }) as PerformanceRow[]).every((r) => r.opponent.id === opp)).toBe(true);
+  });
+});
+
+describe('lineups only exist from 2025 (¶)', () => {
+  test('a query over Sleeper-era seasons says so', () => {
+    expect(run({ subject: 'player' }).notes).toEqual([{ kind: 'lineups' }]);
+    expect(run({ view: 'pos', seasons: [2024, 2025] }).notes).toEqual([{ kind: 'lineups' }]);
+  });
+
+  test('an NFL.com-era scope has no rows, and explains why', () => {
+    for (const patch of [{ subject: 'player' }, { view: 'pos' }] as Partial<Query>[]) {
+      const result = run({ ...patch, seasons: [2015, 2016] });
+      expect(result).toEqual({ rows: [], notes: [{ kind: 'beforeLineups', firstSeason: 2025 }] });
+    }
   });
 });

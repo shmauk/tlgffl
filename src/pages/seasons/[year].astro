@@ -26,6 +26,8 @@ import {
   type BracketName,
 } from '../../lib/db';
 import { formatSummary, weekList } from '../../lib/format';
+import AwardLink from '../../components/AwardLink.astro';
+import { awards, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
 
 export function getStaticPaths() {
   return seasons().map((season) => ({ params: { year: String(season.year) }, props: { season } }));
@@ -79,6 +81,18 @@ const MEASURES = [
   { key: 'biggest_margin', label: 'Biggest win' },
   { key: 'narrowest_margin', label: 'Narrowest win' },
 ] as const;
+
+// Awards (#33): each award given this season, or due but unknown.
+const seasonWinners = awardWinners({ season: year });
+const seasonUnknowns = awardUnknowns().filter((u) => u.season === year);
+const awardRows = awards()
+  .map((award) => ({
+    award,
+    won: seasonWinners.filter((w) => w.award === award.slug),
+    unknown: seasonUnknowns.find((u) => u.award === award.slug),
+  }))
+  .filter((r) => r.won.length > 0 || r.unknown);
+const notAwarded = awards().filter((a) => !awardRows.some((r) => r.award.slug === a.slug));
 
 const gamesIn = (week: number) => games.filter((g) => g.week === week);
 const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
@@ -240,8 +254,51 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     />
   </Row>
 
-  <Row label="Awards">
-    <p>The season's awards are still to come.</p>
+  <Row label="Awards" sub="Decided when the regular season ends">
+    {
+      awardRows.length === 0 ? (
+        <p>No awards for this season{nfl ? '' : ' yet'}.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Award</th><th>Winner</th><th class="num">Value</th></tr></thead>
+          <tbody>
+            {awardRows.map(({ award, won, unknown }) => (
+              <tr>
+                <td><AwardLink award={award} /></td>
+                <td>
+                  {unknown
+                    ? `Unknown: ${unknown.reason}`
+                    : won.map((w, i) => (
+                        <>
+                          {i > 0 && ' and '}
+                          <FranchiseLink franchise={w.franchise} teamName={w.franchise.teamName} />
+                        </>
+                      ))}
+                </td>
+                <td class="num">{won.length > 0 ? awardValue(award.unit, won[0].value) : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    {
+      notAwarded.length > 0 && awardRows.length > 0 && (
+        <div class="notes">
+          <p>
+            <span class="g"></span>Not awarded this season:{' '}
+            {notAwarded.map((a, i) => (
+              <>
+                {i > 0 && ', '}
+                <AwardLink award={a} />
+              </>
+            ))}
+            . An award with no data for a season is left out.
+          </p>
+        </div>
+      )
+    }
+    <p><a class="more" href="/seasons/awards/">Every award →</a></p>
   </Row>
 
   <Row label="Highs and lows" sub="Games with a score">

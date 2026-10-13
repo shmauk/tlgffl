@@ -147,6 +147,11 @@ SCHEMAS = {
     "sleeper_adjustments.csv": Table(
         {"season": whole_number, "roster_id": whole_number, "week": whole_number,
          "points": number, "reason": required}),
+    # Each season's divisions and their lineage (#32); the build checks they
+    # match the divisions played and keep within one realignment.
+    "division_lineages.csv": Table(
+        {"season": whole_number, "division": required, "lineage": required},
+        key=lambda row: f"{row['season']} {row['division']}"),
     "documents.csv": Table(
         {"kind": one_of("constitution", "agm"), "season": optional(whole_number),
          "title": required, "url": web_link},
