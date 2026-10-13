@@ -11,9 +11,11 @@ import Marker from './Marker.astro';
 import Notes from './Notes.astro';
 import FranchiseLink from './FranchiseLink.astro';
 import SeasonLink from './SeasonLink.astro';
+import NflPlayerLink from './NflPlayerLink.astro';
 import { categoryOf, ERA_NAMES, PHASE_NAMES, type Era, type PhaseFilter, type Unit } from '../lib/records/catalogue';
 import type { Entry, RecordFranchise, RecordView } from '../lib/records/records';
-import { recordUrl, statsguruUrl } from '../lib/urls';
+import { headToHeadUrl, recordUrl, statsguruUrl } from '../lib/urls';
+import { holders as holdersOf } from '../lib/records/held';
 
 interface Props {
   view: RecordView;
@@ -38,8 +40,8 @@ const SEASON_HEADINGS: Record<string, string> = {
   wins: 'Wins', points_for: 'PF', points_against: 'PA', points_for_per_game: 'PF per game', breakdown_pct: 'Breakdown %',
   luck: 'Luck',
 };
-const heading =
-  def.kind === 'streak'
+const heading = def.heading ??
+  (def.kind === 'streak'
     ? def.table === 'top_half' ? 'Weeks' : 'Games'
     : def.kind === 'season'
       ? SEASON_HEADINGS[def.column!]
@@ -49,22 +51,28 @@ const heading =
       ? 'Seasons'
     : def.kind === 'career'
       ? { count: 'Wins', pct: 'Win %', points: 'PF per game' }[def.unit]
-      : def.statsguru?.sort?.key === 'mar' ? 'Margin' : 'Points';
+      : def.statsguru?.sort?.key === 'mar' ? 'Margin' : 'Points');
 const score = (e: Entry) => `${e.score![0].toFixed(2)}–${e.score![1].toFixed(2)}`;
-const holders = (e: Entry): RecordFranchise[] => (def.kind === 'pair' ? [e.franchise, e.opponent!] : [e.franchise]);
+const holders = (e: Entry): RecordFranchise[] => holdersOf(def, e);
 const empty =
-  def.rate ? 'No franchise qualifies yet.' : def.table === 'ties' ? 'No game has been tied.' : 'No entries yet.';
+  def.rate || def.kind === 'rivalry' ? 'No franchise qualifies yet.' : def.table === 'ties' ? 'No game has been tied.' : 'No entries yet.';
 const phaseName = def.phases.length > 1 ? PHASE_NAMES[phase] : phase === 'regular' ? 'Regular season only' : null;
-const variantName = phaseName ? `${ERA_NAMES[era]} · ${phaseName}` : ERA_NAMES[era];
+// A record kept in one era only (the Sleeper era's) has no era filter.
+const eraName = def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]} only`;
+const variantName = phaseName ? `${eraName} · ${phaseName}` : eraName;
 ---
 
 <Base title={`${def.name}${era === 'all' && phase === def.phases[0] ? '' : ` (${variantName})`}`}>
   <Row label="Records" sub={categoryOf(def).name}>
     <h1>{def.name}</h1>
     <p class="sub">{variantName}</p>
-    <p class="filters">
-      {def.eras.map((e) => <a href={href(e, phase)} aria-current={e === era ? 'page' : undefined}>{ERA_NAMES[e]}</a>)}
-    </p>
+    {
+      def.eras.length > 1 && (
+        <p class="filters">
+          {def.eras.map((e) => <a href={href(e, phase)} aria-current={e === era ? 'page' : undefined}>{ERA_NAMES[e]}</a>)}
+        </p>
+      )
+    }
     {
       def.phases.length > 1 && (
         <p class="filters">
@@ -89,6 +97,10 @@ const variantName = phaseName ? `${ERA_NAMES[era]} · ${phaseName}` : ERA_NAMES[
               {def.kind === 'pair' && <><th>Game</th><th>Week</th></>}
               {def.kind === 'career' && <><th>Franchise</th><th>Seasons</th><th class="num">GP</th><th class="num">W-L-T</th></>}
               {def.kind === 'streak' && <><th>Franchise</th><th>From</th><th>To</th></>}
+              {def.kind === 'rivalry' && <><th>Franchise</th><th>Opponent</th><th class="num">Games</th><th class="num">W-L-T</th><th></th></>}
+              {def.kind === 'division' && <><th>Division</th><th>Season</th><th>Lineage</th><th>Franchises</th><th class="num">W-L-T</th><th class="num">PF</th></>}
+              {def.kind === 'lineup' && <><th>Franchise</th>{def.measure === 'player' && <th>NFL player</th>}<th>Opponent</th><th>Game</th></>}
+              {def.kind === 'lineup-season' && <><th>Franchise</th><th>Season</th><th class="num">GP</th></>}
               {def.kind === 'season' && <><th>Franchise</th><th>Season</th><th class="num">W-L-T</th>{def.alongside!.map((a) => <th class="num">{a.label}</th>)}</>}
               {def.kind === 'tally' && <><th>Franchise</th><th>Seasons</th></>}
               {def.kind === 'run' && <><th>Franchise</th><th>From</th><th>To</th></>}
@@ -98,8 +110,10 @@ const variantName = phaseName ? `${ERA_NAMES[era]} · ${phaseName}` : ERA_NAMES[
             {entries.map((e) => (
               <tr class:list={{ dep: holders(e).every((f) => f.departed), now: e.thisSeason }}>
                 {!view.all && <td class="num">{e.rank}</td>}
-                <td class="num fig">{figure(e.value)}{e.reported && <Marker glyph="†" title="Includes NFL.com's reported totals" />}{e.lostScores && <Marker glyph="‡" title="Includes games whose score is lost" />}</td>
-                {def.kind === 'pair' ? (
+                <td class="num fig">{figure(e.value)}{e.reported && <Marker glyph="†" title="Includes NFL.com's reported totals" />}{e.gamesMissing && <Marker glyph="†" title="May have met more often than is known" />}{e.lostScores && <Marker glyph="‡" title="Includes games whose score is lost" />}</td>
+                {def.kind === 'division' ? (
+                  <td>{e.division!.name}{e.thisSeason && <Badge kind="this-season" />}</td>
+                ) : def.kind === 'pair' ? (
                   <td>
                     <FranchiseLink franchise={e.franchise} />{e.franchise.departed && <Badge kind="departed" />}{' '}
                     {score(e)}{' '}
@@ -120,6 +134,36 @@ const variantName = phaseName ? `${ERA_NAMES[era]} · ${phaseName}` : ERA_NAMES[
                   </>
                 )}
                 {def.kind === 'pair' && <td><SeasonLink season={e.at!.season} week={e.at!.week} /></td>}
+                {def.kind === 'rivalry' && (
+                  <>
+                    <td><FranchiseLink franchise={e.opponent!} />{e.opponent!.departed && <Badge kind="departed" />}</td>
+                    <td class="num">{e.games}</td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                    <td><a class="more" href={headToHeadUrl(e.franchise.id, e.opponent!.id)}>Games →</a></td>
+                  </>
+                )}
+                {def.kind === 'division' && (
+                  <>
+                    <td><SeasonLink season={e.at!.season} /></td>
+                    <td>{e.division!.lineage}</td>
+                    <td>{e.members!.map((m, n) => <>{n > 0 && ', '}<FranchiseLink franchise={m} />{m.departed && <Badge kind="departed" />}</>)}</td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                    <td class="num">{e.score![0].toFixed(2)}</td>
+                  </>
+                )}
+                {def.kind === 'lineup' && (
+                  <>
+                    {def.measure === 'player' && <td><NflPlayerLink player={e.player!} />{e.player!.position && `, ${e.player!.position}`}</td>}
+                    <td><FranchiseLink franchise={e.opponent!} /></td>
+                    <td><SeasonLink season={e.at!.season} week={e.at!.week} /></td>
+                  </>
+                )}
+                {def.kind === 'lineup-season' && (
+                  <>
+                    <td><SeasonLink season={e.seasons![0]} /></td>
+                    <td class="num">{e.games}</td>
+                  </>
+                )}
                 {def.kind === 'career' && (
                   <>
                     <td><SeasonLink season={e.seasons![0]} />–<SeasonLink season={e.seasons![1]} /></td>

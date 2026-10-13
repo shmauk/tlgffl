@@ -9,6 +9,7 @@ import { DEFAULT_QUERY, type Phase, type Query } from '../statsguru/query';
 import type { Glyph } from '../../components/Marker.astro';
 import type { Era, PhaseFilter, RecordDef } from './catalogue';
 import { topTen } from './rank';
+import { lineupEntries, divisionEntries } from './rivalries-divisions-sleeper';
 
 export interface RecordFranchise {
   id: number;
@@ -48,6 +49,13 @@ export interface Entry {
   lostScores?: boolean;
   /** Set in the current season. */
   thisSeason: boolean;
+  /** † The two franchises may have met in weeks with no game record (#32). */
+  gamesMissing?: boolean;
+  /** A division's season: its name and lineage, and its franchises (#32). */
+  division?: { name: string; lineage: string };
+  members?: RecordFranchise[];
+  /** The NFL player behind a score; name and position are null if unknown. */
+  player?: { id: string; name: string | null; position: string | null };
   /** A season record's season, and its figures alongside (def.alongside's, in order; null if none). */
   season?: number;
   alongside?: (number | null)[];
@@ -83,6 +91,8 @@ interface Context {
   /** Seasons whose Shit Bowl and Mediocre Bowl games were never recorded. */
   unrecorded: number[];
   completed: Map<string, number>;
+  /** Pairs ("lo-hi") who may have met in weeks with no game record. */
+  gamesMissing: Set<string>;
 }
 
 const contexts = new WeakMap<Db, Context>();
@@ -119,6 +129,9 @@ function context(db: Db): Context {
       )
       .map((r) => r.season),
     completed: new Map(db.all('select franchise_id, era, seasons from completed_seasons').map((r) => [`${r.franchise_id}|${r.era}`, r.seasons])),
+    gamesMissing: new Set(
+      db.all('select lo_franchise_id as lo, hi_franchise_id as hi from head_to_head where games_missing = 1').map((r) => `${r.lo}-${r.hi}`),
+    ),
   };
   contexts.set(db, c);
   return c;
@@ -148,13 +161,24 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
   let statsguru: Partial<Query> | null = null;
   const gameBased = def.kind === 'game' || def.kind === 'pair';
 
+  const seen = new Set<string>();
   if (def.statsguru) {
     statsguru = { ...def.statsguru, seasons: era === 'all' ? [] : seasons, phases: SG_PHASES[phase] };
     const rows = runQuery(db, { ...DEFAULT_QUERY, ...statsguru }).rows as (GameRow & GroupRow)[];
     for (const r of rows) {
       const value = def.figure(r);
       if (value === null) continue;
-      if (def.kind === 'game') {
+      if (def.kind === 'rivalry') {
+        // The opponent view has each pair from both sides: keep its first.
+        const key = [r.franchise.id, r.opponent!.id].sort((a, b) => a - b).join('-');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        entries.push({
+          rank: null, value, franchise: franchise(r.franchise.id), opponent: franchise(r.opponent!.id), games: r.gp,
+          wlt: [r.w, r.l, r.t], thisSeason: false,
+          gamesMissing: phase !== 'playoffs' && era !== 'sleeper' && c.gamesMissing.has(key),
+        });
+      } else if (def.kind === 'game') {
         entries.push({
           rank: null, value, franchise: franchise(r.franchise.id), opponent: franchise(r.opponent!.id),
           score: [r.pf!, r.pa!], at: { season: r.season!, week: r.week }, thisSeason: r.season === c.current,
@@ -170,6 +194,10 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
         });
       }
     }
+  } else if (def.kind === 'division') {
+    entries = divisionEntries(db, def, inEra, franchise, c.current);
+  } else if (def.kind === 'lineup' || def.kind === 'lineup-season') {
+    entries = lineupEntries(db, def, SQL_PHASE[phase], franchise, c.current);
   } else if (def.kind === 'pair') {
     const ties = def.table === 'ties';
     const rows = db.all(
@@ -228,6 +256,8 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
     notes.push({ glyph: '‡', text: `Bracket games whose score is lost are left out (${and(lost.map(String))}).` });
   if (entries.some((e) => e.reported))
     notes.push({ glyph: '†', text: 'Includes the season totals NFL.com reported for weeks with no game scores.' });
+  if (entries.some((e) => e.gamesMissing))
+    notes.push({ glyph: '†', text: 'Both franchises played seasons with regular-season weeks that have no game record, so they may have met more often than is known.' });
   if (entries.some((e) => e.lostScores))
     notes.push({ glyph: '‡', text: 'Includes Playoffs games whose score is lost: they count in W-L-T, not in points per game.' });
   if (entries.some((e) => e.gapAfter || e.gapBefore))

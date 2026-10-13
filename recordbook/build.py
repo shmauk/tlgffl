@@ -17,8 +17,10 @@ from pathlib import Path
 
 from recordbook import awards as awardlib
 from recordbook import brackets as bracketlib
+from recordbook import divisions as divisionlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
+from recordbook import lineup_records
 from recordbook import profiles
 from recordbook import records
 from recordbook import season_records
@@ -481,6 +483,11 @@ def build(data, out):
     highs_lows = [(season, measure, i + 1, fid, value)
                   for season, measure, i, fid, value in gamelog.highs_and_lows(games)]
     keepers = read_keepers(read_optional_csv(data / "keepers.csv"))
+    lineages = divisionlib.read_lineages(read_optional_csv(data / "division_lineages.csv"))
+    try:
+        lineage_rows = divisionlib.lineage_rows(lineages, season_lines, formats)
+    except divisionlib.LineageError as e:
+        raise BuildError(str(e)) from e
     award_results, award_unknowns = awardlib.results(
         games=games, coverage=coverage, regular_weeks={y: f.regular_season for y, f in formats.items()},
         nfl_counts=nfl_moves, moves=moves, lineups=lineups,
@@ -521,6 +528,9 @@ def build(data, out):
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
         write_records(con, games, seasons, formats, played, current, winners)
+        completed = completed_seasons(played, current, winners)
+        write_division_records(con, lineage_rows, lineages, season_lines, completed)
+        write_lineup_records(con, lineups, games, lineup_records.player_names(data / "sleeper"), completed)
         season_records.write(con, season_lines=season_lines, coverage=coverage, games=games,
                              winners=winners, formats=formats, seasons=seasons, played=played,
                              current=current)
@@ -555,6 +565,31 @@ def write_records(con, games, seasons, formats, played, current, winners):
     crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
     con.executemany("insert into completed_seasons values (?, ?, ?)",
                     records.completed_rows(played, eras, current, crowned))
+
+
+def completed_seasons(played, current, winners):
+    """Every season played but a current one whose Playoffs have no champion yet."""
+    crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
+    return {s for seasons in played.values() for s in seasons if s != current or s in crowned}
+
+
+def write_division_records(con, lineage_rows, lineages, season_lines, completed):
+    """Division lineages and the division records (#32)."""
+    con.executescript(divisionlib.SCHEMA)
+    con.executemany("insert into division_lineages values (?, ?, ?)", lineage_rows)
+    con.executemany(f"insert into record_divisions values ({', '.join('?' * 10)})",
+                    divisionlib.record_rows(lineages, season_lines, completed))
+
+
+def write_lineup_records(con, lineups, games, names, completed):
+    """The Sleeper-era records from lineups (#32)."""
+    con.executescript(lineup_records.SCHEMA)
+    con.executemany("insert into record_player_scores values (?, ?, ?, ?, ?, ?, ?, ?)",
+                    lineup_records.player_score_rows(lineups, games, names))
+    bench = lineup_records.bench_game_rows(lineups, games)
+    con.executemany("insert into record_bench_games values (?, ?, ?, ?, ?)", bench)
+    con.executemany("insert into record_bench_seasons values (?, ?, ?, ?)",
+                    lineup_records.bench_season_rows(bench, games, completed))
 
 
 def read_optional_csv(path):

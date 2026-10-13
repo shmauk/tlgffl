@@ -115,7 +115,8 @@ def write_documents(data: Path, rows):
 
 
 def write_sleeper_league(data: Path, year: int, weeks, divisions, status="complete",
-                         last_scored_leg=None, totals=None, custom=None, lineups=None):
+                         last_scored_leg=None, totals=None, custom=None, lineups=None,
+                         division_names=None):
     """A whole Sleeper season, as the snapshots hold it.
 
     weeks: {week: [(roster a, points a, roster b, points b), ...]}; a roster
@@ -123,6 +124,7 @@ def write_sleeper_league(data: Path, year: int, weeks, divisions, status="comple
     division number}. totals: {roster: (W, L, T, points)}, Sleeper's roster
     season totals (0-0-0, 0 points if not given). custom: {(week, roster):
     custom_points}. lineups: {(week, roster): (starters, players_points)}.
+    division_names: {division number: name} (default Group A, Group B, ...).
     """
     sleeper = data / "sleeper"
     sleeper.mkdir(parents=True, exist_ok=True)
@@ -131,7 +133,8 @@ def write_sleeper_league(data: Path, year: int, weeks, divisions, status="comple
               "roster_positions": ["QB", "RB", "FLEX", "BN", "BN"],
               "settings": {"playoff_week_start": 15,
                            "last_scored_leg": max(weeks) if last_scored_leg is None else last_scored_leg},
-              "metadata": {f"division_{d}": f"Group {'ABCD'[d - 1]}" for d in set(divisions.values())}}
+              "metadata": {f"division_{d}": (division_names or {}).get(d, f"Group {'ABCD'[d - 1]}")
+                           for d in set(divisions.values())}}
     (sleeper / f"{year}-league.json").write_text(json.dumps(league))
     totals = totals or {}
     rosters = []
@@ -196,3 +199,8 @@ def write_sleeper_draft(data: Path, year: int, slots, picks, traded=(), position
 def write_keepers(data: Path, rows):
     """The hand-kept keepers: (season, franchise id, NFL player id, round)."""
     write_csv(data / "keepers.csv", ["season", "franchise_id", "nfl_player_id", "round"], rows)
+
+
+def write_division_lineages(data: Path, rows):
+    """The hand-kept division lineages: (season, division, lineage)."""
+    write_csv(data / "division_lineages.csv", ["season", "division", "lineage"], rows)

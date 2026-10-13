@@ -142,6 +142,17 @@ def test_roster_total_explanations_need_an_amount_and_a_reason(archive):
     ]
 
 
+def test_division_lineages_name_a_season_a_division_and_a_lineage_once_each(archive):
+    write_csv(archive / "division_lineages.csv", ["season", "division", "lineage"],
+              [(2025, "Group A", "2025 Group A"), ("twenty", "Group B", "2025 Group B"),
+               (2025, "Group C", ""), (2025, "Group A", "2025 Group D")])
+    assert validate(archive) == [
+        "data/division_lineages.csv line 3: season 'twenty' must be a whole number",
+        "data/division_lineages.csv line 4: lineage is blank",
+        "data/division_lineages.csv line 5: 2025 Group A is already on line 2",
+    ]
+
+
 def test_documents_need_a_kind_a_season_for_agms_and_a_web_link(archive):
     write_documents(archive, [("constitution", "", "Constitution", "https://docs.google.com/x"),
                               ("agm", "", "AGM minutes", "https://docs.google.com/y"),

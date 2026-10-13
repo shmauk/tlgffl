@@ -28,6 +28,7 @@ Most data comes from NFL.com and Sleeper and is never edited by hand. The hand-k
 | `sleeper_brackets.csv` | Which league bracket (or filler) each Sleeper bracket-week pairing belongs to. Every pairing needs a row once its week is final |
 | `sleeper_adjustments.csv` | Why Sleeper's roster season totals differ from the games, to the point |
 | `keepers.csv` | The NFL players each franchise kept, with the draft round each cost. Record them after each draft |
+| `division_lineages.csv` | Which division lineage each season's division belongs to. Every division needs a row once its season has games, and a lineage stays within one realignment |
 | `emoji.csv` | Each franchise's badge |
 | `documents.csv` | Links to the constitution and AGM documents |
 

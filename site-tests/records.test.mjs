@@ -31,15 +31,14 @@ const inactive = new Set(db.prepare('select id from franchises where active = 0'
 const rows = (html) => [...(html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? '').matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
 const figures = (html) => rows(html).map((r) => r.match(/<td class="num fig">([^<]*)/)?.[1]);
 
-test('the records index shows the eight categories, the three not yet built pending', () => {
+test('the records index shows the eight categories, none of them pending', () => {
   const html = read('records');
   const labels = [...html.matchAll(/<h2 class="lab"[^>]*>([^<]*)/g)].map((m) => m[1]);
   assert.deepEqual(labels.slice(1), ['Scoring', 'Results and streaks', 'Seasons', 'Luck', 'Brackets', 'Head-to-head',
     'Divisions', 'Sleeper era']);
   const sections = html.split('<section').slice(2);
   for (const [n, s] of sections.entries()) {
-    if (n < 5) assert.doesNotMatch(s, /To come/);
-    else assert.match(s, /To come/, labels[n + 1]);
+    assert.doesNotMatch(s, /To come/, labels[n + 1]);
   }
   for (const slug of RECORDS) assert.ok(html.includes(`href="/records/${slug}/"`), slug);
   assert.match(sections[4], /href="\/seasons\/"/);

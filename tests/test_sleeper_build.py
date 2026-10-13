@@ -6,7 +6,7 @@ import sqlite3
 import pytest
 
 from recordbook.build import build, BuildError
-from tests.archive import (write_sleeper_league, write_sleeper_brackets, write_sleeper_adjustments,
+from tests.archive import (write_division_lineages, write_sleeper_league, write_sleeper_brackets, write_sleeper_adjustments,
                            write_franchise_keys, write_sleeper_aliases, write_formats, fmt)
 
 # Six rosters in two divisions; roster r is franchise 10 + r.
@@ -31,6 +31,7 @@ def sleeper(tmp_path):
     write_sleeper_aliases(data, [(r, f"Sleeper {r}", f"Team {r}") for r in DIVISIONS])
     write_sleeper_brackets(data, BRACKETS)
     write_formats(data, {2025: fmt(6, 2, (2, [3]), shit_bowl=(2, [3]), divisions=2, realignment=2025)})
+    write_division_lineages(data, [(2025, "Group A", "A25"), (2025, "Group B", "B25")])
     return data
 
 

@@ -16,7 +16,10 @@ export const ERA_NAMES: Record<Era, string> = { all: 'All eras', 'nfl-com': 'NFL
 export const PHASE_NAMES: Record<PhaseFilter, string> = { all: 'All games', regular: 'Regular season', playoffs: 'Playoffs' };
 
 /** What a record ranks, which decides how its entries read. */
-export type Kind = 'game' | 'pair' | 'career' | 'streak' | 'season' | 'tally' | 'run';
+export type Kind = 'game' | 'pair' | 'career' | 'streak' | 'season' | 'tally' | 'run'
+  // #32: a pair of franchises over their games, a division's season, an NFL
+  // player's or a bench's points in a game, and a bench over a season.
+  | 'rivalry' | 'division' | 'lineup' | 'lineup-season';
 /** 'luck' is a difference of two percentages, shown signed. */
 export type Unit = 'points' | 'pct' | 'count' | 'luck';
 
@@ -50,6 +53,12 @@ export interface RecordDef {
   all?: boolean;
   /** For records the Python build writes: which table rows. */
   table?: 'combined' | 'ties' | 'winning' | 'losing' | 'top_half';
+  /** What a division or lineup record ranks (#32). */
+  measure?: 'points_for' | 'wins' | 'player' | 'bench';
+  /** Both franchises of an entry hold it, not just the first. */
+  shared?: boolean;
+  /** The figure column's heading, where the kind doesn't say. */
+  heading?: string;
   /** Season records (#31): the record_seasons column ranked, and the figures shown alongside. */
   column?: string;
   alongside?: Alongside[];
@@ -84,6 +93,25 @@ const streak = (slug: string, name: string, table: 'winning' | 'losing' | 'top_h
   qualification, figure: none, table,
 });
 
+const rivalry = (slug: string, name: string, key: 'pct' | 'gp', qualification: string): RecordDef => ({
+  slug, name, category: 'head-to-head', kind: 'rivalry', unit: key === 'pct' ? 'pct' : 'count', dir: 'desc',
+  eras: ERAS, phases: PHASES, qualification, heading: key === 'pct' ? 'Win %' : 'Games',
+  statsguru: { view: 'opp', minGames: key === 'pct' ? 6 : 0, sort: { key, dir: 'desc' } },
+  // Reported games have no known opponent: they aren't anyone's rivalry.
+  figure: (r) => (r.kind === 'group' && r.opponent ? r[key] : null),
+  shared: key === 'gp',
+});
+const DIVISIONS = 'Each completed season’s divisions since 2015, their franchises’ regular-season lines summed.';
+const division = (slug: string, name: string, measure: 'points_for' | 'wins', dir: 'asc' | 'desc'): RecordDef => ({
+  slug, name, category: 'divisions', kind: 'division', unit: measure === 'wins' ? 'count' : 'points', dir,
+  eras: ERAS, phases: ['regular'], measure, heading: measure === 'wins' ? 'Wins' : 'Points for',
+  qualification: `${DIVISIONS}${measure === 'wins' ? ' A tie isn’t a win.' : ''}`, figure: none,
+});
+const SLEEPER: Era[] = ['sleeper'];
+const lineup = (slug: string, name: string, measure: 'player' | 'bench', qualification: string): RecordDef => ({
+  slug, name, category: 'sleeper', kind: 'lineup', unit: 'points', dir: 'desc', eras: SLEEPER, phases: PHASES,
+  measure, qualification, figure: none, heading: measure === 'bench' ? 'Bench points' : 'Points',
+});
 const SEASON_LINES = 'Every season line, NFL.com’s reported ones filling the seasons with games missing (ADR 0001).';
 const BREAKDOWN = 'Every fully covered season line: Breakdown needs every score of every regular-season week.';
 const GP: Alongside = { label: 'GP', column: 'games', unit: 'count' };
@@ -157,6 +185,23 @@ export const RECORDS: RecordDef[] = [
     `Consecutive seasons a franchise played without a Playoff appearance. ${FINISHED}`),
   run('longest-playoff-appearance-streak', 'Longest Playoff appearance streak', 'appearances',
     `Consecutive seasons with a Playoff appearance. ${FINISHED}`),
+  rivalry('most-lopsided-rivalry', 'Most lopsided rivalry', 'pct',
+    'The best win % against one opponent, at least 6 games between them. A tie counts as half a win.'),
+  rivalry('most-played-pairing', 'Most-played pairing', 'gp', 'Every final game between the two franchises.'),
+  division('group-of-death', 'Group of Death', 'points_for', 'desc'),
+  division('winningest-division', 'Winningest', 'wins', 'desc'),
+  division('weakest-division-by-points-for', 'Weakest division by points for', 'points_for', 'asc'),
+  division('weakest-division-by-wins', 'Weakest division by wins', 'wins', 'asc'),
+  lineup('best-nfl-player-score', 'Best single NFL player score', 'player',
+    'Every NFL player a franchise started in a final game, on the points he scored for it.'),
+  lineup('most-bench-points-in-a-game', 'Most bench points in a game', 'bench',
+    'Every final game: the points of the NFL players a franchise had on its roster but didn’t start.'),
+  {
+    slug: 'most-bench-points-in-a-season', name: 'Most bench points in a season', category: 'sleeper',
+    kind: 'lineup-season', unit: 'points', dir: 'desc', eras: SLEEPER, phases: ['regular'], measure: 'bench',
+    heading: 'Bench points', figure: none,
+    qualification: 'Each completed season’s regular season: the points of the NFL players a franchise had on its roster but didn’t start.',
+  },
 ];
 
 export interface Category {
@@ -185,11 +230,9 @@ export const CATEGORIES: Category[] = [
     // The roll of honour already exists: the category links to it, not a copy (#14).
     records: [{ name: 'Roll of honour', href: '/seasons/' }, ...built('brackets', 'Brackets').records],
   },
-  pending('head-to-head', 'Head-to-head', ['Most lopsided rivalry', 'Most-played pairing']),
-  pending('divisions', 'Divisions', ['Group of Death', 'Winningest', 'Weakest division by points for', 'Weakest division by wins'], 'Since 2015'),
-  pending('sleeper', 'Sleeper era', [
-    'Best single NFL player score', 'Most bench points in a game', 'Most bench points in a season',
-  ], 'Since 2025'),
+  built('head-to-head', 'Head-to-head'),
+  { ...built('divisions', 'Divisions'), sub: 'Since 2015' },
+  { ...built('sleeper', 'Sleeper era'), sub: 'Since 2025' },
 ];
 
 export const recordDef = (slug: string) => RECORDS.find((r) => r.slug === slug);
