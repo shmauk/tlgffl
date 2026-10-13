@@ -13,7 +13,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from recordbook import build as buildlib
+from recordbook import formats as formatfile
 
 
 # ---------- column checks: what's wrong with a value, or None ----------
@@ -34,6 +37,16 @@ def text(value):
     """Any value, blank included."""
 
 
+def required(value):
+    if not (value or "").strip():
+        return "is blank"
+
+
+def web_link(value):
+    if not (value or "").startswith("https://"):
+        return f"{value!r} must start with https://"
+
+
 def optional(check):
     """check, but a blank value is fine."""
     return lambda value: None if not (value or "").strip() else check(value)
@@ -48,10 +61,28 @@ def nfl_keys_need_an_owner(row):
         return "owner_user_id must be blank for a sleeper key (the roster id is the key)"
 
 
+def agms_have_a_season(row):
+    if row["kind"] == "agm" and not row["season"].strip():
+        return "an agm document needs a season"
+    if row["kind"] == "constitution" and row["season"].strip():
+        return "the constitution has no season; leave it blank"
+
+
 def franchise_key(row):
     if row["era"] == "nfl.com":
         return f"nfl.com team {row['slot']} (owner {row['owner_user_id']})"
     return f"sleeper roster {row['slot']}"
+
+
+SHIT_BOWL_SOURCES = ("derived-confirmed", "recalled", "inconclusive")
+MEDIOCRE_BOWL_SOURCES = ("confirmed", "recalled", "disputed")
+
+
+def winners_need_a_source(sources):
+    def check(row):
+        if row["franchise"].strip() and not row["source"].strip():
+            return f"a winner needs a source ({', '.join(sources[:-1])} or {sources[-1]})"
+    return check
 
 
 @dataclass(frozen=True)
@@ -73,9 +104,26 @@ SCHEMAS = {
         {"franchise_id": whole_number, "era": one_of("nfl.com", "sleeper"),
          "slot": whole_number, "owner_user_id": optional(whole_number)},
         [nfl_keys_need_an_owner], franchise_key),
+    # The bracket winners only data can't supply (data/<table>'s comments
+    # explain each source).
     "shitbowl.csv": Table(
-        {"year": whole_number, "franchise": text, "source": text},
-        franchises=("franchise",)),
+        {"year": whole_number, "franchise": text,
+         "source": optional(one_of(*SHIT_BOWL_SOURCES))},
+        [winners_need_a_source(SHIT_BOWL_SOURCES)], lambda row: row["year"], ("franchise",)),
+    "mediocre_bowl.csv": Table(
+        {"year": whole_number, "franchise": text,
+         "source": optional(one_of(*MEDIOCRE_BOWL_SOURCES))},
+        [winners_need_a_source(MEDIOCRE_BOWL_SOURCES)], lambda row: row["year"], ("franchise",)),
+    "sleeper_aliases.csv": Table(
+        {"roster_id": whole_number, "sleeper_name": text, "franchise": required},
+        key=lambda row: f"roster {row['roster_id']}", franchises=("franchise",)),
+    "emoji.csv": Table(
+        {"franchise": required, "emoji": text},
+        key=lambda row: row["franchise"], franchises=("franchise",)),
+    "documents.csv": Table(
+        {"kind": one_of("constitution", "agm"), "season": optional(whole_number),
+         "title": required, "url": web_link},
+        [agms_have_a_season]),
 }
 
 
@@ -102,7 +150,7 @@ def validate(data):
     if problems:
         # The checks across tables assume each table is well formed.
         return problems
-    problems = check_platform_teams(data)
+    problems = check_platform_teams(data) + check_formats(data)
     if problems:
         return problems
     names = franchise_names(data)
@@ -162,6 +210,42 @@ def check_platform_teams(data):
             if rid not in aliases:
                 problems.append(f"{where} has no row in data/sleeper_aliases.csv")
     return problems
+
+
+FORMAT_FIELDS = ("teams", "divisions", "realignment", "regular_season_weeks")
+BRACKET_FIELDS = ("size", "weeks")
+
+
+def check_formats(data):
+    """Every season the archive holds needs a format in data/formats.yaml
+    (#19), with the fields the build reads."""
+    path = data / "formats.yaml"
+    try:
+        entries = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else None) or {}
+    except yaml.YAMLError as e:
+        return [f"data/formats.yaml is not valid YAML: {e}"]
+    problems = []
+    for season, entry in entries.items():
+        if not isinstance(season, int):
+            continue  # anchors such as x-nfl-4
+        where = f"data/formats.yaml {season}"
+        if not isinstance(entry, dict):
+            problems.append(f"{where}: must be a mapping of {', '.join(FORMAT_FIELDS)} and brackets")
+            continue
+        problems += [f"{where}: no {f}" for f in FORMAT_FIELDS if f not in entry]
+        for name, bracket in (entry.get("brackets") or {}).items():
+            problems += [f"{where} {name}: no {f}" for f in BRACKET_FIELDS
+                         if f not in (bracket or {})]
+    if problems:
+        return problems
+    team_counts = {year: len(league["teams"]) for year, league in buildlib.nfl_seasons(data).items()}
+    team_counts |= {year: int(league.get("total_rosters") or len(rosters))
+                    for year, (league, rosters) in buildlib.sleeper_seasons(data).items()}
+    try:
+        formatfile.load(path, team_counts)
+    except formatfile.FormatError as e:
+        return [str(e)]
+    return []
 
 
 def franchise_names(data):
