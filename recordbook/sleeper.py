@@ -186,6 +186,35 @@ def crowns(year, games, fmt):
     return sorted(rows)
 
 
+def lineups(year, league, weeks, games, franchise_of):
+    """lineups rows (season, week, franchise, slot, slot index, starter,
+    NFL player id, points) for every week a franchise played a game.
+
+    Starters follow the league's roster positions (slot index from 1); an
+    empty starting slot ("0") has no NFL player. Bench NFL players are
+    those rostered but not started, in slot BN.
+    """
+    played = {(g.week, f) for g in games if g.season == year for f in (g.home, g.away)}
+    positions = [p for p in league.get("roster_positions") or [] if p != "BN"]
+    rows = []
+    for week, matchups in sorted(weeks.items()):
+        for m in matchups:
+            fid = franchise_of(m["roster_id"])
+            if (week, fid) not in played:
+                continue
+            points = m.get("players_points") or {}
+            starters = m.get("starters") or []
+            for i, pid in enumerate(starters):
+                slot = positions[i] if i < len(positions) else None
+                if pid == "0":
+                    rows.append((year, week, fid, slot, i + 1, 1, None, None))
+                else:
+                    rows.append((year, week, fid, slot, i + 1, 1, pid, points.get(pid)))
+            for pid in sorted(set(m.get("players") or []) - set(starters)):
+                rows.append((year, week, fid, "BN", None, 0, pid, points.get(pid)))
+    return rows
+
+
 ADJUSTMENTS = "data/sleeper_adjustments.csv"
 
 

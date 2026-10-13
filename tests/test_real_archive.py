@@ -127,6 +127,19 @@ def test_2025s_roster_totals_agree_with_the_games_but_for_one_explained_gap(db):
                       "where l.season = 2025 and f.name = 'The Beer Barons'").fetchall() == [(9, 5, 1385.04)]
 
 
+def test_2025s_lineups_add_up_to_each_games_score(db):
+    # Nine starting slots a week (QB, 2 RB, 2 WR, TE, FLEX, K, DEF), and a
+    # game's score is its starters' points.
+    assert db.execute("select distinct count(*) from lineups where season = 2025 and starter "
+                      "group by week, franchise_id").fetchall() == [(9,)]
+    off = db.execute(
+        "select g.week, g.home_franchise_id, g.home_points, sum(l.points) from games g "
+        "join lineups l on l.season = g.season and l.week = g.week and l.franchise_id = g.home_franchise_id "
+        "where g.season = 2025 and l.starter group by g.id having abs(g.home_points - sum(l.points)) > 0.005"
+    ).fetchall()
+    assert off == []
+
+
 def test_2025s_games_follow_the_hand_kept_bracket_assignment(db):
     # Sleeper made 6, 7 and 6 pairings in weeks 15-17; 6 of them are filler.
     assert db.execute("select week, bracket, count(*) from games where season = 2025 and phase = 'bracket' "

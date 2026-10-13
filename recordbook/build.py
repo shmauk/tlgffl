@@ -170,6 +170,19 @@ create table bracket_winners (
     source text not null check (source in ('derived', 'confirmed', 'recalled', 'disputed', 'unknown')),
     check ((franchise_id is null) = (source = 'unknown'))
 );
+-- Sleeper era only. A franchise's lineup in each week it played a game: the
+-- starters by slot (slot_index from 1; an empty slot has no NFL player) and
+-- the bench (slot 'BN'), with each NFL player's points (Sleeper ids).
+create table lineups (
+    season integer not null references seasons(year),
+    week integer not null,
+    franchise_id integer not null references franchises(id),
+    slot text,
+    slot_index integer,
+    starter integer not null check (starter in (0, 1)),
+    nfl_player_id text,
+    points real
+);
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -367,8 +380,11 @@ def build(data, out):
                                          {name: fid for fid, name, *_ in franchises})
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
-    for year in sorted(sleeper):
+    lineups = []
+    for year, (lg, _rosters) in sorted(sleeper.items()):
         winners += sleeperlib.crowns(year, games, formats[year])
+        lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games,
+                                      lambda r, y=year: sleeper_franchise(y, r))
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
@@ -398,6 +414,7 @@ def build(data, out):
         con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?, ?)", bracket_rows)
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
+        con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
         con.commit()
     finally:
         con.close()

@@ -245,3 +245,17 @@ def test_without_snapshots_a_sleeper_team_name_is_the_one_recorded_in_the_aliase
     assert query(db, "select team_name from team_names where franchise_id = 11") == [("Sleeper 1",)]
     # The franchise name stays the one the aliases give it.
     assert query(db, "select name from franchises where id = 11") == [("Team 1",)]
+
+
+def test_a_lineup_holds_starters_by_slot_and_the_bench_with_each_nfl_players_points(sleeper, tmp_path):
+    # Roster positions QB, RB, FLEX, BN, BN; the RB slot was left empty ("0").
+    lineups = {(1, 1): (["100", "0", "300"], {"100": 10.0, "300": 5.5, "400": 2.0}),
+               # Week 3's filler pairing isn't a game, so it has no lineup.
+               (3, 4): (["100"], {"100": 7.0})}
+    write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, totals=TOTALS, lineups=lineups)
+    db = built(sleeper, tmp_path)
+    assert query(db, "select week, slot, slot_index, starter, nfl_player_id, points from lineups "
+                     "where franchise_id = 11 order by week, starter desc, slot_index, nfl_player_id") == [
+        (1, "QB", 1, 1, "100", 10.0), (1, "RB", 2, 1, None, None), (1, "FLEX", 3, 1, "300", 5.5),
+        (1, "BN", None, 0, "400", 2.0)]
+    assert query(db, "select count(*) from lineups where franchise_id = 14 and week = 3") == [(0,)]
