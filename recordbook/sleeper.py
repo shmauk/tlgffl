@@ -215,6 +215,54 @@ def lineups(year, league, weeks, games, franchise_of):
     return rows
 
 
+TRANSACTION_TYPES = ("trade", "waiver", "free_agent")
+
+
+def read_transactions(sleeper_dir, year):
+    """{week: transactions} for the season's snapshots."""
+    out = {}
+    for f in sorted(sleeper_dir.glob(f"{year}-transactions-*.json")):
+        out[int(f.stem.rsplit("-", 1)[1])] = json.loads(f.read_text(encoding="utf-8"))
+    return out
+
+
+def transactions(year, by_week, franchise_of):
+    """Rows for the transactions, transaction_moves, transaction_picks,
+    transaction_budget and waiver_claims tables, as a dict of lists.
+
+    A transaction (GLOSSARY.md) is a completed trade, waiver claim or
+    free-agent pickup; commissioner moves and failed trades aren't. Every
+    waiver claim is kept, won (complete) or lost (failed), with its bid.
+    """
+    out = {k: [] for k in ("transactions", "transaction_moves", "transaction_picks",
+                           "transaction_budget", "waiver_claims")}
+    for week, txs in sorted(by_week.items()):
+        for t in txs:
+            tid, kind, status = t["transaction_id"], t.get("type"), t.get("status")
+            adds, drops = t.get("adds") or {}, t.get("drops") or {}
+            if kind == "waiver" and status in ("complete", "failed"):
+                bid = (t.get("settings") or {}).get("waiver_bid")
+                for pid, rid in adds.items():
+                    dropped = [p for p, r in drops.items() if r == rid]
+                    out["waiver_claims"].append((tid, year, week, franchise_of(rid), pid,
+                                                 dropped[0] if dropped else None, bid,
+                                                 int(status == "complete")))
+            if kind not in TRANSACTION_TYPES or status != "complete":
+                continue
+            out["transactions"].append((tid, year, week, kind, t.get("created")))
+            for move, players in (("add", adds), ("drop", drops)):
+                for pid, rid in players.items():
+                    out["transaction_moves"].append((tid, franchise_of(rid), pid, move))
+            for p in t.get("draft_picks") or []:
+                out["transaction_picks"].append((tid, int(p["season"]), p["round"], franchise_of(p["roster_id"]),
+                                                 franchise_of(p["previous_owner_id"]),
+                                                 franchise_of(p["owner_id"])))
+            for b in t.get("waiver_budget") or []:
+                out["transaction_budget"].append((tid, franchise_of(b["sender"]), franchise_of(b["receiver"]),
+                                                  b["amount"]))
+    return out
+
+
 ADJUSTMENTS = "data/sleeper_adjustments.csv"
 
 

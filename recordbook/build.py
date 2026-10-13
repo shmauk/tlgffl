@@ -183,6 +183,48 @@ create table lineups (
     nfl_player_id text,
     points real
 );
+-- Sleeper era only. Completed trades, won waiver claims and free-agent
+-- pickups (GLOSSARY.md: Transaction), with the NFL players each franchise
+-- added and dropped, the draft picks and FAAB budget traded.
+create table transactions (
+    id text primary key,
+    season integer not null references seasons(year),
+    week integer not null,
+    type text not null check (type in ('trade', 'waiver', 'free_agent')),
+    created integer
+);
+create table transaction_moves (
+    transaction_id text not null references transactions(id),
+    franchise_id integer not null references franchises(id),
+    nfl_player_id text not null,
+    move text not null check (move in ('add', 'drop'))
+);
+create table transaction_picks (
+    transaction_id text not null references transactions(id),
+    pick_season integer not null,
+    round integer not null,
+    original_franchise_id integer not null references franchises(id),
+    from_franchise_id integer not null references franchises(id),
+    to_franchise_id integer not null references franchises(id)
+);
+create table transaction_budget (
+    transaction_id text not null references transactions(id),
+    from_franchise_id integer not null references franchises(id),
+    to_franchise_id integer not null references franchises(id),
+    amount integer not null
+);
+-- Every waiver claim, won or lost, with its bid (a lost claim is not a
+-- transaction, so it has no transactions row).
+create table waiver_claims (
+    transaction_id text not null,
+    season integer not null references seasons(year),
+    week integer not null,
+    franchise_id integer not null references franchises(id),
+    nfl_player_id text not null,
+    dropped_nfl_player_id text,
+    bid integer,
+    won integer not null check (won in (0, 1))
+);
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -381,10 +423,14 @@ def build(data, out):
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
     lineups = []
+    moves = defaultdict(list)
     for year, (lg, _rosters) in sorted(sleeper.items()):
+        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         winners += sleeperlib.crowns(year, games, formats[year])
-        lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games,
-                                      lambda r, y=year: sleeper_franchise(y, r))
+        lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games, of)
+        for table, rows in sleeperlib.transactions(
+                year, sleeperlib.read_transactions(data / "sleeper", year), of).items():
+            moves[table] += rows
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
@@ -415,6 +461,9 @@ def build(data, out):
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
+        for table, rows in moves.items():
+            if rows:
+                con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         con.commit()
     finally:
         con.close()

@@ -259,3 +259,45 @@ def test_a_lineup_holds_starters_by_slot_and_the_bench_with_each_nfl_players_poi
         (1, "QB", 1, 1, "100", 10.0), (1, "RB", 2, 1, None, None), (1, "FLEX", 3, 1, "300", 5.5),
         (1, "BN", None, 0, "400", 2.0)]
     assert query(db, "select count(*) from lineups where franchise_id = 14 and week = 3") == [(0,)]
+
+
+def tx(tid, type_, status, rosters, adds=None, drops=None, bid=None, picks=(), budget=()):
+    return {"transaction_id": tid, "type": type_, "status": status, "roster_ids": rosters,
+            "adds": adds, "drops": drops, "settings": {"waiver_bid": bid} if bid is not None else None,
+            "draft_picks": list(picks), "waiver_budget": list(budget), "created": 1757487369709,
+            "creator": "123", "consenter_ids": rosters, "leg": 2, "metadata": None}
+
+
+@pytest.fixture
+def moves(sleeper):
+    (sleeper / "sleeper" / "2025-transactions-02.json").write_text(json.dumps([
+        tx("t1", "trade", "complete", [1, 2], adds={"100": 2, "200": 1}, drops={"100": 1, "200": 2},
+           picks=[{"season": "2026", "round": 3, "roster_id": 1, "previous_owner_id": 1, "owner_id": 2}],
+           budget=[{"sender": 2, "receiver": 1, "amount": 10}]),
+        tx("t2", "waiver", "complete", [3], adds={"300": 3}, drops={"301": 3}, bid=12),
+        tx("t3", "waiver", "failed", [4], adds={"300": 4}, bid=10),
+        tx("t4", "free_agent", "complete", [5], adds={"500": 5}),
+        tx("t5", "commissioner", "complete", [6], adds={"600": 6}),
+        tx("t6", "trade", "failed", [1, 6], adds={"600": 1}, drops={"600": 6}),
+    ]))
+    return sleeper
+
+
+def test_transactions_are_completed_trades_waiver_claims_and_free_agent_pickups(moves, tmp_path):
+    db = built(moves, tmp_path)
+    assert query(db, "select id, season, week, type from transactions order by id") == [
+        ("t1", 2025, 2, "trade"), ("t2", 2025, 2, "waiver"), ("t4", 2025, 2, "free_agent")]
+    assert query(db, "select transaction_id, franchise_id, nfl_player_id, move from transaction_moves "
+                     "order by transaction_id, move, franchise_id") == [
+        ("t1", 11, "200", "add"), ("t1", 12, "100", "add"), ("t1", 11, "100", "drop"),
+        ("t1", 12, "200", "drop"), ("t2", 13, "300", "add"), ("t2", 13, "301", "drop"),
+        ("t4", 15, "500", "add")]
+    assert query(db, "select * from transaction_picks") == [("t1", 2026, 3, 11, 11, 12)]
+    assert query(db, "select * from transaction_budget") == [("t1", 12, 11, 10)]
+
+
+def test_waiver_claims_are_kept_won_and_lost_with_their_bids(moves, tmp_path):
+    db = built(moves, tmp_path)
+    assert query(db, "select transaction_id, season, week, franchise_id, nfl_player_id, "
+                     "dropped_nfl_player_id, bid, won from waiver_claims order by transaction_id") == [
+        ("t2", 2025, 2, 13, "300", "301", 12, 1), ("t3", 2025, 2, 14, "300", None, 10, 0)]

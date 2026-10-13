@@ -140,6 +140,14 @@ def test_2025s_lineups_add_up_to_each_games_score(db):
     assert off == []
 
 
+def test_2025s_transactions_and_waiver_claims(db):
+    # Sleeper's 2025 log: 11 trades, 217 won and 231 lost waiver claims, 383 free-agent pickups.
+    assert db.execute("select type, count(*) from transactions where season = 2025 group by type "
+                      "order by type").fetchall() == [("free_agent", 383), ("trade", 11), ("waiver", 217)]
+    assert db.execute("select won, count(*) from waiver_claims where season = 2025 group by won "
+                      "order by won").fetchall() == [(0, 231), (1, 217)]
+
+
 def test_2025s_games_follow_the_hand_kept_bracket_assignment(db):
     # Sleeper made 6, 7 and 6 pairings in weeks 15-17; 6 of them are filler.
     assert db.execute("select week, bracket, count(*) from games where season = 2025 and phase = 'bracket' "
