@@ -277,6 +277,44 @@ export function gapWeeks(season: number, phase: 'regular' | 'bracket'): number[]
     .map((r: any) => r.week);
 }
 
+/** One season of the roll of honour (#24). */
+export interface Honours {
+  season: Season;
+  /** Null until the season's Playoffs final is recorded. */
+  champion: SeasonFranchise | null;
+  /** The Playoffs final's loser; null with the champion. */
+  runnerUp: SeasonFranchise | null;
+}
+
+/** Every season's champion and runner-up, newest first. */
+export function rollOfHonour(): Honours[] {
+  // The Playoffs final is each season's last-round Playoffs game.
+  const finals = open()
+    .prepare(
+      `select g.season, g.winner_franchise_id as winnerId,
+              case when g.winner_franchise_id = g.home_franchise_id then g.away_franchise_id
+                   else g.home_franchise_id end as loserId
+       from games g
+       where g.bracket = 'playoffs' and g.winner_franchise_id is not null
+         and g.round = (select max(round) from games m where m.season = g.season and m.bracket = 'playoffs')`,
+    )
+    .all() as unknown as { season: number; winnerId: number; loserId: number }[];
+  const named = open().prepare(
+    `select f.id, f.name, t.team_name as teamName from franchises f
+     join team_names t on t.franchise_id = f.id and t.season = ? where f.id = ?`,
+  );
+  const franchise = (season: number, id: number | undefined) =>
+    id === undefined ? null : (named.get(season, id) as unknown as SeasonFranchise);
+  return seasons().map((season) => {
+    const final = finals.find((f) => f.season === season.year);
+    return {
+      season,
+      champion: franchise(season.year, final?.winnerId),
+      runnerUp: franchise(season.year, final?.loserId),
+    };
+  });
+}
+
 /** Every week with games in the season, regular season and brackets. */
 export function seasonWeeks(season: number): number[] {
   return open()
