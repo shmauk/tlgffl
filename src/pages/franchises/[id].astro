@@ -1,6 +1,6 @@
 ---
 // /franchises/<id>/ (#7, #14, #27): the franchise profile. Sections 6 (award
-// tally), 7 (records held) and 10 (Sleeper era) are later tickets. Managers
+// tally) and 10 (Sleeper era) are later tickets; 7 (records held) is #32's. Managers
 // are never shown. Gaps follow ADR 0001: reported season lines carry †,
 // lost bracket scores ‡, figures over scored games only *.
 import Base from '../../layouts/Base.astro';
@@ -16,7 +16,10 @@ import GameLine from '../../components/GameLine.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
 import { franchises, teamNames, seasonLines, type Franchise, type BracketName } from '../../lib/db';
 import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
-import { headToHeadUrl } from '../../lib/urls';
+import { headToHeadUrl, recordUrl } from '../../lib/urls';
+import { categoryOf } from '../../lib/records/catalogue';
+import { figureText, recordsHeld } from '../../lib/records/held';
+import { siteDb } from '../../lib/records/site';
 
 export function getStaticPaths() {
   return franchises().map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
@@ -33,6 +36,7 @@ const won = crowns(id);
 const gaps = gapSeasons();
 const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
 const best = bestAndWorst(id);
+const held = recordsHeld(siteDb, id);
 
 const reported = 'As NFL.com reported it';
 const lost = 'Score is lost';
@@ -220,8 +224,40 @@ const unscored = opponents.some((o) => o.scored < o.games);
     <p>The award tally is still to come.</p>
   </Row>
 
-  <Row label="Records held">
-    <p>Records held are still to come.</p>
+  <Row label="Records held" sub="Top 10 entries">
+    {
+      held.length === 0 ? (
+        <p>No top-10 entries.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Record</th><th class="num">#</th><th class="num">Figure</th><th>When</th></tr></thead>
+          <tbody>
+            {held.map(({ def, rank, entry: e }) => (
+              <tr class:list={{ now: e.thisSeason }}>
+                <td><a href={recordUrl(def.slug)}>{def.name}</a> <span class="sub">{categoryOf(def).name}</span></td>
+                <td class="num">{rank}</td>
+                <td class="num">{figureText(def, e.value)}</td>
+                <td>
+                  {e.division ? (
+                    <><SeasonLink season={e.at!.season} /> {e.division.name}</>
+                  ) : e.at ? (
+                    <SeasonLink season={e.at.season} week={e.at.week} />
+                  ) : e.from && e.to ? (
+                    <><SeasonLink season={e.from.season} week={e.from.week} />–<SeasonLink season={e.to.season} week={e.to.week} /></>
+                  ) : e.seasons ? (
+                    e.seasons[0] === e.seasons[1] ? <SeasonLink season={e.seasons[0]} /> : <><SeasonLink season={e.seasons[0]} />–<SeasonLink season={e.seasons[1]} /></>
+                  ) : null}
+                  {e.opponent && <> v <FranchiseLink franchise={e.opponent.id === id ? e.franchise : e.opponent} /></>}
+                  {e.player && <> · {e.player.name ?? 'Unknown NFL player'}</>}
+                  {e.thisSeason && <Badge kind="this-season" />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes notes={[{ text: 'Each record over its own page’s era and phase. Level entries share a rank.' }]} />
   </Row>
 
   <Row label="Head-to-head" sub="Every opponent, all games">

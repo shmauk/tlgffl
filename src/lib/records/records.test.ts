@@ -18,15 +18,18 @@ const values = (slug: string, era?: string, phase?: string) => view(slug, era, p
 const current = one('select max(year) as y from seasons').y;
 
 describe('the catalogue', () => {
-  test('has the eight categories, two of them built', () => {
+  test('has the eight categories, scoring and results among the built ones', () => {
     expect(CATEGORIES.map((c) => c.name)).toEqual([
       'Scoring', 'Results and streaks', 'Seasons', 'Luck', 'Brackets', 'Head-to-head', 'Divisions', 'Sleeper era',
     ]);
-    expect(CATEGORIES.filter((c) => c.built).map((c) => c.name)).toEqual(['Scoring', 'Results and streaks']);
+    expect(CATEGORIES.filter((c) => c.built).map((c) => c.name)).toEqual(expect.arrayContaining(['Scoring', 'Results and streaks']));
   });
 
   test('every built record has a fixed qualification and its sensible variants', () => {
-    expect(RECORDS).toHaveLength(15);
+    // Every record belongs to a built category, and every built category's records are RECORDS.
+    expect(RECORDS.map((r) => r.slug)).toEqual(
+      CATEGORIES.filter((c) => c.built).flatMap((c) => c.records.flatMap((r) => (r.slug ? [r.slug] : []))),
+    );
     for (const r of RECORDS) {
       expect(r.qualification.length, r.slug).toBeGreaterThan(10);
       expect(variants(r).length, r.slug).toBe(r.eras.length * r.phases.length);
@@ -144,7 +147,8 @@ describe('results and streaks', () => {
 });
 
 describe('Statsguru gives the same figures', () => {
-  for (const def of RECORDS.filter((r) => r.statsguru))
+  // Rivalries list each pair once: rivalries-divisions-sleeper.test.ts checks them.
+  for (const def of RECORDS.filter((r) => r.statsguru && r.kind !== 'rivalry'))
     for (const { era, phase } of variants(def))
       test(`${def.slug} ${era} ${phase}`, () => {
         const v = recordView(db, def, era, phase);
