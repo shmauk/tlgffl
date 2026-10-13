@@ -18,15 +18,15 @@ const values = (slug: string, era?: string, phase?: string) => view(slug, era, p
 const current = one('select max(year) as y from seasons').y;
 
 describe('the catalogue', () => {
-  test('has the eight categories, two of them built', () => {
+  test('has the eight categories, five of them built', () => {
     expect(CATEGORIES.map((c) => c.name)).toEqual([
       'Scoring', 'Results and streaks', 'Seasons', 'Luck', 'Brackets', 'Head-to-head', 'Divisions', 'Sleeper era',
     ]);
-    expect(CATEGORIES.filter((c) => c.built).map((c) => c.name)).toEqual(['Scoring', 'Results and streaks']);
+    expect(CATEGORIES.filter((c) => c.built).map((c) => c.name)).toEqual(['Scoring', 'Results and streaks', 'Seasons', 'Luck', 'Brackets']);
   });
 
   test('every built record has a fixed qualification and its sensible variants', () => {
-    expect(RECORDS).toHaveLength(15);
+    expect(RECORDS).toHaveLength(36);
     for (const r of RECORDS) {
       expect(r.qualification.length, r.slug).toBeGreaterThan(10);
       expect(variants(r).length, r.slug).toBe(r.eras.length * r.phases.length);

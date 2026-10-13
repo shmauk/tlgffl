@@ -48,6 +48,14 @@ export interface Entry {
   lostScores?: boolean;
   /** Set in the current season. */
   thisSeason: boolean;
+  /** A season record's season, and its figures alongside (def.alongside's, in order; null if none). */
+  season?: number;
+  alongside?: (number | null)[];
+  /** A bracket tally's seasons. */
+  list?: number[];
+  /** A bracket run's first and last seasons, and whether it may go on. */
+  span?: [number, number];
+  ongoing?: boolean;
 }
 
 export interface RecordView {
@@ -182,6 +190,12 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
           thisSeason: r.season === c.current,
         };
       });
+  } else if (def.kind === 'season') {
+    entries = seasonEntries(db, def, inEra, franchise, c.current);
+    notes.push(...seasonNotes(db, def, seasons, c.current));
+  } else if (def.kind === 'tally' || def.kind === 'run') {
+    entries = bracketEntries(db, def, DB_ERA[era], franchise, c.current);
+    notes.push(...bracketNotes(db, def, seasons, c.current));
   } else {
     const rows = db.all(
       `select s.franchise_id as f, s.length, s.gap_before, s.gap_after, a.season as fs, a.week as fw,
@@ -222,7 +236,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
       text: 'The run reaches a week with no scores, so it may continue into weeks with no scores (* after it) or may have begun in them (* before it).',
     });
   const unrecorded = c.unrecorded.filter(inEra);
-  if (phase === 'all' && def.kind !== 'streak' && unrecorded.length)
+  if (phase === 'all' && (gameBased || def.kind === 'career') && unrecorded.length)
     notes.push({ text: `Shit Bowl and Mediocre Bowl games were never recorded for ${seasonSpan(unrecorded)}.` });
 
   return { def, era, phase, entries, all: !!def.all, star, notes, statsguru };
@@ -237,4 +251,97 @@ function seasonSpan(list: number[]): string {
     else runs.push([y, y]);
   }
   return and(runs.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)));
+}
+
+// Season records (#31): one entry per season line, from record_seasons.
+const SEASON_COLUMNS = new Set(['games', 'wins', 'win_pct', 'points_for', 'points_against', 'points_for_per_game',
+  'points_against_per_game', 'breakdown_pct', 'luck']);
+const column = (name: string) => {
+  if (!SEASON_COLUMNS.has(name)) throw new Error(`not a record_seasons column: ${name}`);
+  return name;
+};
+
+function seasonEntries(
+  db: Db, def: RecordDef, inEra: (s: number) => boolean, franchise: (id: number) => RecordFranchise, current: number,
+): Entry[] {
+  const extra = (def.alongside ?? []).map((a, n) => `${column(a.column)} as x${n}`);
+  return db
+    .all(
+      `select franchise_id as f, season, games, wins, losses, ties, reported, ${column(def.column!)} as value
+              ${extra.map((x) => `, ${x}`).join('')}
+       from record_seasons where ${column(def.column!)} is not null order by season, franchise_id`,
+    )
+    .filter((r) => inEra(r.season))
+    .map((r) => ({
+      rank: null, value: r.value, franchise: franchise(r.f), season: r.season, games: r.games,
+      wlt: [r.wins, r.losses, r.ties] as [number, number, number], reported: !!r.reported,
+      alongside: extra.map((_, n) => r[`x${n}`]), thisSeason: r.season === current,
+    }));
+}
+
+function seasonNotes(db: Db, def: RecordDef, seasons: number[], current: number): RecordView['notes'] {
+  const notes: RecordView['notes'] = [];
+  const ranked = new Set(db.all('select distinct season from record_seasons').map((r) => r.season));
+  const lined = new Set(db.all('select distinct season from season_lines').map((r) => r.season));
+  if (seasons.includes(current) && lined.has(current) && !ranked.has(current))
+    notes.push({ text: `${current} joins once its regular season ends.` });
+  if (def.column === 'breakdown_pct' || def.column === 'luck') {
+    const none = db
+      .all('select distinct season from record_seasons where breakdown_pct is null order by season')
+      .map((r) => r.season)
+      .filter((s) => seasons.includes(s));
+    if (none.length)
+      notes.push({ text: `There is no Breakdown for ${and(none.map(String))}: some of their regular-season scores are missing.` });
+  }
+  return notes;
+}
+
+// Bracket records (#31): tallies and runs, from record_tallies and record_runs.
+function bracketEntries(
+  db: Db, def: RecordDef, era: string, franchise: (id: number) => RecordFranchise, current: number,
+): Entry[] {
+  if (def.kind === 'tally')
+    return db
+      .all('select franchise_id as f, count, seasons from record_tallies where record = ? and era = ? order by franchise_id',
+        [def.record!, era])
+      .map((r) => {
+        const list = String(r.seasons).split(',').map(Number);
+        return { rank: null, value: r.count, franchise: franchise(r.f), list, thisSeason: list.includes(current) };
+      });
+  return db
+    .all(
+      `select franchise_id as f, length, first_season, last_season, ongoing from record_runs
+       where record = ? and era = ? order by first_season, franchise_id`,
+      [def.record!, era],
+    )
+    .map((r) => ({
+      rank: null, value: r.length, franchise: franchise(r.f), span: [r.first_season, r.last_season] as [number, number],
+      ongoing: !!r.ongoing, thisSeason: false,
+    }));
+}
+
+const BRACKET_OF: Record<string, string> = {
+  championships: 'playoffs', shit_bowl_titles: 'shit_bowl', mediocre_bowl_titles: 'mediocre_bowl',
+};
+const BRACKET_NAME: Record<string, string> = { playoffs: 'Playoffs', shit_bowl: 'Shit Bowl', mediocre_bowl: 'Mediocre Bowl' };
+
+function bracketNotes(db: Db, def: RecordDef, seasons: number[], current: number): RecordView['notes'] {
+  const notes: RecordView['notes'] = [];
+  const crowned = db.all(`select 1 from bracket_winners where season = ? and bracket = 'playoffs' and franchise_id is not null`, [current]);
+  if (seasons.includes(current) && !crowned.length) notes.push({ text: `${current} counts once its champion is crowned.` });
+  const bracket = BRACKET_OF[def.record!];
+  if (!bracket) return notes;
+  const winners = db.all(
+    `select w.season, w.source, f.name from bracket_winners w left join franchises f on f.id = w.franchise_id
+     where w.bracket = ? and w.source in ('disputed', 'unknown') order by w.season, f.name`,
+    [bracket],
+  ).filter((r) => seasons.includes(r.season));
+  const disputed = new Map<number, string[]>();
+  for (const r of winners.filter((r) => r.source === 'disputed')) disputed.set(r.season, [...(disputed.get(r.season) ?? []), r.name]);
+  for (const [season, names] of disputed)
+    notes.push({ text: `${season} is disputed between ${names.join(' and ')}, so it counts for nobody.` });
+  const unknown = winners.filter((r) => r.source === 'unknown').map((r) => r.season);
+  if (unknown.length)
+    notes.push({ text: `The ${BRACKET_NAME[bracket]} winner is unknown for ${seasonSpan(unknown)}, so those seasons count for nobody.` });
+  return notes;
 }

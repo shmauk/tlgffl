@@ -16,8 +16,16 @@ export const ERA_NAMES: Record<Era, string> = { all: 'All eras', 'nfl-com': 'NFL
 export const PHASE_NAMES: Record<PhaseFilter, string> = { all: 'All games', regular: 'Regular season', playoffs: 'Playoffs' };
 
 /** What a record ranks, which decides how its entries read. */
-export type Kind = 'game' | 'pair' | 'career' | 'streak';
-export type Unit = 'points' | 'pct' | 'count';
+export type Kind = 'game' | 'pair' | 'career' | 'streak' | 'season' | 'tally' | 'run';
+/** 'luck' is a difference of two percentages, shown signed. */
+export type Unit = 'points' | 'pct' | 'count' | 'luck';
+
+/** A figure shown alongside a season record's own, from the same season line. */
+export interface Alongside {
+  label: string;
+  column: string;
+  unit: Unit;
+}
 
 export interface RecordDef {
   slug: string;
@@ -42,6 +50,11 @@ export interface RecordDef {
   all?: boolean;
   /** For records the Python build writes: which table rows. */
   table?: 'combined' | 'ties' | 'winning' | 'losing' | 'top_half';
+  /** Season records (#31): the record_seasons column ranked, and the figures shown alongside. */
+  column?: string;
+  alongside?: Alongside[];
+  /** Bracket records (#31): the record_tallies or record_runs record. */
+  record?: string;
 }
 
 const none = () => null;
@@ -57,8 +70,10 @@ const pair = (slug: string, name: string, dir: 'asc' | 'desc', table: 'combined'
   slug, name, category: 'scoring', kind: 'pair', unit: 'points', dir, eras: ERAS, phases: PHASES, qualification,
   figure: none, table, all: table === 'ties',
 });
-const career = (slug: string, name: string, key: 'w' | 'pct' | 'apf', unit: Unit, qualification: string): RecordDef => ({
-  slug, name, category: 'results', kind: 'career', unit, dir: 'desc', eras: ERAS, phases: PHASES, qualification,
+const career = (
+  slug: string, name: string, key: 'w' | 'pct' | 'apf' | 'apa', unit: Unit, qualification: string, category = 'results',
+): RecordDef => ({
+  slug, name, category, kind: 'career', unit, dir: 'desc', eras: ERAS, phases: PHASES, qualification,
   statsguru: { view: 'totals', sort: { key, dir: 'desc' } },
   figure: (r) => (r.kind === 'group' ? r[key] : null),
   rate: key !== 'w',
@@ -67,6 +82,31 @@ const STREAKS = 'Consecutive regular-season games, carried across seasons. NFL.c
 const streak = (slug: string, name: string, table: 'winning' | 'losing' | 'top_half', qualification: string): RecordDef => ({
   slug, name, category: 'results', kind: 'streak', unit: 'count', dir: 'desc', eras: ERAS, phases: ['regular'],
   qualification, figure: none, table,
+});
+
+const SEASON_LINES = 'Every season line, NFL.com’s reported ones filling the seasons with games missing (ADR 0001).';
+const BREAKDOWN = 'Every fully covered season line: Breakdown needs every score of every regular-season week.';
+const GP: Alongside = { label: 'GP', column: 'games', unit: 'count' };
+const season = (
+  slug: string, name: string, dir: 'asc' | 'desc', column: string, unit: Unit, alongside: Alongside[],
+  qualification = SEASON_LINES, category = 'seasons',
+): RecordDef => ({
+  slug, name, category, kind: 'season', unit, dir, eras: ERAS, phases: ['regular'], qualification, figure: none, column,
+  alongside,
+});
+const PF_GAME: Alongside = { label: 'PF per game', column: 'points_for_per_game', unit: 'points' };
+const PA_GAME: Alongside = { label: 'PA per game', column: 'points_against_per_game', unit: 'points' };
+const WIN_PCT: Alongside = { label: 'Win %', column: 'win_pct', unit: 'pct' };
+const BREAKDOWN_PCT: Alongside = { label: 'Breakdown %', column: 'breakdown_pct', unit: 'pct' };
+
+const FINISHED = 'Every finished season.';
+const tally = (slug: string, name: string, record: string, qualification: string, eras: Era[] = ERAS): RecordDef => ({
+  slug, name, category: 'brackets', kind: 'tally', unit: 'count', dir: 'desc', eras, phases: ['all'], qualification,
+  figure: none, record,
+});
+const run = (slug: string, name: string, record: string, qualification: string): RecordDef => ({
+  slug, name, category: 'brackets', kind: 'run', unit: 'count', dir: 'desc', eras: ERAS, phases: ['all'], qualification,
+  figure: none, record,
 });
 
 export const RECORDS: RecordDef[] = [
@@ -86,6 +126,37 @@ export const RECORDS: RecordDef[] = [
   streak('longest-losing-streak', 'Longest losing streak', 'losing', `${STREAKS} A tie ends it.`),
   streak('longest-top-half-run', 'Longest run of top-half weeks', 'top_half',
     'Consecutive regular-season weeks beating at least half the league that week, a level score counting half. Only weeks where every score survives count.'),
+  season('most-wins', 'Most wins', 'desc', 'wins', 'count', [WIN_PCT, GP]),
+  season('fewest-wins', 'Fewest wins', 'asc', 'wins', 'count', [WIN_PCT, GP]),
+  season('most-points-for', 'Most points for', 'desc', 'points_for', 'points', [PF_GAME, GP]),
+  season('fewest-points-for', 'Fewest points for', 'asc', 'points_for', 'points', [PF_GAME, GP]),
+  season('most-points-against', 'Most points against', 'desc', 'points_against', 'points', [PA_GAME, GP]),
+  season('fewest-points-against', 'Fewest points against', 'asc', 'points_against', 'points', [PA_GAME, GP]),
+  season('best-points-per-game', 'Best points per game', 'desc', 'points_for_per_game', 'points',
+    [{ label: 'PF', column: 'points_for', unit: 'points' }, GP]),
+  season('worst-points-per-game', 'Worst points per game', 'asc', 'points_for_per_game', 'points',
+    [{ label: 'PF', column: 'points_for', unit: 'points' }, GP]),
+  season('best-breakdown-pct', 'Best Breakdown %', 'desc', 'breakdown_pct', 'pct', [WIN_PCT, GP], BREAKDOWN),
+  season('worst-breakdown-pct', 'Worst Breakdown %', 'asc', 'breakdown_pct', 'pct', [WIN_PCT, GP], BREAKDOWN),
+  season('luckiest-season', 'Luckiest season', 'desc', 'luck', 'luck', [WIN_PCT, BREAKDOWN_PCT],
+    `Win % minus Breakdown %, a tie counting half. ${BREAKDOWN}`, 'luck'),
+  season('unluckiest-season', 'Unluckiest season', 'asc', 'luck', 'luck', [WIN_PCT, BREAKDOWN_PCT],
+    `Win % minus Breakdown %, a tie counting half. ${BREAKDOWN}`, 'luck'),
+  career('career-points-against-per-game', 'Career most points against per game', 'apa', 'points',
+    'At least 2 completed seasons. Games with a score, plus NFL.com’s reported totals for weeks with none.', 'luck'),
+  tally('championships', 'Championships', 'championships', `${FINISHED} A disputed outcome counts for nobody.`),
+  tally('finals-reached', 'Finals reached', 'finals', `Every Playoffs final played. ${FINISHED}`),
+  tally('playoff-appearances', 'Playoff appearances', 'playoffs', FINISHED),
+  tally('shit-bowl-titles', 'Shit Bowl winner titles', 'shit_bowl_titles', `${FINISHED} A disputed outcome counts for nobody.`),
+  tally('shit-bowl-appearances', 'Shit Bowl appearances', 'shit_bowl',
+    `Since 2025: NFL.com never recorded who played in the Shit Bowl, so the NFL.com era can’t be counted. ${FINISHED}`,
+    ['sleeper']),
+  tally('mediocre-bowl-titles', 'Mediocre Bowl titles', 'mediocre_bowl_titles',
+    `Since 2015, when the Mediocre Bowl began. ${FINISHED} An unknown or disputed outcome counts for nobody.`),
+  run('longest-playoff-drought', 'Longest Playoff drought', 'drought',
+    `Consecutive seasons a franchise played without a Playoff appearance. ${FINISHED}`),
+  run('longest-playoff-appearance-streak', 'Longest Playoff appearance streak', 'appearances',
+    `Consecutive seasons with a Playoff appearance. ${FINISHED}`),
 ];
 
 export interface Category {
@@ -104,23 +175,15 @@ const built = (slug: string, name: string): Category => ({
   slug, name, built: true, records: RECORDS.filter((r) => r.category === slug).map(({ name, slug }) => ({ name, slug })),
 });
 
-const BRACKET_RECORDS = [
-  'Championships', 'Finals reached', 'Playoff appearances', 'Shit Bowl winner titles', 'Shit Bowl appearances',
-  'Mediocre Bowl titles', 'Longest Playoff drought', 'Longest Playoff appearance streak',
-];
-
 export const CATEGORIES: Category[] = [
   built('scoring', 'Scoring'),
   built('results', 'Results and streaks'),
-  pending('seasons', 'Seasons', [
-    'Most and fewest wins', 'Most and fewest points for', 'Most and fewest points against',
-    'Best and worst points per game', 'Best and worst Breakdown %',
-  ]),
-  pending('luck', 'Luck', ['Luckiest and unluckiest season', 'Career most points against per game']),
+  built('seasons', 'Seasons'),
+  built('luck', 'Luck'),
   {
-    ...pending('brackets', 'Brackets', BRACKET_RECORDS),
+    ...built('brackets', 'Brackets'),
     // The roll of honour already exists: the category links to it, not a copy (#14).
-    records: [{ name: 'Roll of honour', href: '/seasons/' }, ...BRACKET_RECORDS.map((name) => ({ name }))],
+    records: [{ name: 'Roll of honour', href: '/seasons/' }, ...built('brackets', 'Brackets').records],
   },
   pending('head-to-head', 'Head-to-head', ['Most lopsided rivalry', 'Most-played pairing']),
   pending('divisions', 'Divisions', ['Group of Death', 'Winningest', 'Weakest division by points for', 'Weakest division by wins'], 'Since 2015'),
