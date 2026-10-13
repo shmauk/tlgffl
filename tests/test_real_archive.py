@@ -97,7 +97,7 @@ def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
     counts = db.execute("select season, count(*), count(home_points) from games "
                         "where bracket = 'playoffs' group by season").fetchall()
     assert counts == [*[(y, 3, 3) for y in (2012, 2013, 2014)], *[(y, 5, 5) for y in range(2015, 2021)],
-                      (2021, 5, 4), *[(y, 5, 0) for y in (2022, 2023, 2024)]]
+                      (2021, 5, 4), *[(y, 5, 0) for y in (2022, 2023, 2024)], (2025, 5, 5)]
     # 2022's final: SERPION beat Kurlewless, score lost.
     assert db.execute(
         "select f.name, a.name, w.name, g.home_points from games g "
@@ -112,8 +112,24 @@ def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
         "join franchises f on f.id = g.home_franchise_id join franchises a on a.id = g.away_franchise_id "
         "where g.season = 2015 and g.bracket = 'playoffs' and g.week = 16").fetchall()
     assert final == [(3, "Mooreccan chicken with rice", 85.88, "The Hatters", 72.7)]
-    assert db.execute("select count(*) from games where bracket is not null and bracket != 'playoffs'"
-                      ).fetchone() == (0,)
+    assert db.execute("select count(*) from games where bracket is not null and bracket != 'playoffs' "
+                      "and season <= 2024").fetchone() == (0,)
+
+
+def test_2025s_games_follow_the_hand_kept_bracket_assignment(db):
+    # Sleeper made 6, 7 and 6 pairings in weeks 15-17; 6 of them are filler.
+    assert db.execute("select week, bracket, count(*) from games where season = 2025 and phase = 'bracket' "
+                      "group by week, bracket order by week, bracket").fetchall() == [
+        (15, "playoffs", 2), (15, "shit_bowl", 2),
+        (16, "mediocre_bowl", 2), (16, "playoffs", 2), (16, "shit_bowl", 2),
+        (17, "mediocre_bowl", 1), (17, "playoffs", 1), (17, "shit_bowl", 1)]
+    # The final: Seamen 93.60, The Puffins 90.14.
+    assert db.execute(
+        "select w.name, g.home_points, g.away_points from games g "
+        "join franchises w on w.id = g.winner_franchise_id "
+        "where g.season = 2025 and g.bracket = 'playoffs' and g.round = 3").fetchall() == [
+        ("Seamen", 93.6, 90.14)]
+    assert db.execute("select count(*) from games where season = 2025").fetchone() == (8 * 14 + 13,)
 
 
 def test_every_nfl_com_season_crowns_a_champion_and_a_shit_bowl_winner(db):
@@ -145,21 +161,24 @@ def test_coverage_marks_the_known_gaps(db):
                                                     for w in (15, 16, 17)]
 
 
-def test_season_lines_are_derived_through_2021_and_reported_after(db):
+def test_season_lines_are_derived_through_2021_and_reported_until_sleeper(db):
     # Building at all proves the agreement check passed for 2012-2021.
     assert db.execute("select season, group_concat(distinct source) from season_lines "
                       "group by season order by season").fetchall() == [
-        *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)]]
+        *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)],
+        (2025, "derived"), (2026, "derived")]
 
 
 def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
     # A franchise meets every other franchise every regular-season week:
-    # 9 x 14 in 2012, 11 x 14 in 2013-14, 15 x 13 in 2015-20, 15 x 14 in 2021.
+    # 9 x 14 in 2012, 11 x 14 in 2013-14, 15 x 13 in 2015-20, 15 x 14 in 2021
+    # and 2025. 2026 has no final week in the archive yet.
     rows = db.execute("select season, min(breakdown_wins + breakdown_losses + breakdown_ties), "
                       "max(breakdown_wins + breakdown_losses + breakdown_ties), count(luck) "
                       "from season_lines group by season order by season").fetchall()
     per_franchise = {2012: 126, 2013: 154, 2014: 154, **{y: 195 for y in range(2015, 2021)},
-                     2021: 210}
+                     2021: 210, 2025: 210}
     teams = {2012: 10, 2013: 12, 2014: 12}
-    assert rows == [*[(y, n, n, teams.get(y, 16)) for y, n in per_franchise.items()],
-                    *[(y, None, None, 0) for y in (2022, 2023, 2024)]]
+    assert rows == [*[(y, n, n, teams.get(y, 16)) for y, n in per_franchise.items() if y < 2022],
+                    *[(y, None, None, 0) for y in (2022, 2023, 2024)],
+                    (2025, 210, 210, 16), (2026, None, None, 0)]

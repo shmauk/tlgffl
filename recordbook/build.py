@@ -18,6 +18,7 @@ from pathlib import Path
 from recordbook import brackets as bracketlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
+from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
 
@@ -316,6 +317,14 @@ def build(data, out):
                                                postseason.get(year, {}))
         except bracketlib.BracketError as e:
             raise BuildError(str(e)) from e
+    try:
+        assigned = sleeperlib.read_assignments(read_optional_csv(data / "sleeper_brackets.csv"))
+        for year, (lg, _rosters) in sorted(sleeper.items()):
+            games += sleeperlib.season_games(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
+                                             formats[year], lambda r, y=year: sleeper_franchise(y, r),
+                                             assigned.get(year, {}))
+    except sleeperlib.SleeperError as e:
+        raise BuildError(str(e)) from e
     check_one_game_a_week(games)
     team_counts = {year: count for year, _, count in seasons}
     coverage = gamelog.coverage(games, team_counts, regular_weeks, playoff_teams)
@@ -323,6 +332,9 @@ def build(data, out):
     if disagreements:
         raise BuildError("the games and NFL.com's reported season lines disagree (ADR 0001):\n  "
                          + "\n  ".join(disagreements))
+    for year, (lg, rosters) in sorted(sleeper.items()):
+        season_lines += sleeperlib.season_lines(year, games, lg, rosters,
+                                                lambda r, y=year: sleeper_franchise(y, r))
 
     all_ids = sorted(set(keys.values()))
     current = max(year for year, _, _ in seasons)
