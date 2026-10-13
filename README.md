@@ -1,6 +1,7 @@
 # The Fantasy League record book
 
 See `GLOSSARY.md` for the league's language and `docs/adr/` for the decisions behind the pipeline.
+To change data or propose a record or award, see `CONTRIBUTING.md`.
 
 ## Building locally
 
@@ -12,6 +13,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 npm ci
 
 .venv/bin/python -m pytest -q                      # Python tests
+.venv/bin/python -m recordbook.validate data        # checks every hand-kept table, row by row
 .venv/bin/python -m recordbook.build               # data/ -> build/league.sqlite, from scratch
 .venv/bin/python -m recordbook.privacy             # fails on a forbidden field in data/, golden/ or the database
 .venv/bin/python -m recordbook.golden              # compares the database with golden/league_records.json

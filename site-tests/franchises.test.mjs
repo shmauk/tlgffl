@@ -30,14 +30,18 @@ test('every franchise has a page at /franchises/<id>/', () => {
   }
 });
 
-test('the site ships no client-side JS', () => {
+test('static pages ship no client-side JS: only Statsguru, the one island, has any', () => {
   const walk = (dir) => readdirSync(dir).flatMap((n) => {
     const p = join(dir, n);
     return statSync(p).isDirectory() ? walk(p) : [p];
   });
   const files = walk(DIST);
-  assert.deepEqual(files.filter((f) => /\.m?js$/.test(f)), []);
-  for (const f of files.filter((f) => f.endsWith('.html'))) {
+  const statsguru = join(DIST, 'statsguru', 'index.html');
+  for (const f of files.filter((f) => f.endsWith('.html') && f !== statsguru)) {
     assert.doesNotMatch(readFileSync(f, 'utf8'), /<script/i, f);
+  }
+  const island = readFileSync(statsguru, 'utf8');
+  for (const js of files.filter((f) => /\.m?js$/.test(f))) {
+    assert.ok(island.includes(js.slice(DIST.length)), `${js} belongs to Statsguru`);
   }
 });

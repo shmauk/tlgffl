@@ -2,10 +2,10 @@
 // and never derive figures of their own (ADR 0004).
 import { DatabaseSync } from 'node:sqlite';
 
-const DB_PATH = process.env.TLGFFL_DB ?? 'build/league.sqlite';
+export const DB_PATH = process.env.TLGFFL_DB ?? 'build/league.sqlite';
 
 let db: DatabaseSync | undefined;
-function open(): DatabaseSync {
+export function open(): DatabaseSync {
   db ??= new DatabaseSync(DB_PATH, { readOnly: true });
   return db;
 }
@@ -275,6 +275,55 @@ export function gapWeeks(season: number, phase: 'regular' | 'bracket'): number[]
     .prepare('select week from coverage where season = ? and phase = ? and not complete order by week')
     .all(season, phase)
     .map((r: any) => r.week);
+}
+
+/** One season of the roll of honour (#24). */
+export interface Honours {
+  season: Season;
+  /** Null until the season's Playoffs final is recorded. */
+  champion: SeasonFranchise | null;
+  /** The Playoffs final's loser; null with the champion. */
+  runnerUp: SeasonFranchise | null;
+  /** Empty until recorded; a single 'unknown' row when nobody recorded it. */
+  shitBowl: BracketWinner[];
+  /** Null for a season that had no Mediocre Bowl (before 2015). */
+  mediocreBowl: BracketWinner[] | null;
+}
+
+/** Every season's champion and runner-up, newest first. */
+export function rollOfHonour(): Honours[] {
+  // The Playoffs final is each season's last-round Playoffs game.
+  const finals = open()
+    .prepare(
+      `select g.season, g.winner_franchise_id as winnerId,
+              case when g.winner_franchise_id = g.home_franchise_id then g.away_franchise_id
+                   else g.home_franchise_id end as loserId
+       from games g
+       where g.bracket = 'playoffs' and g.winner_franchise_id is not null
+         and g.round = (select max(round) from games m where m.season = g.season and m.bracket = 'playoffs')`,
+    )
+    .all() as unknown as { season: number; winnerId: number; loserId: number }[];
+  const named = open().prepare(
+    `select f.id, f.name, t.team_name as teamName from franchises f
+     join team_names t on t.franchise_id = f.id and t.season = ? where f.id = ?`,
+  );
+  const franchise = (season: number, id: number | undefined) =>
+    id === undefined ? null : (named.get(season, id) as unknown as SeasonFranchise);
+  const formats = new Map(seasonFormats().map((f) => [f.season, f]));
+  // A season joins the roll of honour once its Playoffs final is played.
+  return seasons().flatMap((season) => {
+    const final = finals.find((f) => f.season === season.year);
+    if (!final) return [];
+    const winners = bracketWinners(season.year);
+    const hasMediocreBowl = formats.get(season.year)?.brackets.some((b) => b.bracket === 'mediocre_bowl');
+    return [{
+      season,
+      champion: franchise(season.year, final.winnerId),
+      runnerUp: franchise(season.year, final.loserId),
+      shitBowl: winners.filter((w) => w.bracket === 'shit_bowl'),
+      mediocreBowl: hasMediocreBowl ? winners.filter((w) => w.bracket === 'mediocre_bowl') : null,
+    }];
+  });
 }
 
 /** Every week with games in the season, regular season and brackets. */

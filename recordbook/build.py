@@ -18,6 +18,7 @@ from pathlib import Path
 from recordbook import brackets as bracketlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
+from recordbook import profiles
 from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
@@ -465,9 +466,21 @@ def build(data, out):
         for table, rows in moves.items():
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
+        write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
         con.commit()
     finally:
         con.close()
+
+
+def write_profiles(con, franchises, played, season_lines, winners, current, games, coverage):
+    """The franchise profile and head-to-head tables (#27)."""
+    con.executescript(profiles.SCHEMA)
+    con.executemany(f"insert into franchise_careers values ({', '.join('?' * 18)})",
+                    profiles.career_rows(franchises, played, season_lines, winners, current))
+    con.executemany(f"insert into head_to_head values ({', '.join('?' * 11)})",
+                    profiles.head_to_head_rows(games, coverage, played))
+    con.executemany("insert into franchise_best_worst values (?, ?, ?, ?, ?)",
+                    profiles.best_worst_rows(profiles.game_scores(games)))
 
 
 def read_optional_csv(path):
