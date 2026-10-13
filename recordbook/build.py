@@ -15,6 +15,7 @@ from collections import defaultdict
 from dataclasses import astuple
 from pathlib import Path
 
+from recordbook import awards as awardlib
 from recordbook import brackets as bracketlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
@@ -224,7 +225,9 @@ create table waiver_claims (
     nfl_player_id text not null,
     dropped_nfl_player_id text,
     bid integer,
-    won integer not null check (won in (0, 1))
+    won integer not null check (won in (0, 1)),
+    -- When Sleeper processed the claim: a waiver run's claims share it.
+    processed integer
 );
 """
 
@@ -262,6 +265,11 @@ def nfl_seasons(data):
 
 def _season_stats(team, year):
     return ((team.get("stats") or {}).get("season") or {}).get(str(year)) or {}
+
+
+def _count(value):
+    """An NFL.com count, or None where NFL.com didn't report one."""
+    return None if value in (None, "") else int(value)
 
 
 def sleeper_seasons(data):
@@ -314,6 +322,7 @@ def build(data, out):
     team_names = {}
     lines = []
     played = defaultdict(set)
+    nfl_moves = {}
     for year, lg in nfl.items():
         seasons.append((year, "nfl.com", len(lg["teams"])))
         order = lg.get("finalStandingsTeamIds") or []
@@ -323,6 +332,8 @@ def build(data, out):
             played[fid].add(year)
             team_names[(fid, year)] = t["name"]
             s = _season_stats(t, year)
+            nfl_moves[(year, fid)] = (_count(s.get("transactionAddCount")),
+                                      _count(s.get("transactionTradeCount")))
             lines.append((
                 fid, year, int(s["wins"]), int(s["losses"]), int(s["ties"]),
                 round(float(s["pts"]), 2), round(float(s["ptsAgainst"]), 2),
@@ -426,6 +437,7 @@ def build(data, out):
         raise BuildError(str(e)) from e
     lineups = []
     moves = defaultdict(list)
+    picks = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
         of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         winners += sleeperlib.crowns(year, games, formats[year])
@@ -433,11 +445,17 @@ def build(data, out):
         for table, rows in sleeperlib.transactions(
                 year, sleeperlib.read_transactions(data / "sleeper", year), of).items():
             moves[table] += rows
+        picks += sleeperlib.draft_picks(data / "sleeper", year, of)
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
     highs_lows = [(season, measure, i + 1, fid, value)
                   for season, measure, i, fid, value in gamelog.highs_and_lows(games)]
+    award_results, award_unknowns = awardlib.results(
+        games=games, coverage=coverage, regular_weeks={y: f.regular_season for y, f in formats.items()},
+        nfl_counts=nfl_moves, moves=moves, lineups=lineups, picks=picks,
+        played={y: {f for f, ys in played.items() if y in ys} for y in sleeper},
+        keepers=read_keepers(read_optional_csv(data / "keepers.csv")))
 
     if out.exists():
         out.unlink()
@@ -467,6 +485,10 @@ def build(data, out):
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
+        con.executescript(awardlib.SCHEMA)
+        con.executemany("insert into awards values (?, ?, ?, ?, ?, ?)", awardlib.award_rows())
+        con.executemany("insert into award_results values (?, ?, ?, ?, ?)", award_results)
+        con.executemany("insert into award_unknowns values (?, ?, ?)", award_unknowns)
         con.commit()
     finally:
         con.close()
@@ -485,6 +507,15 @@ def write_profiles(con, franchises, played, season_lines, winners, current, game
 
 def read_optional_csv(path):
     return read_csv(path) if path.exists() else []
+
+
+def read_keepers(rows):
+    """{season: {(franchise, NFL player)}} from the hand-kept keeper list
+    (data/keepers.csv, #37), for the seasons it records."""
+    out = defaultdict(set)
+    for r in rows:
+        out[int(r["season"])].add((int(r["franchise_id"]), r["nfl_player_id"].strip()))
+    return dict(out)
 
 
 def season_format_rows(formats):
