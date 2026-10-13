@@ -184,6 +184,15 @@ create table lineups (
     nfl_player_id text,
     points real
 );
+-- NFL players by Sleeper id, from the Sleeper players snapshots. Sleeper only
+-- keeps the current state, so position and NFL team are the latest known;
+-- null where no snapshot knows the NFL player.
+create table nfl_players (
+    id text primary key,
+    name text,
+    position text,
+    nfl_team text
+);
 -- Sleeper era only. Completed trades, won waiver claims and free-agent
 -- pickups (GLOSSARY.md: Transaction), with the NFL players each franchise
 -- added and dropped, the draft picks and FAAB budget traded.
@@ -463,6 +472,8 @@ def build(data, out):
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
+        con.executemany("insert into nfl_players values (?, ?, ?, ?)",
+                        sleeperlib.nfl_players(data / "sleeper", lineups))
         for table, rows in moves.items():
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)

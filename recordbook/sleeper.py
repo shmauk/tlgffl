@@ -233,6 +233,25 @@ def lineups(year, league, weeks, games, franchise_of):
     return rows
 
 
+def nfl_players(sleeper_dir, lineup_rows):
+    """nfl_players rows (id, name, position, NFL team): every NFL player in
+    the players dump (players.json) or a weekly players snapshot, the latest
+    snapshot winning, and every NFL player in a lineup. Sleeper only keeps
+    the current state, so a position or NFL team is the latest one known.
+    An NFL player in no snapshot is kept with nothing known about them."""
+    known = {}
+    files = [sleeper_dir / "players.json"] + sorted(sleeper_dir.glob("*-players-*.json"))
+    for f in files:
+        if f.exists():
+            known.update(json.loads(f.read_text(encoding="utf-8")))
+    ids = set(known) | {r[6] for r in lineup_rows if r[6] is not None}
+    rows = []
+    for pid in sorted(ids):
+        p = known.get(pid) or {}
+        rows.append((pid, (p.get("name") or "").strip() or None, p.get("pos") or None, p.get("team") or None))
+    return rows
+
+
 TRANSACTION_TYPES = ("trade", "waiver", "free_agent")
 
 
