@@ -28,6 +28,31 @@ pushes to `main` go to production, and every other branch with a PR gets a previ
 the repo secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and a Direct Upload Pages
 project named `tlgffl`.
 
+### The scheduled refresh
+
+The same workflow runs every morning at 06:00 UTC (after Monday night's game) and can be run by
+hand (`workflow_dispatch`). It fetches Sleeper, runs the privacy check on `data/`, commits the
+snapshot straight to `main` as `github-actions[bot]` if anything changed (a quiet day commits
+nothing), then builds and deploys that commit. A failing build deploys nothing and fails the run,
+with a note in the run summary; the likeliest cause in the brackets is a newly scored bracket week
+missing from `data/sleeper_brackets.csv`.
+
+```bash
+.venv/bin/python -m recordbook.schedule [--today YYYY-MM-DD]   # would today's scheduled run refresh?
+```
+
+How often it refreshes comes from the latest Sleeper season in the snapshot, not from editing the
+cron: daily from its draft (`drafts[].start_time`) until its last bracket week (`data/formats.yaml`)
+is scored, and on Tuesdays otherwise. So each new season needs its league id in
+`recordbook/fetch_sleeper.py` and its entry in `data/formats.yaml`; the weekly runs then pick up the
+draft date as soon as it is set.
+
+Keep-alive: GitHub disables a public repo's scheduled workflows after 60 days without activity, and
+off-season there are no snapshot commits. Every scheduled run therefore re-enables its own workflow
+through the API (`PUT /repos/{repo}/actions/workflows/site.yml/enable`, the `actions: write`
+permission). If the schedule is ever disabled anyway, re-enable it from the Actions tab or with
+`gh workflow enable site.yml`.
+
 ### Importing ff-data-project's archive (one time)
 
 The NFL.com and Sleeper archive comes from [ff-data-project](https://github.com/juffleberry/ff-data-project)
