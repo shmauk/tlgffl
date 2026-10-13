@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatSummary } from './format';
+import { formatSummary, weekList } from './format';
 
 describe('a season format summary', () => {
   test('a one-division season with two brackets', () => {
@@ -37,5 +37,13 @@ describe('a season format summary', () => {
       'Shit Bowl: bottom 7, weeks 15–17',
       'Mediocre Bowl: middle 2, best of three, weeks 15–17',
     ]);
+  });
+});
+
+describe('a list of weeks in words', () => {
+  test('one week, a run of weeks, and runs with gaps', () => {
+    expect(weekList([3])).toBe('week 3');
+    expect(weekList([10, 11, 12, 13, 14])).toBe('weeks 10–14');
+    expect(weekList([1, 2, 5, 7, 8])).toBe('weeks 1–2, 5 and 7–8');
   });
 });
