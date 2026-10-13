@@ -9,6 +9,7 @@ import Row from './Row.astro';
 import BigFigure from './BigFigure.astro';
 import Stats from './Stats.astro';
 import FranchiseLink from './FranchiseLink.astro';
+import NflPlayerLink from './NflPlayerLink.astro';
 import SeasonLink from './SeasonLink.astro';
 import AwardLink from './AwardLink.astro';
 
@@ -90,6 +91,15 @@ describe('site-wide links', () => {
     expect(html).toMatch(/<a class="fr" href="\/franchises\/5\/"[^>]*>Hop Heads<\/a>\s*<span class="alias"[^>]*>\(Beer Barons\)<\/span>/);
     const same = await render(FranchiseLink, { franchise: { id: 5, name: 'Beer Barons' }, teamName: 'Beer Barons' });
     expect(same).not.toContain('alias');
+  });
+
+  test('an NFL player links to their Statsguru query, there being no NFL-player pages', async () => {
+    expect(await render(NflPlayerLink, { player: { id: '4984', name: 'Josh Allen' } })).toMatch(
+      /<a class="pl" href="\/statsguru\/\?sub=player&(amp;)?p=4984"[^>]*>Josh Allen<\/a>/,
+    );
+    expect(await render(NflPlayerLink, { player: { id: '999', name: null } })).toMatch(
+      /<a class="pl" href="\/statsguru\/\?sub=player&(amp;)?p=999"[^>]*>Unknown NFL player \(Sleeper id 999\)<\/a>/,
+    );
   });
 
   test('a season links to its season page, or to a week on it', async () => {
