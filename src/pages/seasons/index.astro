@@ -5,6 +5,8 @@ import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
+import Crowned from '../../components/Crowned.astro';
+import Notes from '../../components/Notes.astro';
 import { rollOfHonour } from '../../lib/db';
 ---
 
@@ -19,17 +21,26 @@ import { rollOfHonour } from '../../lib/db';
       </thead>
       <tbody>
         {
-          rollOfHonour().map(({ season, champion, runnerUp }) => (
+          rollOfHonour().map(({ season, champion, runnerUp, shitBowl, mediocreBowl }) => (
             <tr>
               <td><SeasonLink season={season.year} /></td>
-              <td>{champion && <FranchiseLink franchise={champion} teamName={champion.teamName} />}</td>
-              <td>{runnerUp && <FranchiseLink franchise={runnerUp} teamName={runnerUp.teamName} />}</td>
-              <td></td>
-              <td></td>
+              {[champion, runnerUp].map((f) => (
+                <td>{f ? <FranchiseLink franchise={f} teamName={f.teamName} /> : <span class="sub">To come</span>}</td>
+              ))}
+              <td><Crowned winners={shitBowl} /></td>
+              <td>{mediocreBowl && <Crowned winners={mediocreBowl} />}</td>
             </tr>
           ))
         }
       </tbody>
     </table>
+    <Notes
+      notes={[
+        { text: 'Recalled: from memory, as no surviving game data could have recorded it.' },
+        { text: 'Disputed: the league can’t agree, so it counts for nobody until settled.' },
+        { text: 'Unknown: nobody has recorded it. The Mediocre Bowl began in 2015.' },
+        { text: 'To come: the season’s Sleeper results are not in the record book yet, or it is still being played.' },
+      ]}
+    />
   </Row>
 </Base>

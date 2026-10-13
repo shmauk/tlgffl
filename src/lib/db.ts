@@ -284,6 +284,10 @@ export interface Honours {
   champion: SeasonFranchise | null;
   /** The Playoffs final's loser; null with the champion. */
   runnerUp: SeasonFranchise | null;
+  /** Empty until recorded; a single 'unknown' row when nobody recorded it. */
+  shitBowl: BracketWinner[];
+  /** Null for a season that had no Mediocre Bowl (before 2015). */
+  mediocreBowl: BracketWinner[] | null;
 }
 
 /** Every season's champion and runner-up, newest first. */
@@ -305,12 +309,17 @@ export function rollOfHonour(): Honours[] {
   );
   const franchise = (season: number, id: number | undefined) =>
     id === undefined ? null : (named.get(season, id) as unknown as SeasonFranchise);
+  const formats = new Map(seasonFormats().map((f) => [f.season, f]));
   return seasons().map((season) => {
     const final = finals.find((f) => f.season === season.year);
+    const winners = bracketWinners(season.year);
+    const hasMediocreBowl = formats.get(season.year)?.brackets.some((b) => b.bracket === 'mediocre_bowl');
     return {
       season,
       champion: franchise(season.year, final?.winnerId),
       runnerUp: franchise(season.year, final?.loserId),
+      shitBowl: winners.filter((w) => w.bracket === 'shit_bowl'),
+      mediocreBowl: hasMediocreBowl ? winners.filter((w) => w.bracket === 'mediocre_bowl') : null,
     };
   });
 }
