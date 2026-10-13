@@ -1,0 +1,25 @@
+---
+// One game from a franchise's side: W, L or T, the score (its own first) and
+// the opponent, linking to the game's week on its season page (#14). A game
+// whose score is lost carries ‡.
+import FranchiseLink from './FranchiseLink.astro';
+import SeasonLink from './SeasonLink.astro';
+import Marker from './Marker.astro';
+import type { DatedGame } from '../lib/profiles';
+
+interface Props {
+  game: DatedGame;
+  franchiseId: number;
+  label?: string;
+}
+const { game, franchiseId, label } = Astro.props;
+const home = game.home.id === franchiseId;
+const [mine, theirs] = home ? [game.homePoints, game.awayPoints] : [game.awayPoints, game.homePoints];
+const opponent = home ? game.away : game.home;
+const result = game.winnerId === null ? 'T' : game.winnerId === franchiseId ? 'W' : 'L';
+---
+
+<SeasonLink season={game.season} week={game.week}>{label ?? `${game.season} week ${game.week}`}</SeasonLink>{' '}
+{result}{' '}
+{mine === null ? <Marker glyph="‡" title="Score is lost" /> : `${mine.toFixed(2)}–${theirs!.toFixed(2)}`}{' v '}
+<FranchiseLink franchise={opponent} teamName={opponent.teamName} />
