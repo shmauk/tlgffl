@@ -315,3 +315,22 @@ def test_waiver_claims_are_kept_won_and_lost_with_their_bids(moves, tmp_path):
     assert query(db, "select transaction_id, season, week, franchise_id, nfl_player_id, "
                      "dropped_nfl_player_id, bid, won from waiver_claims order by transaction_id") == [
         ("t2", 2025, 2, 13, "300", "301", 12, 1), ("t3", 2025, 2, 14, "300", None, 10, 0)]
+
+
+def write_players(data, name, players):
+    (data / "sleeper" / name).write_text(json.dumps(players))
+
+
+def test_nfl_players_come_from_the_players_dump_and_the_latest_weekly_snapshot(sleeper, tmp_path):
+    lineups = {(1, 1): (["100", "300"], {"100": 10.0, "300": 5.5, "400": 2.0})}
+    write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, totals=TOTALS, lineups=lineups)
+    write_players(sleeper, "players.json", {"100": {"name": "Ann QB", "pos": "QB", "team": "KC"},
+                                            "300": {"name": "Bo Back", "pos": "RB", "team": "NYJ"},
+                                            "900": {"name": "Never Rostered", "pos": "K", "team": "SF"}})
+    write_players(sleeper, "2025-players-02.json", {"300": {"name": "Bo Back", "pos": "RB", "team": "BUF"}})
+    write_players(sleeper, "2025-players-03.json", {"300": {"name": "Bo Back", "pos": "RB", "team": "LV"}})
+    db = built(sleeper, tmp_path)
+    # One in a lineup but in no snapshot is kept, with nothing known about them.
+    assert query(db, "select id, name, position, nfl_team from nfl_players order by id") == [
+        ("100", "Ann QB", "QB", "KC"), ("300", "Bo Back", "RB", "LV"), ("400", None, None, None),
+        ("900", "Never Rostered", "K", "SF")]

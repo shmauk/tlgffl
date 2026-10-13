@@ -230,3 +230,17 @@ def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
                     *[(y, None, None, 0) for y in (2022, 2023, 2024)],
                     (2025, 210, 210, 16),
                     *([(2026, 15 * n, 15 * n, 16)] if (n := scored_regular_weeks_2026()) else [])]
+
+
+def test_each_award_exists_for_exactly_its_seasons(db):
+    # #33: game awards 2012-21 and 2025 (fully covered seasons); Pick a Lane
+    # 2012 on; the Sleeper-only awards 2025 on. 2026's regular season isn't over.
+    games, everything = [*range(2012, 2022), 2025], list(range(2012, 2026))
+    seasons = {slug: sorted(s for (s,) in db.execute(
+        "select distinct season from award_results where award = ?", (slug,)))
+        for (slug,) in db.execute("select slug from awards").fetchall()}
+    assert seasons == {"nail-biter": games, "standard-deviation": games, "heartbreaker": games,
+                       "lucky-duck": games, "pick-a-lane": everything, "one-man-army": [2025],
+                       "draft-dodger": [], "highest-failed-bid": [2025], "most-overpaid": [2025]}
+    # Draft Dodger needs 2025's keeper list (#37).
+    assert db.execute("select award, season from award_unknowns").fetchall() == [("draft-dodger", 2025)]

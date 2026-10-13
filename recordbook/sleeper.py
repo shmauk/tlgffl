@@ -233,6 +233,25 @@ def lineups(year, league, weeks, games, franchise_of):
     return rows
 
 
+def nfl_players(sleeper_dir, lineup_rows):
+    """nfl_players rows (id, name, position, NFL team): every NFL player in
+    the players dump (players.json) or a weekly players snapshot, the latest
+    snapshot winning, and every NFL player in a lineup. Sleeper only keeps
+    the current state, so a position or NFL team is the latest one known.
+    An NFL player in no snapshot is kept with nothing known about them."""
+    known = {}
+    files = [sleeper_dir / "players.json"] + sorted(sleeper_dir.glob("*-players-*.json"))
+    for f in files:
+        if f.exists():
+            known.update(json.loads(f.read_text(encoding="utf-8")))
+    ids = set(known) | {r[6] for r in lineup_rows if r[6] is not None}
+    rows = []
+    for pid in sorted(ids):
+        p = known.get(pid) or {}
+        rows.append((pid, (p.get("name") or "").strip() or None, p.get("pos") or None, p.get("team") or None))
+    return rows
+
+
 TRANSACTION_TYPES = ("trade", "waiver", "free_agent")
 
 
@@ -244,13 +263,26 @@ def read_transactions(sleeper_dir, year):
     return out
 
 
+def draft_picks(sleeper_dir, year, franchise_of):
+    """(season, franchise that made the pick, NFL player, Sleeper's keeper
+    flag) for each pick of the season's draft, if it has been snapshotted.
+    A pick's roster_id is the roster that made it, traded-for picks included
+    (it always matches picked_by in 2025)."""
+    f = sleeper_dir / f"{year}-draft_picks.json"
+    if not f.exists():
+        return []
+    return [(year, franchise_of(p["roster_id"]), p["player_id"], bool(p.get("is_keeper")))
+            for p in json.loads(f.read_text(encoding="utf-8")) if p.get("player_id")]
+
+
 def transactions(year, by_week, franchise_of):
     """Rows for the transactions, transaction_moves, transaction_picks,
     transaction_budget and waiver_claims tables, as a dict of lists.
 
     A transaction (GLOSSARY.md) is a completed trade, waiver claim or
     free-agent pickup; commissioner moves and failed trades aren't. Every
-    waiver claim is kept, won (complete) or lost (failed), with its bid.
+    waiver claim is kept, won (complete) or lost (failed), with its bid and
+    its waiver run (when Sleeper processed it: the run's claims share it).
     """
     out = {k: [] for k in ("transactions", "transaction_moves", "transaction_picks",
                            "transaction_budget", "waiver_claims")}
@@ -264,7 +296,7 @@ def transactions(year, by_week, franchise_of):
                     dropped = [p for p, r in drops.items() if r == rid]
                     out["waiver_claims"].append((tid, year, week, franchise_of(rid), pid,
                                                  dropped[0] if dropped else None, bid,
-                                                 int(status == "complete")))
+                                                 int(status == "complete"), t.get("status_updated")))
             if kind not in TRANSACTION_TYPES or status != "complete":
                 continue
             out["transactions"].append((tid, year, week, kind, t.get("created")))
