@@ -56,3 +56,22 @@ excuse fails the check.
 `data/formats.yaml` holds every season's format; a season without one fails the build.
 `data/shitbowl.csv` and `data/mediocre_bowl.csv` record NFL.com-era Shit Bowl and Mediocre Bowl
 winners, which no platform data can supply. A blank row is shown as unknown, and `A|B` as disputed.
+
+### The Sleeper era
+
+```bash
+.venv/bin/python -m recordbook.fetch_sleeper       # snapshots the Sleeper API into data/sleeper/
+```
+
+The fetch pulls every Sleeper-era season (league ids in `recordbook/fetch_sleeper.py`; add each new
+season's there) and writes a file only when its content changed. Privacy reductions are applied
+before writing: users become `{roster_id, team_name}`, the players dump is cut to the league's NFL
+players, and forbidden fields are stripped. A season in progress also gets dated weekly
+`<season>-team_names-<week>.json` and `<season>-players-<week>.json` files, because Sleeper only
+keeps the current team names and NFL teams.
+
+Two hand-kept tables go with it. `data/sleeper_brackets.csv` assigns every pairing Sleeper made in
+a bracket week to the Playoffs, the Shit Bowl, the Mediocre Bowl or `filler` (never a game), since
+Sleeper's winners and losers brackets don't match the league's three; a missing or stale row fails
+the build. `data/sleeper_adjustments.csv` explains, to the point, any gap between Sleeper's roster
+season totals and the games (ADR 0001, Sleeper era); an unexplained or stale gap fails the build.

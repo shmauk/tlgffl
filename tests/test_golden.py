@@ -19,8 +19,7 @@ def golden_for_archive():
     return {"franchises": {
         "Alpha Two": {"active": True, "seasons": [
             season(2012, "Alpha One", (2, 1, 0), 300.5, 280.25, 1, 1),
-            season(2013, "Alpha Two", (1, 2, 0), 260.0, 290.0, None, 2),
-            season(2025, "Alpha Two", (9, 5, 0), 1500.0, 1400.0, platform="Sleeper")]},
+            season(2013, "Alpha Two", (1, 2, 0), 260.0, 290.0, None, 2)]},
         "Bravo": {"active": False, "seasons": [
             season(2012, "Bravo", (1, 2, 0), 250.0, 270.0, None, 2)]},
         "Charlie": {"active": True, "seasons": [
@@ -48,7 +47,8 @@ def test_matching_figures_pass(paths):
     write(golden, golden_for_archive())
     report = compare(db, golden, allow)
     assert report.mismatches == [] and report.stale == []
-    # 4 franchises x (exists, active) + 4 NFL.com season lines x 8 figures
+    # 4 franchises x (exists, active) + 4 NFL.com season lines x 8 figures (the
+    # fixture's Sleeper season has no final week, so no season lines yet)
     assert report.checked == 4 * 2 + 4 * 8
 
 

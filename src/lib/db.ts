@@ -154,7 +154,7 @@ export interface SeasonFranchise {
 
 export interface Standing extends SeasonLine {
   franchise: SeasonFranchise;
-  /** NFL.com's bracket type: 'championship' is the Playoffs. */
+  /** NFL.com's bracket type ('championship' is the Playoffs), or on Sleeper the bracket played in. */
   bracket: string | null;
   breakdownWins: number | null;
   breakdownLosses: number | null;

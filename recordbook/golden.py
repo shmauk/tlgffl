@@ -48,7 +48,7 @@ def bracket_figures(con, name, fid, s):
                          "and franchise_id = ?", (season, fid)).fetchall()
     ours = {
         "madePlayoffs": wins + losses > 0 or bool(con.execute(
-            "select 1 from season_lines where season = ? and franchise_id = ? and bracket = 'championship'",
+            "select 1 from season_lines where season = ? and franchise_id = ? and bracket in ('championship', 'playoffs')",
             (season, fid)).fetchone()),
         "playoffWins": wins,
         "playoffLosses": losses,
@@ -62,13 +62,11 @@ def bracket_figures(con, name, fid, s):
 
 
 def crown_figures(con, meta):
-    """Each NFL.com season's champion, runner-up and Shit Bowl winner, as
+    """Each season's champion, runner-up and Shit Bowl winner, as
     "<season>|<field>" figures (a disputed Shit Bowl has no winner)."""
     names = dict(con.execute("select id, name from franchises"))
     found = []
     for f in meta.get("finals", []):
-        if f.get("platform") != "NFL.com":
-            continue  # Sleeper-era brackets aren't built yet
         season = int(f["year"])
         final = con.execute("select winner_franchise_id, case when winner_franchise_id = home_franchise_id "
                             "then away_franchise_id else home_franchise_id end from games "
@@ -121,8 +119,6 @@ def compare(db_path, golden_path, allow_path):
             if name not in ours:
                 continue
             for s in golden.get(name, {}).get("seasons", []):
-                if s["platform"] != "NFL.com":
-                    continue  # Sleeper-era season lines aren't built yet
                 row = con.execute(
                     f"select {', '.join(SEASON_LINE_FIGURES.values())} from season_lines l "
                     "join team_names t on t.franchise_id = l.franchise_id and t.season = l.season "

@@ -20,6 +20,7 @@ from recordbook import formats as formatfile
 from recordbook import games as gamelog
 from recordbook import profiles
 from recordbook import records
+from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
 
@@ -171,6 +172,61 @@ create table bracket_winners (
     source text not null check (source in ('derived', 'confirmed', 'recalled', 'disputed', 'unknown')),
     check ((franchise_id is null) = (source = 'unknown'))
 );
+-- Sleeper era only. A franchise's lineup in each week it played a game: the
+-- starters by slot (slot_index from 1; an empty slot has no NFL player) and
+-- the bench (slot 'BN'), with each NFL player's points (Sleeper ids).
+create table lineups (
+    season integer not null references seasons(year),
+    week integer not null,
+    franchise_id integer not null references franchises(id),
+    slot text,
+    slot_index integer,
+    starter integer not null check (starter in (0, 1)),
+    nfl_player_id text,
+    points real
+);
+-- Sleeper era only. Completed trades, won waiver claims and free-agent
+-- pickups (GLOSSARY.md: Transaction), with the NFL players each franchise
+-- added and dropped, the draft picks and FAAB budget traded.
+create table transactions (
+    id text primary key,
+    season integer not null references seasons(year),
+    week integer not null,
+    type text not null check (type in ('trade', 'waiver', 'free_agent')),
+    created integer
+);
+create table transaction_moves (
+    transaction_id text not null references transactions(id),
+    franchise_id integer not null references franchises(id),
+    nfl_player_id text not null,
+    move text not null check (move in ('add', 'drop'))
+);
+create table transaction_picks (
+    transaction_id text not null references transactions(id),
+    pick_season integer not null,
+    round integer not null,
+    original_franchise_id integer not null references franchises(id),
+    from_franchise_id integer not null references franchises(id),
+    to_franchise_id integer not null references franchises(id)
+);
+create table transaction_budget (
+    transaction_id text not null references transactions(id),
+    from_franchise_id integer not null references franchises(id),
+    to_franchise_id integer not null references franchises(id),
+    amount integer not null
+);
+-- Every waiver claim, won or lost, with its bid (a lost claim is not a
+-- transaction, so it has no transactions row).
+create table waiver_claims (
+    transaction_id text not null,
+    season integer not null references seasons(year),
+    week integer not null,
+    franchise_id integer not null references franchises(id),
+    nfl_player_id text not null,
+    dropped_nfl_player_id text,
+    bid integer,
+    won integer not null check (won in (0, 1))
+);
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -279,10 +335,17 @@ def build(data, out):
     sleeper_ids = {}
     for year, (lg, rosters) in sleeper.items():
         seasons.append((year, "sleeper", int(lg.get("total_rosters") or len(rosters))))
+        snapshot = sleeperlib.team_names(data / "sleeper", year)
         for r in rosters:
-            fid = sleeper_franchise(year, r["roster_id"])
+            rid = r["roster_id"]
+            fid = sleeper_franchise(year, rid)
             played[fid].add(year)
-            sleeper_ids[fid] = r["roster_id"]
+            sleeper_ids[fid] = rid
+            if rid not in aliases:
+                raise BuildError(f"{year} Sleeper roster {rid} has no row in data/sleeper_aliases.csv")
+            # Never the manager's display name: an unsnapshotted season takes
+            # the name ff-data-project recorded for the roster.
+            team_names[(fid, year)] = snapshot.get(rid) or aliases[rid]["sleeper_name"]
 
     if not seasons:
         raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
@@ -318,6 +381,14 @@ def build(data, out):
                                                postseason.get(year, {}))
         except bracketlib.BracketError as e:
             raise BuildError(str(e)) from e
+    try:
+        assigned = sleeperlib.read_assignments(read_optional_csv(data / "sleeper_brackets.csv"))
+        for year, (lg, _rosters) in sorted(sleeper.items()):
+            games += sleeperlib.season_games(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
+                                             formats[year], lambda r, y=year: sleeper_franchise(y, r),
+                                             assigned.get(year, {}))
+    except sleeperlib.SleeperError as e:
+        raise BuildError(str(e)) from e
     check_one_game_a_week(games)
     team_counts = {year: count for year, _, count in seasons}
     coverage = gamelog.coverage(games, team_counts, regular_weeks, playoff_teams)
@@ -325,6 +396,17 @@ def build(data, out):
     if disagreements:
         raise BuildError("the games and NFL.com's reported season lines disagree (ADR 0001):\n  "
                          + "\n  ".join(disagreements))
+    explained = sleeperlib.read_explanations(read_optional_csv(data / "sleeper_adjustments.csv"))
+    problems = []
+    for year, (lg, rosters) in sorted(sleeper.items()):
+        coverage += sleeperlib.coverage(year, games, team_counts[year])
+        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
+        lines_of_year = sleeperlib.season_lines(year, games, lg, rosters, of)
+        problems += sleeperlib.cross_check(year, lg, rosters, lines_of_year, of, explained.get(year, {}))
+        season_lines += lines_of_year
+    if problems:
+        raise BuildError("Sleeper's roster totals and the games disagree (ADR 0001, Sleeper era):\n  "
+                         + "\n  ".join(problems))
 
     all_ids = sorted(set(keys.values()))
     current = max(year for year, _, _ in seasons)
@@ -332,16 +414,26 @@ def build(data, out):
     for fid in all_ids:
         if not played[fid]:
             raise BuildError(f"franchise {fid} in data/franchises.csv never played a season")
-        franchises.append((fid, franchise_name(fid, team_names, sleeper_ids, aliases),
+        nfl_names = {k: n for k, n in team_names.items() if k[1] in nfl}
+        franchises.append((fid, franchise_name(fid, nfl_names, sleeper_ids, aliases),
                            int(current in played[fid]), min(played[fid]), max(played[fid])))
     check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
     format_rows, bracket_rows = season_format_rows(formats)
     hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
     try:
-        winners = bracketlib.winner_rows(games, formats, nfl, hand_kept,
+        winners = bracketlib.winner_rows([g for g in games if g.season in nfl], formats, nfl, hand_kept,
                                          {name: fid for fid, name, *_ in franchises})
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
+    lineups = []
+    moves = defaultdict(list)
+    for year, (lg, _rosters) in sorted(sleeper.items()):
+        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
+        winners += sleeperlib.crowns(year, games, formats[year])
+        lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games, of)
+        for table, rows in sleeperlib.transactions(
+                year, sleeperlib.read_transactions(data / "sleeper", year), of).items():
+            moves[table] += rows
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
@@ -371,6 +463,10 @@ def build(data, out):
         con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?, ?)", bracket_rows)
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
+        con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
+        for table, rows in moves.items():
+            if rows:
+                con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
         write_records(con, games, seasons, formats, played, current, winners)
         con.commit()
@@ -417,10 +513,13 @@ def season_format_rows(formats):
 
 
 def franchise_name(fid, team_names, sleeper_ids, aliases):
-    """The last real team name the franchise played under.
+    """The last real NFL.com-era team name the franchise played under.
 
-    Sleeper-era team names aren't ingested yet, so a franchise that has only
-    played on Sleeper takes the name ff-data-project gave its roster.
+    Sleeper-era team names are recorded per season but don't rename
+    franchises yet: the hand-kept tables and the golden test name franchises
+    as ff-data-project does, so a franchise that has only played on Sleeper
+    takes the name ff-data-project gave its roster. (Whether Sleeper names
+    should rename franchises is a maintainer's call; see #25.)
     """
     real = [n for (f, y), n in sorted(team_names.items(), key=lambda kv: kv[0][1])
             if f == fid and n not in PLACEHOLDER_NAMES]

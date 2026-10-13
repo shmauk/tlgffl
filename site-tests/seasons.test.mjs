@@ -109,3 +109,38 @@ test('documents link the season’s AGM doc', () => {
   assert.ok(docs.length > 0);
   for (const d of docs) assert.ok(section(page(d.season), 'Documents').includes(`href="${d.url}"`), String(d.season));
 });
+
+// 2025, the first Sleeper season (#25).
+test('the 2025 page has all eight sections and nothing still to come but awards and drafts', () => {
+  const html = page(2025);
+  const labels = [...html.matchAll(/<h2 class="lab"[^>]*>([^<]*)/g)].map((m) => m[1]);
+  assert.deepEqual(labels.slice(1), SECTIONS);
+  assert.doesNotMatch(html, /Sleeper games are still to come/);
+  assert.match(html, /Played on Sleeper/);
+});
+
+test('2025 standings list all 16 franchises by group with the bracket each played in', () => {
+  const html = section(page(2025), 'Standings');
+  for (const g of ['Group A', 'Group B', 'Group C', 'Group D']) assert.ok(html.includes(`<caption>${g}</caption>`), g);
+  assert.equal([...html.matchAll(/href="\/franchises\/\d+\/"/g)].length, 16);
+  assert.equal([...html.matchAll(/<td>Playoffs<\/td>/g)].length, 6);
+  assert.equal([...html.matchAll(/<td>Shit Bowl<\/td>/g)].length, 6);
+  assert.equal([...html.matchAll(/<td>Mediocre Bowl<\/td>/g)].length, 4);
+});
+
+test('2025 brackets crown Seamen, Yorkshire Puddings and Standard Deviations, with every game', () => {
+  const html = section(page(2025), 'Brackets');
+  assert.match(html, /Champion:[\s\S]*?Seamen/);
+  assert.match(html, /Shit Bowl winner:[\s\S]*?Yorkshire Puddings/);
+  assert.match(html, /Mediocre Bowl winner:[\s\S]*?Standard Deviations/);
+  assert.match(html, /93\.60–90\.14/);
+  const n = db.prepare("select count(*) as n from games where season = 2025 and phase = 'bracket'").get().n;
+  assert.equal(n, 13);
+  assert.equal([...html.matchAll(/\d+\.\d\d–\d+\.\d\d/g)].length, n);
+});
+
+test('the 2025 weekly results grid runs from week 1 to week 17', () => {
+  const html = section(page(2025), 'Weekly results');
+  for (let week = 1; week <= 17; week++) assert.match(html, new RegExp(`id="week-${week}"`), String(week));
+  assert.match(section(page(2025), 'Breakdown'), /\d+-\d+-\d+/);
+});

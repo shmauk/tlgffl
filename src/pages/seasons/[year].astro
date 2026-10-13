@@ -42,7 +42,7 @@ const regularGaps = gapWeeks(year, 'regular');
 const weeks = seasonWeeks(year);
 const docs = seasonDocuments(year);
 const nfl = season.era === 'nfl.com';
-// Sleeper-era games aren't ingested yet: say so rather than show empty results.
+// A Sleeper season before its first final week has no games: say so rather than show empty results.
 const sleeperPending = !nfl && games.length === 0 ? "This season's Sleeper games are still to come." : '';
 
 const BRACKETS: { key: BracketName; name: string; crown: string }[] = [
@@ -144,7 +144,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                       <td class="num">{pts(s.pointsFor)}</td>
                       <td class="num">{pts(s.pointsAgainst)}</td>
                       <td class="num">{s.bracket === 'championship' ? s.seed : ''}</td>
-                      <td>{s.bracket === 'championship' ? 'Playoffs' : ''}</td>
+                      <td>{s.bracket === 'championship' ? 'Playoffs' : bracketName(s.bracket as BracketName | null)}</td>
                       <td class="num">{s.finalPlacing ?? ''}</td>
                     </tr>
                   ))}

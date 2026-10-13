@@ -112,3 +112,58 @@ def fmt(teams, regular_last, playoffs, shit_bowl=None, mediocre_bowl=None, divis
 def write_documents(data: Path, rows):
     """rows: (kind, season, title, url)."""
     write_csv(data / "documents.csv", ["kind", "season", "title", "url"], rows)
+
+
+def write_sleeper_league(data: Path, year: int, weeks, divisions, status="complete",
+                         last_scored_leg=None, totals=None, custom=None, lineups=None):
+    """A whole Sleeper season, as the snapshots hold it.
+
+    weeks: {week: [(roster a, points a, roster b, points b), ...]}; a roster
+    missing from a week has no game (matchup_id null). divisions: {roster:
+    division number}. totals: {roster: (W, L, T, points)}, Sleeper's roster
+    season totals (0-0-0, 0 points if not given). custom: {(week, roster):
+    custom_points}. lineups: {(week, roster): (starters, players_points)}.
+    """
+    sleeper = data / "sleeper"
+    sleeper.mkdir(parents=True, exist_ok=True)
+    league = {"name": "The Fantasy League", "season": str(year), "status": status,
+              "total_rosters": len(divisions),
+              "roster_positions": ["QB", "RB", "FLEX", "BN", "BN"],
+              "settings": {"playoff_week_start": 15,
+                           "last_scored_leg": max(weeks) if last_scored_leg is None else last_scored_leg},
+              "metadata": {f"division_{d}": f"Group {'ABCD'[d - 1]}" for d in set(divisions.values())}}
+    (sleeper / f"{year}-league.json").write_text(json.dumps(league))
+    totals = totals or {}
+    rosters = []
+    for r, d in sorted(divisions.items()):
+        w, l, t, pts = totals.get(r, (0, 0, 0, 0.0))
+        rosters.append({"roster_id": r, "owner_id": f"9{r:05d}", "metadata": {},
+                        "settings": {"division": d, "wins": w, "losses": l, "ties": t,
+                                     "fpts": int(pts), "fpts_decimal": round(pts * 100) % 100}})
+    (sleeper / f"{year}-rosters.json").write_text(json.dumps(rosters))
+    custom, lineups = custom or {}, lineups or {}
+    for week, pairs in weeks.items():
+        rows, seen = [], set()
+        for m, (a, pa, b, pb) in enumerate(pairs, start=1):
+            for r, p in ((a, pa), (b, pb)):
+                starters, pp = lineups.get((week, r), ([], {}))
+                rows.append({"roster_id": r, "matchup_id": m, "points": p,
+                             "custom_points": custom.get((week, r)), "starters": starters,
+                             "starters_points": [pp.get(s, 0) for s in starters],
+                             "players": list(pp), "players_points": pp})
+                seen.add(r)
+        for r in sorted(set(divisions) - seen):
+            rows.append({"roster_id": r, "matchup_id": None, "points": 0.0, "custom_points": None,
+                         "starters": [], "starters_points": [], "players": [], "players_points": {}})
+        (sleeper / f"{year}-matchups-{week:02d}.json").write_text(json.dumps(rows))
+
+
+def write_sleeper_brackets(data: Path, rows):
+    """The hand-kept bracket assignment: (season, week, roster, roster, bracket, round)."""
+    write_csv(data / "sleeper_brackets.csv",
+              ["season", "week", "roster_a", "roster_b", "bracket", "round"], rows)
+
+
+def write_sleeper_adjustments(data: Path, rows):
+    """The hand-kept roster-total explanations: (season, roster, week, points, reason)."""
+    write_csv(data / "sleeper_adjustments.csv", ["season", "roster_id", "week", "points", "reason"], rows)
