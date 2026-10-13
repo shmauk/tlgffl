@@ -1,0 +1,100 @@
+---
+// /seasons/awards/<slug>/ (#14, #33): one award's winners by season, with
+// co-winners, and its all-time tally.
+import Base from '../../../layouts/Base.astro';
+import Row from '../../../components/Row.astro';
+import FranchiseLink from '../../../components/FranchiseLink.astro';
+import SeasonLink from '../../../components/SeasonLink.astro';
+import Notes from '../../../components/Notes.astro';
+import { awards, awardWinners, awardUnknowns, awardValue, type Award } from '../../../lib/awards';
+
+export function getStaticPaths() {
+  return awards().map((award) => ({ params: { slug: award.slug }, props: { award } }));
+}
+
+const { award } = Astro.props as { award: Award };
+const winners = awardWinners({ award: award.slug });
+const unknowns = awardUnknowns().filter((u) => u.award === award.slug);
+const seasons = [...new Set([...winners.map((w) => w.season), ...unknowns.map((u) => u.season)])].sort((a, b) => b - a);
+
+const tally = new Map<number, { franchise: { id: number; name: string }; seasons: number[] }>();
+for (const w of winners) {
+  const t = tally.get(w.franchise.id) ?? { franchise: { id: w.franchise.id, name: w.franchise.name }, seasons: [] };
+  t.seasons.push(w.season);
+  tally.set(w.franchise.id, t);
+}
+const tallied = [...tally.values()].sort(
+  (a, b) => b.seasons.length - a.seasons.length || a.franchise.name.localeCompare(b.franchise.name),
+);
+---
+
+<Base title={award.name}>
+  <Row label="Award" sub={award.lowestWins ? 'Lowest wins' : 'Highest wins'}>
+    <h1>{award.name}</h1>
+    <p>{award.definition}</p>
+    <p><a class="more" href="/seasons/awards/">Every award →</a></p>
+  </Row>
+
+  <Row label="By season" sub="Newest first">
+    {
+      seasons.length === 0 ? (
+        <p>Not awarded yet.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Season</th><th>Winner</th><th class="num">Value</th></tr></thead>
+          <tbody>
+            {seasons.map((season) => {
+              const won = winners.filter((w) => w.season === season);
+              const unknown = unknowns.find((u) => u.season === season);
+              return (
+                <tr>
+                  <td><SeasonLink season={season} /></td>
+                  <td>
+                    {unknown
+                      ? `Unknown: ${unknown.reason}`
+                      : won.map((w, i) => (
+                          <>
+                            {i > 0 && ' and '}
+                            <FranchiseLink franchise={w.franchise} teamName={w.franchise.teamName} />
+                          </>
+                        ))}
+                  </td>
+                  <td class="num">{won.length > 0 ? awardValue(award.unit, won[0].value) : ''}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes notes={[{ text: 'Tied franchises are co-winners. A season with no data for the award is left out.' }]} />
+  </Row>
+
+  <Row label="All-time tally">
+    {
+      tallied.length === 0 ? (
+        <p>Nobody has won it yet.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Franchise</th><th class="num">Won</th><th>Seasons</th></tr></thead>
+          <tbody>
+            {tallied.map((t) => (
+              <tr>
+                <td><FranchiseLink franchise={t.franchise} /></td>
+                <td class="num">{t.seasons.length}</td>
+                <td>
+                  {t.seasons.map((s, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <SeasonLink season={s} />
+                    </>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </Row>
+</Base>
