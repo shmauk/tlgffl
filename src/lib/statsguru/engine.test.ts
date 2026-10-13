@@ -1,8 +1,10 @@
 // The Statsguru engine against the build's own database (run the Python build
 // first), so its figures can be checked against what the static pages show.
+import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
 import { runQuery, type Db, type GroupRow } from './engine';
+import { sqlJsDb } from './sqljs';
 import { DEFAULT_QUERY, type Query } from './query';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
@@ -130,6 +132,23 @@ describe('who is counted', () => {
     expect(pf('asc')).toEqual([...pf('desc')].reverse());
     const names = groups({ sort: { key: 'f', dir: 'asc' } }).map((r) => r.franchise.name.toLowerCase());
     expect(names).toEqual([...names].sort());
+  });
+});
+
+describe('in the browser', () => {
+  test('sql.js over the same file gives the same results', async () => {
+    const initSqlJs = (await import('sql.js')).default;
+    const SQL = await initSqlJs();
+    const bytes = readFileSync(process.env.TLGFFL_DB ?? 'build/league.sqlite');
+    const browserDb = sqlJsDb(new SQL.Database(bytes));
+    for (const patch of [
+      { view: 'season' },
+      { view: 'games', franchises: [SERPION], seasons: [2022], phases: ['R', 'P'] },
+      { view: 'opp', result: 'T' },
+    ] as Partial<Query>[]) {
+      const query = { ...DEFAULT_QUERY, ...patch };
+      expect(runQuery(browserDb, query)).toEqual(runQuery(db, query));
+    }
   });
 });
 

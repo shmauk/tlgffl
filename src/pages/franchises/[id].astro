@@ -7,6 +7,7 @@ import Badge from '../../components/Badge.astro';
 import Marker from '../../components/Marker.astro';
 import Notes from '../../components/Notes.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
 import { franchises, teamNames, seasonLines, type Franchise } from '../../lib/db';
 
 export function getStaticPaths() {
@@ -23,6 +24,7 @@ const reported = 'As NFL.com reported it';
   <Row label="Franchise" sub={`${franchise.firstSeason}–${franchise.active ? '' : franchise.lastSeason}`}>
     <h1>{franchise.name}</h1>
     {!franchise.active && <p class="sub"><Badge kind="departed" /></p>}
+    <StatsguruLink query={{ franchises: [franchise.id] }} />
   </Row>
   <Row label="Season by season">
     <table class="t">

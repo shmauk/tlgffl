@@ -10,6 +10,7 @@ import SeasonLink from '../../components/SeasonLink.astro';
 import Marker from '../../components/Marker.astro';
 import Notes from '../../components/Notes.astro';
 import SourceNote from '../../components/SourceNote.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
 import {
   seasons,
   seasonFormats,
@@ -86,6 +87,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
 <Base title={String(year)}>
   <Row label="Season" sub={nfl ? 'Played on NFL.com' : 'Played on Sleeper'}>
     <h1>{year}</h1>
+    <StatsguruLink query={{ seasons: [year], view: 'season' }} />
   </Row>
 
   <Row label="Format">
