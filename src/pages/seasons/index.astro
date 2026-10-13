@@ -1,30 +1,46 @@
 ---
-// A placeholder so the menu's Seasons entry leads somewhere. /seasons/ becomes
-// the roll of honour in a later ticket.
+// The roll of honour (#24): every season's champion, runner-up, Shit Bowl
+// winner and Mediocre Bowl winner, newest first.
 import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
-import { seasons } from '../../lib/db';
+import FranchiseLink from '../../components/FranchiseLink.astro';
+import Crowned from '../../components/Crowned.astro';
+import Notes from '../../components/Notes.astro';
+import { rollOfHonour } from '../../lib/db';
 ---
 
 <Base title="Seasons">
-  <Row label="Seasons" sub="The roll of honour is still to come">
-    <h1>Seasons</h1>
+  <Row label="Seasons" sub="The roll of honour">
+    <h1>Roll of honour</h1>
   </Row>
   <Row label="Every season">
     <table class="t">
-      <thead><tr><th>Season</th><th>Platform</th><th class="num">Teams</th></tr></thead>
+      <thead>
+        <tr><th>Season</th><th>Champion</th><th>Runner-up</th><th>Shit Bowl winner</th><th>Mediocre Bowl winner</th></tr>
+      </thead>
       <tbody>
         {
-          seasons().map((s) => (
+          rollOfHonour().map(({ season, champion, runnerUp, shitBowl, mediocreBowl }) => (
             <tr>
-              <td><SeasonLink season={s.year} /></td>
-              <td>{s.era === 'nfl.com' ? 'NFL.com' : 'Sleeper'}</td>
-              <td class="num">{s.teamCount}</td>
+              <td><SeasonLink season={season.year} /></td>
+              {[champion, runnerUp].map((f) => (
+                <td>{f ? <FranchiseLink franchise={f} teamName={f.teamName} /> : <span class="sub">To come</span>}</td>
+              ))}
+              <td><Crowned winners={shitBowl} /></td>
+              <td>{mediocreBowl && <Crowned winners={mediocreBowl} />}</td>
             </tr>
           ))
         }
       </tbody>
     </table>
+    <Notes
+      notes={[
+        { text: 'Recalled: from memory, as no surviving game data could have recorded it.' },
+        { text: 'Disputed: the league can’t agree, so it counts for nobody until settled.' },
+        { text: 'Unknown: nobody has recorded it. The Mediocre Bowl began in 2015.' },
+        { text: 'To come: the season’s Sleeper results are not in the record book yet, or it is still being played.' },
+      ]}
+    />
   </Row>
 </Base>
