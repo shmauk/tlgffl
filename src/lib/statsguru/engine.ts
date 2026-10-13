@@ -320,6 +320,9 @@ function value(r: Row, key: string): number | string | null {
     case 'ph': return 'R P C'.indexOf(r.phase ?? '');
     case 'res': return r.kind === 'game' ? r.result : null;
     case 'mar': return r.kind === 'game' ? r.margin : null;
+    // A gap row's points are several weeks' totals, not one game's score.
+    case 'pf':
+    case 'pa': return r.kind === 'reported' || r.kind === 'unchecked' ? null : r[key];
     default: return (r as any)[key] ?? null;
   }
 }
