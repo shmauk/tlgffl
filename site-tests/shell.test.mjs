@@ -38,6 +38,17 @@ test('every page has the site name linking home, then the menu in order', () => 
   }
 });
 
+test('every page carries the build\'s "updated <date>" stamp, the same on every page', () => {
+  const stamps = new Set();
+  for (const page of pages) {
+    const html = readFileSync(page, 'utf8');
+    const m = html.match(/<time class="updated" datetime="(\d{4}-\d{2}-\d{2})">Updated (\d{1,2} [A-Z][a-z]+ \d{4})<\/time>/);
+    assert.ok(m, page);
+    stamps.add(m[1]);
+  }
+  assert.equal(stamps.size, 1);
+});
+
 test("the menu marks the section a page belongs to", () => {
   const current = (path) => read(path).match(/<a href="([^"]*)" aria-current="page"/)?.[1];
   assert.equal(current('franchises/index.html'), '/franchises/');

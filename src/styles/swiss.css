@@ -52,6 +52,7 @@ p { margin: 0 0 .6em; }
 .top nav a[aria-current="page"] { color: var(--fg); font-weight: 700; }
 
 main { padding: 0 40px 120px; }
+.bottom { padding: 18px 40px; border-top: 1px solid var(--grey); font-size: 12px; color: var(--grey); }
 
 /* ---------- the label-column grid ---------- */
 .row {
@@ -124,6 +125,7 @@ table.t { width: 100%; font-size: 14px; }
 @media (max-width: 720px) {
   .top { padding: 16px 20px; }
   main { padding: 0 20px 80px; }
+  .bottom { padding: 16px 20px; }
   .row { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 20px 0; }
   h1 { font-size: 40px; }
   .huge { font-size: 88px; }

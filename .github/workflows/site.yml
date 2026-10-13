@@ -1,9 +1,18 @@
 name: Build and deploy
 
+# One workflow keeps the site fresh (#26): on a schedule it fetches Sleeper,
+# commits the snapshot to main if anything changed, then builds and deploys.
+# Pushes to main and PRs just build and deploy.
 on:
   push:
     branches: [main]
   pull_request:
+  # Every morning at 06:00 UTC (06:00 or 07:00 UK time), after Monday night's
+  # game. recordbook.schedule turns most of these into no-ops off-season.
+  schedule:
+    - cron: '0 6 * * *'
+  # A manual run refreshes regardless of the season.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,10 +22,87 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  refresh:
+    # Only main's snapshot is refreshed; a manual run on another branch just builds.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # the bot pushes snapshots straight to main
+      actions: write    # the keep-alive re-enables this workflow
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: pip install -r requirements.txt
+
+      # Daily from the draft to the end of the brackets, Tuesdays otherwise,
+      # decided from the current season's dates in the snapshot.
+      - name: Decide whether to refresh today
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Manual run: refreshing regardless of the season." >> "$GITHUB_STEP_SUMMARY"
+          else
+            python -m recordbook.schedule --data data | tee -a "$GITHUB_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # GitHub disables a public repo's scheduled workflows after 60 days
+      # without activity. Re-enabling this one on every scheduled run keeps
+      # the off-season, when no snapshot is committed, from tripping that.
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/site.yml/enable"
+
+      - name: Fetch Sleeper
+        if: steps.gate.outputs.run == 'true'
+        run: python -m recordbook.fetch_sleeper --data data
+      - name: Privacy check before committing
+        if: steps.gate.outputs.run == 'true'
+        run: python -m recordbook.privacy data
+
+      # fetch_sleeper only rewrites a file whose content changed, so a quiet
+      # day leaves nothing to commit.
+      - name: Commit the snapshot if it changed
+        id: commit
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          git add data
+          if git diff --cached --quiet; then
+            echo "No data changes: nothing committed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -q -m "Refresh the Sleeper snapshot"
+            git push origin HEAD:main
+            echo "Committed $(git rev-parse --short HEAD): $(git show --stat --format= HEAD | tail -1)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: refresh
+    # Pushes and PRs skip the refresh; a scheduled run on an off day builds nothing.
+    if: >-
+      always() && (needs.refresh.result == 'skipped' ||
+      (needs.refresh.result == 'success' && needs.refresh.outputs.run == 'true'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.refresh.outputs.sha || github.sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -51,10 +137,26 @@ jobs:
           path: dist
           retention-days: 7
 
+      # A failed build stops here: deploy needs this job, so nothing is
+      # deployed, and the run is marked failed (GitHub emails about it).
+      - name: Report the failure
+        if: failure()
+        run: |
+          {
+            echo "## The build failed: nothing was deployed"
+            echo "The failing step's log says why. If it names a missing or stale"
+            echo "data/sleeper_brackets.csv row, a bracket week has just been scored:"
+            echo "add its pairings (CONTRIBUTING.md) and push to main."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::The build failed, so the site was not deployed. See the run summary."
+
   deploy:
-    needs: build
-    # Fork PRs get no secrets, so only deploy pushes and same-repo PRs.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [refresh, build]
+    # Only after a successful build. Fork PRs get no secrets, so only deploy
+    # pushes, scheduled and manual runs, and same-repo PRs.
+    if: >-
+      always() && needs.build.result == 'success' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,7 +177,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=tlgffl --branch=${{ github.head_ref || github.ref_name }} --commit-hash=${{ github.sha }}
+          command: pages deploy dist --project-name=tlgffl --branch=${{ github.head_ref || github.ref_name }} --commit-hash=${{ needs.refresh.outputs.sha || github.sha }}
       - name: Link the preview on the PR
         if: github.event_name == 'pull_request'
         env:

@@ -1,14 +1,17 @@
 ---
 // The site shell (#14, #21): the site name linking home, then the menu, on
-// every page. The menu marks the section the page belongs to.
+// every page. The menu marks the section the page belongs to. The footer
+// carries the build's "updated <date>" stamp (#26).
 import '../styles/swiss.css';
 import { MENU } from '../lib/urls';
+import { BUILT_AT, updated } from '../lib/updated';
 
 interface Props {
   title: string;
 }
 const { title } = Astro.props;
 const path = Astro.url.pathname;
+const stamp = updated(BUILT_AT);
 ---
 
 <!doctype html>
@@ -29,5 +32,8 @@ const path = Astro.url.pathname;
     <main>
       <slot />
     </main>
+    <footer class="bottom">
+      <time class="updated" datetime={stamp.iso}>{stamp.text}</time>
+    </footer>
   </body>
 </html>
