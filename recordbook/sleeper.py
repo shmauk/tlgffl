@@ -135,6 +135,17 @@ def season_games(year, league, weeks, fmt, franchise_of, assigned):
     return games
 
 
+def upcoming(year, league, weeks, fmt, franchise_of):
+    """upcoming_games rows (season, week, home, away): the regular-season
+    pairings Sleeper has scheduled but not yet finished scoring. The seeding
+    module needs them for clinch marks (ADR 0005); they are never games."""
+    first, last = fmt.regular_season
+    final = final_weeks(league, weeks)
+    return [(year, week, franchise_of(a), franchise_of(b))
+            for week in sorted(weeks) if first <= week <= last and week not in final
+            for a, _pa, b, _pb in pairings(weeks[week])]
+
+
 def coverage(year, games, team_count):
     """coverage rows for the season's final weeks. Sleeper keeps every game,
     so each is complete: a regular-season week has a game for every pair of

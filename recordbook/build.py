@@ -242,6 +242,24 @@ create table waiver_claims (
     -- When Sleeper processed the claim: a waiver run's claims share it.
     processed integer
 );
+-- Sleeper era only. Regular-season pairings scheduled but not yet final: the
+-- seeding module's clinch marks need them (ADR 0005). Never games.
+create table upcoming_games (
+    season integer not null references seasons(year),
+    week integer not null,
+    home_franchise_id integer not null references franchises(id),
+    away_franchise_id integer not null references franchises(id)
+);
+-- Scissors-paper-rock rulings, from the hand-kept data/scissors_paper_rock.csv:
+-- each ruling orders the franchises it names, its winner at position 1. The
+-- seeding module applies them; nobody else seeds Sleeper-era seasons.
+create table scissors_paper_rock (
+    season integer not null references seasons(year),
+    ruling integer not null,
+    position integer not null,
+    franchise_id integer not null references franchises(id),
+    primary key (season, ruling, position)
+);
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
@@ -448,11 +466,16 @@ def build(data, out):
                                          {name: fid for fid, name, *_ in franchises})
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
+    rulings = scissors_paper_rock(read_optional_csv(data / "scissors_paper_rock.csv"),
+                                  {name: fid for fid, name, *_ in franchises})
     lineups = []
     moves = defaultdict(list)
     picks = []
+    upcoming = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
         of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
+        upcoming += sleeperlib.upcoming(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
+                                        formats[year], of)
         winners += sleeperlib.crowns(year, games, formats[year])
         lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games, of)
         for table, rows in sleeperlib.transactions(
@@ -499,6 +522,8 @@ def build(data, out):
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
+        con.executemany("insert into upcoming_games values (?, ?, ?, ?)", upcoming)
+        con.executemany("insert into scissors_paper_rock values (?, ?, ?, ?)", rulings)
         con.executemany("insert into nfl_players values (?, ?, ?, ?)",
                         sleeperlib.nfl_players(data / "sleeper", lineups))
         for table, rows in moves.items():
@@ -619,6 +644,22 @@ def check_one_game_a_week(games):
             if (g.season, g.week, fid) in seen:
                 raise BuildError(f"{g.season} week {g.week}: franchise {fid} has more than one game")
             seen.add((g.season, g.week, fid))
+
+
+def scissors_paper_rock(rows, franchise_ids):
+    """scissors_paper_rock rows (season, ruling, position, franchise) from the
+    hand-kept rulings, each an order of franchise names ("A|B|C", winner
+    first). Rulings are numbered within their season in file order."""
+    out, count = [], defaultdict(int)
+    for r in rows:
+        season = int(r["season"])
+        count[season] += 1
+        for position, name in enumerate((n.strip() for n in r["order"].split("|")), start=1):
+            if name not in franchise_ids:
+                raise BuildError(f"data/scissors_paper_rock.csv: {season} ruling names {name!r}, "
+                                 "which is not a franchise name")
+            out.append((season, count[season], position, franchise_ids[name]))
+    return out
 
 
 def check_against_sleeper_aliases(franchises, sleeper_ids, aliases):

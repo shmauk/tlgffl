@@ -156,6 +156,9 @@ SCHEMAS = {
         {"kind": one_of("constitution", "agm"), "season": optional(whole_number),
          "title": required, "url": web_link},
         [agms_have_a_season]),
+    # Scissors-paper-rock rulings (#34): the franchises a ruling orders, winner first.
+    "scissors_paper_rock.csv": Table(
+        {"season": whole_number, "order": required}, franchises=("order",)),
 }
 
 
