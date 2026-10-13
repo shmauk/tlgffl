@@ -19,6 +19,7 @@ from recordbook import brackets as bracketlib
 from recordbook import divisions as divisionlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
+from recordbook import lineup_records
 from recordbook import profiles
 from recordbook import records
 from recordbook import sleeper as sleeperlib
@@ -475,7 +476,9 @@ def build(data, out):
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
         write_records(con, games, seasons, formats, played, current, winners)
-        write_division_records(con, lineages, lineage_rows, season_lines, played, current, winners)
+        completed = completed_seasons(played, current, winners)
+        write_division_records(con, lineage_rows, lineages, season_lines, completed)
+        write_lineup_records(con, lineups, games, lineup_records.player_names(data / "sleeper"), completed)
         con.commit()
     finally:
         con.close()
@@ -505,14 +508,29 @@ def write_records(con, games, seasons, formats, played, current, winners):
                     records.completed_rows(played, eras, current, crowned))
 
 
-def write_division_records(con, lineages, lineage_rows, season_lines, played, current, winners):
+def completed_seasons(played, current, winners):
+    """Every season played but a current one whose Playoffs have no champion yet."""
+    crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
+    return {s for seasons in played.values() for s in seasons if s != current or s in crowned}
+
+
+def write_division_records(con, lineage_rows, lineages, season_lines, completed):
     """Division lineages and the division records (#32)."""
     con.executescript(divisionlib.SCHEMA)
     con.executemany("insert into division_lineages values (?, ?, ?)", lineage_rows)
-    crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
-    completed = {s for seasons in played.values() for s in seasons if s != current or s in crowned}
     con.executemany(f"insert into record_divisions values ({', '.join('?' * 10)})",
                     divisionlib.record_rows(lineages, season_lines, completed))
+
+
+def write_lineup_records(con, lineups, games, names, completed):
+    """The Sleeper-era records from lineups (#32)."""
+    con.executescript(lineup_records.SCHEMA)
+    con.executemany("insert into record_player_scores values (?, ?, ?, ?, ?, ?, ?, ?)",
+                    lineup_records.player_score_rows(lineups, games, names))
+    bench = lineup_records.bench_game_rows(lineups, games)
+    con.executemany("insert into record_bench_games values (?, ?, ?, ?, ?)", bench)
+    con.executemany("insert into record_bench_seasons values (?, ?, ?, ?)",
+                    lineup_records.bench_season_rows(bench, games, completed))
 
 
 def read_optional_csv(path):
