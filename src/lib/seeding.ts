@@ -272,6 +272,89 @@ export function playoffPicture(input: SeedingInput): Place[] {
   return seed(input, table(input), sprResolve(input.spr ?? [])).places;
 }
 
+// ---------- the seed check ----------
+
+export interface BracketGame {
+  bracket: BracketKey;
+  round: number;
+  home: FranchiseId;
+  away: FranchiseId;
+  /** Null for a tie. */
+  winner: FranchiseId | null;
+}
+
+const BRACKET_NAMES: Record<BracketKey, string> = {
+  playoffs: 'Playoffs',
+  mediocre_bowl: 'Mediocre Bowl',
+  shit_bowl: 'Shit Bowl',
+};
+
+/**
+ * Where a finished season's brackets, as played, disagree with its computed
+ * seeds, each a sentence (empty when they agree). Each bracket must hold
+ * exactly the franchises its seeds give it. Its first round must pair them
+ * by seed: the top seeds bye up to the next power of two and the rest meet
+ * outside-in (3 v 6 and 4 v 5 of six). After byes, the second round is
+ * re-seeded: the top seed meets the lowest left. The Shit Bowl's seed 1 is
+ * its worst franchise, and losing advances. pairingsNotBySeed lists brackets
+ * that were played by other pairings: only who played in them is checked.
+ * Franchises still level after every tiebreak but scissors-paper-rock fail
+ * the check until a ruling is recorded.
+ */
+export function checkSeeds(
+  picture: Place[],
+  played: BracketGame[],
+  options: { pairingsNotBySeed?: BracketKey[]; name?: (f: FranchiseId) => string } = {},
+): string[] {
+  const name = options.name ?? String;
+  const problems: string[] = [];
+  const level = picture.filter((p) => p.level.length);
+  if (level.length)
+    problems.push(
+      `${level.map((p) => name(p.franchise)).join(', ')} are level after every tiebreak but ` +
+        'scissors-paper-rock: record the ruling in data/scissors_paper_rock.csv',
+    );
+  const pair = (a: FranchiseId, b: FranchiseId) => [a, b].sort((x, y) => x - y).join(' v ');
+  const show = (pairs: string[]) =>
+    pairs.map((p) => p.split(' v ').map((f) => name(Number(f))).join(' v ')).join(', ') || 'none';
+  for (const bracket of Object.keys(BRACKET_NAMES) as BracketKey[]) {
+    const title = BRACKET_NAMES[bracket];
+    const seeded = picture.filter((p) => p.bracket === bracket).sort((a, b) => a.seed - b.seed).map((p) => p.franchise);
+    const games = played.filter((g) => g.bracket === bracket);
+    const players = new Set(games.flatMap((g) => [g.home, g.away]));
+    const missing = seeded.filter((f) => !players.has(f));
+    const extra = [...players].filter((f) => !seeded.includes(f));
+    if (missing.length || extra.length) {
+      problems.push(
+        `${title}: the seeds put ${seeded.map(name).join(', ') || 'nobody'} in it, but ` +
+          `${[...players].map(name).join(', ') || 'nobody'} played in it`,
+      );
+      continue;
+    }
+    if (options.pairingsNotBySeed?.includes(bracket) || !games.length) continue;
+    const bye = byes(seeded.length);
+    const outsideIn = (order: FranchiseId[]) =>
+      Array.from({ length: Math.floor(order.length / 2) }, (_, i) => pair(order[i], order[order.length - 1 - i]));
+    const round = (r: number) => [...new Set(games.filter((g) => g.round === r).map((g) => pair(g.home, g.away)))].sort();
+    const expected = outsideIn(seeded.slice(bye)).sort();
+    if (round(1).join() !== expected.join()) {
+      problems.push(`${title} round 1: the seeds pair ${show(expected)}, but ${show(round(1))} played`);
+      continue;
+    }
+    if (!bye || !games.some((g) => g.round === 2)) continue;
+    // Who goes on from round 1: its winners, but in the Shit Bowl its losers.
+    const on = games
+      .filter((g) => g.round === 1)
+      .map((g) => (bracket === 'shit_bowl' ? (g.winner === g.home ? g.away : g.home) : g.winner))
+      .filter((f): f is FranchiseId => f !== null);
+    const left = seeded.filter((f) => seeded.indexOf(f) < bye || on.includes(f));
+    const second = outsideIn(left).sort();
+    if (round(2).join() !== second.join())
+      problems.push(`${title} round 2: re-seeding pairs ${show(second)}, but ${show(round(2))} played`);
+  }
+  return problems;
+}
+
 // ---------- clinch and elimination marks ----------
 
 /**

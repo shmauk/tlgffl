@@ -1,7 +1,7 @@
 // The seeding and clinch module (ADR 0005, #34): playoffs.md's seeding and
 // tiebreaks, the playoff picture, clinch marks and the seed check.
 import { describe, expect, test } from 'vitest';
-import { clinchMarks, playoffPicture, type Mark, type Place, type SeedingInput } from './seeding';
+import { checkSeeds, clinchMarks, playoffPicture, type Mark, type Place, type SeedingInput } from './seeding';
 
 // Two divisions of four (A: 1-4, B: 5-8), a 3-team Playoffs (2 division
 // winners and 1 wildcard), a 2-team Mediocre Bowl and a 3-team Shit Bowl.
@@ -290,3 +290,62 @@ describe('clinch marks', () => {
     expect(marked).toBeGreaterThan(0);
   }, 120_000);
 });
+
+// ---------- the seed check against the brackets played ----------
+
+describe('the seed check', () => {
+  // The first seeding test's season: Playoffs 1, 5, 6; Mediocre Bowl 2, 3; Shit Bowl 8 (seed 1), 4, 7.
+  const season = league([
+    [1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4],
+    [5, 6], [5, 7], [5, 8], [6, 7], [6, 8], [7, 8],
+    [1, 5], [6, 2], [2, 7], [3, 8], [4, 7],
+  ]);
+  const picture = playoffPicture(season);
+  const game = (bracket: 'playoffs' | 'mediocre_bowl' | 'shit_bowl', round: number, home: number, away: number, winner: number) =>
+    ({ bracket, round, home, away, winner });
+  // Seed 1 byes, 2 v 3, then 1 meets the survivor. The Shit Bowl mirrors it: 4 v 7 and the loser, 7,
+  // goes on to meet 8.
+  const played = [
+    game('playoffs', 1, 5, 6, 5), game('playoffs', 2, 1, 5, 1),
+    game('shit_bowl', 1, 4, 7, 4), game('shit_bowl', 2, 8, 7, 8),
+    game('mediocre_bowl', 1, 2, 3, 2),
+  ];
+
+  test('passes when the brackets played follow the seeds', () => {
+    expect(checkSeeds(picture, played)).toEqual([]);
+  });
+
+  test('fails a first round that pairs the wrong seeds', () => {
+    const wrong = [game('playoffs', 1, 1, 6, 1), game('playoffs', 2, 1, 5, 1), ...played.slice(2)];
+    expect(checkSeeds(picture, wrong).join('\n')).toMatch(/Playoffs round 1/);
+  });
+
+  test('fails a second round that was not re-seeded', () => {
+    // 4 lost the Shit Bowl's first round, so 4 should have gone on, not 7.
+    const wrong = [...played.slice(0, 2), game('shit_bowl', 1, 4, 7, 7), game('shit_bowl', 2, 8, 7, 8), played[4]];
+    expect(checkSeeds(picture, wrong).join('\n')).toMatch(/Shit Bowl round 2/);
+  });
+
+  test('fails a franchise playing in a bracket its seed does not give it', () => {
+    const wrong = [...played.slice(0, 4), game('mediocre_bowl', 1, 2, 7, 2)];
+    expect(checkSeeds(picture, wrong).join('\n')).toMatch(/Mediocre Bowl/);
+  });
+
+  test('a bracket whose pairings were not by seed is checked for who played in it only', () => {
+    const swapped = [...played.slice(0, 4), game('mediocre_bowl', 1, 3, 2, 3)];
+    expect(checkSeeds(picture, swapped, { pairingsNotBySeed: ['mediocre_bowl'] })).toEqual([]);
+    const wrong = [...played.slice(0, 4), game('mediocre_bowl', 1, 2, 7, 2)];
+    expect(checkSeeds(picture, wrong, { pairingsNotBySeed: ['mediocre_bowl'] })).not.toEqual([]);
+  });
+
+  test('fails a season whose seeds still wait on scissors-paper-rock', () => {
+    const level = playoffPicture(league(levelPairForCheck, { breakdown: { 2: 0.9, 4: 0.1, 8: 0.2 } }));
+    expect(checkSeeds(level, []).join('\n')).toMatch(/scissors-paper-rock/);
+  });
+});
+
+// The seeding tests' level pair: 6 and 7 share a Mediocre Bowl seed.
+const levelPairForCheck: [number, number][] = [
+  [1, 0], [1, 0], [1, 0], [2, 0], [2, 0], [0, 2], [3, 0], [0, 3], [0, 3], [0, 4], [0, 4], [0, 4],
+  [5, 0], [5, 0], [5, 0], [6, 0], [6, 0], [0, 6], [7, 0], [7, 0], [0, 7], [0, 8], [0, 8], [0, 8],
+];
