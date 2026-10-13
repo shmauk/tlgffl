@@ -114,6 +114,14 @@ def test_a_commissioners_custom_points_override_the_matchup_points(sleeper, tmp_
                  ) == [(1, 1, 200.0)]
 
 
+def test_every_final_sleeper_week_is_fully_covered(sleeper, tmp_path):
+    db = built(sleeper, tmp_path)
+    assert query(db, "select week, phase, bracket, games_expected, games_final, complete from coverage "
+                     "where season = 2025 order by week, bracket") == [
+        (1, "regular", None, 3, 3, 1), (2, "regular", None, 3, 3, 1),
+        (3, "bracket", "playoffs", 1, 1, 1), (3, "bracket", "shit_bowl", 1, 1, 1)]
+
+
 def test_weeks_sleeper_has_not_finished_scoring_are_not_games(sleeper, tmp_path):
     # Mid-season: Sleeper has scored week 1 only; week 2 is live and week 3 to come.
     write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, status="in_season", last_scored_leg=1,

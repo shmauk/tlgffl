@@ -135,6 +135,21 @@ def season_games(year, league, weeks, fmt, franchise_of, assigned):
     return games
 
 
+def coverage(year, games, team_count):
+    """coverage rows for the season's final weeks. Sleeper keeps every game,
+    so each is complete: a regular-season week has a game for every pair of
+    franchises, a bracket week the games its assignment gives it."""
+    counts = defaultdict(int)
+    for g in games:
+        if g.season == year:
+            counts[(g.week, g.phase, g.bracket)] += 1
+    rows = []
+    for (week, phase, bracket), n in sorted(counts.items(), key=lambda kv: (kv[0][0], kv[0][2] or "")):
+        expected = team_count // 2 if phase == "regular" else n
+        rows.append((year, week, phase, bracket, expected, n, int(n == expected)))
+    return rows
+
+
 def season_lines(year, games, league, rosters, franchise_of):
     """Season-line rows (franchise, season, 'derived', W, L, T, PF, PA,
     division, seed, bracket, placing, Breakdown W, L, T, luck), always derived

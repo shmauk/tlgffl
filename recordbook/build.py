@@ -397,6 +397,7 @@ def build(data, out):
     explained = sleeperlib.read_explanations(read_optional_csv(data / "sleeper_adjustments.csv"))
     problems = []
     for year, (lg, rosters) in sorted(sleeper.items()):
+        coverage += sleeperlib.coverage(year, games, team_counts[year])
         of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         lines_of_year = sleeperlib.season_lines(year, games, lg, rosters, of)
         problems += sleeperlib.cross_check(year, lg, rosters, lines_of_year, of, explained.get(year, {}))
