@@ -126,6 +126,15 @@ describe('who is counted', () => {
     expect(groups({ minGames: 30 }).map((r) => r.franchise.id)).not.toContain(5);
   });
 
+  test("sorting a game log by score puts the weeks with no scores last: they aren't one game", () => {
+    for (const key of ['pf', 'pa', 'mar'])
+      for (const dir of ['asc', 'desc'] as const) {
+        const rows = run({ franchises: [SERPION], seasons: [2022], view: 'games', sort: { key, dir } }).rows;
+        expect(rows.at(-1)!.kind, `${key} ${dir}`).toBe('reported');
+        expect(rows.slice(0, -1).every((r) => r.kind === 'game'), `${key} ${dir}`).toBe(true);
+      }
+  });
+
   test('rows sort on any column, either way', () => {
     const pf = (dir: 'asc' | 'desc') => groups({ seasons: [2015], sort: { key: 'pf', dir } }).map((r) => r.pf!);
     expect(pf('desc')).toEqual([...pf('desc')].sort((a, b) => b - a));

@@ -20,6 +20,7 @@ from recordbook import brackets as bracketlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
 from recordbook import profiles
+from recordbook import records
 from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
@@ -485,6 +486,7 @@ def build(data, out):
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
+        write_records(con, games, seasons, formats, played, current, winners)
         con.executescript(awardlib.SCHEMA)
         con.executemany("insert into awards values (?, ?, ?, ?, ?, ?)", awardlib.award_rows())
         con.executemany("insert into award_results values (?, ?, ?, ?, ?)", award_results)
@@ -503,6 +505,19 @@ def write_profiles(con, franchises, played, season_lines, winners, current, game
                     profiles.head_to_head_rows(games, coverage, played))
     con.executemany("insert into franchise_best_worst values (?, ?, ?, ?, ?)",
                     profiles.best_worst_rows(profiles.game_scores(games)))
+
+
+def write_records(con, games, seasons, formats, played, current, winners):
+    """The candidates for the records Statsguru can't express (#30)."""
+    eras = {year: era for year, era, _ in seasons}
+    con.executescript(records.SCHEMA)
+    con.executemany("insert into record_streaks values (?, ?, ?, ?, ?, ?, ?, ?)", records.streak_rows(
+        games, eras, {y: f.regular_season[1] for y, f in formats.items()},
+        {year: count for year, _, count in seasons}, played, current))
+    con.executemany("insert into combined_scores values (?, ?)", records.combined_rows(games))
+    crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
+    con.executemany("insert into completed_seasons values (?, ?, ?)",
+                    records.completed_rows(played, eras, current, crowned))
 
 
 def read_optional_csv(path):

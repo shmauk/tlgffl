@@ -1,4 +1,5 @@
 """The build over the real archive in data/ (or $TLGFFL_DATA)."""
+import json
 import os
 import sqlite3
 from pathlib import Path
@@ -12,6 +13,15 @@ DATA = Path(os.environ.get("TLGFFL_DATA", ROOT / "data"))
 
 pytestmark = pytest.mark.skipif(not (DATA / "nfl-api").is_dir(),
                                 reason="archive not imported (see README)")
+
+
+def scored_regular_weeks_2026():
+    """2026 is in progress: the scheduled refresh moves it on week by week.
+    Sleeper's last scored week, capped at the regular season's 14."""
+    league = json.loads((DATA / "sleeper" / "2026-league.json").read_text(encoding="utf-8"))
+    if league.get("status") == "complete":
+        return 14
+    return min((league.get("settings") or {}).get("last_scored_leg") or 0, 14)
 
 
 @pytest.fixture(scope="module")
@@ -203,13 +213,13 @@ def test_season_lines_are_derived_through_2021_and_reported_until_sleeper(db):
     assert db.execute("select season, group_concat(distinct source) from season_lines "
                       "group by season order by season").fetchall() == [
         *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)],
-        (2025, "derived")]
+        (2025, "derived"), *([(2026, "derived")] if scored_regular_weeks_2026() else [])]
 
 
 def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
     # A franchise meets every other franchise every regular-season week:
     # 9 x 14 in 2012, 11 x 14 in 2013-14, 15 x 13 in 2015-20, 15 x 14 in 2021
-    # and 2025. 2026 has no final week in the archive yet.
+    # and 2025; 2026 so far, 15 for each of its scored weeks.
     rows = db.execute("select season, min(breakdown_wins + breakdown_losses + breakdown_ties), "
                       "max(breakdown_wins + breakdown_losses + breakdown_ties), count(luck) "
                       "from season_lines group by season order by season").fetchall()
@@ -218,7 +228,8 @@ def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
     teams = {2012: 10, 2013: 12, 2014: 12}
     assert rows == [*[(y, n, n, teams.get(y, 16)) for y, n in per_franchise.items() if y < 2022],
                     *[(y, None, None, 0) for y in (2022, 2023, 2024)],
-                    (2025, 210, 210, 16)]
+                    (2025, 210, 210, 16),
+                    *([(2026, 15 * n, 15 * n, 16)] if (n := scored_regular_weeks_2026()) else [])]
 
 
 def test_each_award_exists_for_exactly_its_seasons(db):
