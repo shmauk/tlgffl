@@ -3,6 +3,7 @@
 // era, ¶), and only for weeks a franchise played a game, so every figure here
 // adds up those weeks' NFL player points and nothing else.
 import type { Db, Named } from './engine';
+import { draftPicks } from './picks';
 import type { Phase, Query, Result } from './query';
 
 export interface NflPlayer {
@@ -47,6 +48,9 @@ export interface PlayerRow {
   bpts: number;
   best: number | null;
   nfr: number;
+  /** Times drafted (picks not recorded as keepers) and kept, in the row's seasons and franchises. */
+  dr: number;
+  kc: number;
 }
 
 /** One NFL player in one franchise's lineup in one week. */
@@ -212,7 +216,7 @@ export function playerRows(db: Db, q: Query, scope: Scope): (PlayerRow | Perform
         player: e.player,
         franchise: q.view === 'fr' ? scope.named(e.f) : null,
         season: q.view === 'season' ? e.season : null,
-        ro: 0, st: 0, spts: 0, avg: null, bpts: 0, best: null, nfr: 0,
+        ro: 0, st: 0, spts: 0, avg: null, bpts: 0, best: null, nfr: 0, dr: 0, kc: 0,
         franchises: new Set(),
       });
     const a = acc.get(k)!;
@@ -223,6 +227,14 @@ export function playerRows(db: Db, q: Query, scope: Scope): (PlayerRow | Perform
       a.spts += e.points ?? 0;
     } else a.bpts += e.points ?? 0;
     if (e.points != null) a.best = Math.max(a.best ?? -Infinity, e.points);
+  }
+  // Drafted and kept, counted under the same key as the row: by the picking franchise, or the season.
+  for (const p of draftPicks(db)) {
+    if (!scope.seasons.has(p.season) || (q.franchises.length && !q.franchises.includes(p.f))) continue;
+    const a = acc.get(key({ player: p.player, f: p.f, season: p.season } as Entry & { player: NflPlayer }));
+    if (!a) continue;
+    if (p.kept) a.kc++;
+    else a.dr++;
   }
   return [...acc.values()]
     .filter((a) => a.ro >= q.minGames)
