@@ -114,6 +114,10 @@ table.t { width: 100%; font-size: 14px; }
 .notes p { margin: 0; }
 .notes .g { color: var(--accent); display: inline-block; width: 16px; }
 .more { display: inline-block; margin-top: 12px; font-weight: 700; text-decoration: none; }
+.recs { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 32px; }
+.recs li { padding: 4px 0; break-inside: avoid; }
+.recs a { font-weight: 700; text-decoration: none; }
+.recs .sub { margin: 0 0 0 8px; font-size: 12px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 
 /* ---------- narrow screens: labels stack above their content ---------- */
