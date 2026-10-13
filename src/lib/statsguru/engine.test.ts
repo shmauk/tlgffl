@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import { runQuery, type Db, type GroupRow, type PerformanceRow, type PlayerRow, type PositionRow } from './engine';
+import { runQuery, type Db, type GroupRow, type PerformanceRow, type PickGroupRow, type PickPlayerRow, type PickRow, type PlayerRow, type PositionRow } from './engine';
 import { sqlJsDb } from './sqljs';
 import { DEFAULT_QUERY, type Query } from './query';
 
@@ -268,6 +268,74 @@ describe('the NFL-player subject (2025 on)', () => {
     const log = players({ players: [ALLEN], view: 'log' }) as PerformanceRow[];
     const opp = log[0].opponent.id;
     expect((players({ players: [ALLEN], view: 'log', opponents: [opp] }) as PerformanceRow[]).every((r) => r.opponent.id === opp)).toBe(true);
+  });
+});
+
+// Worked out from the 2025 draft snapshot and lineups with SQL, outside the engine.
+const PUFFINS = 3;
+const BEARNAISE = 10;
+const CHASE = '7564';
+
+describe('the draft-picks subject (drafts from 2025)', () => {
+  const picks = (patch: Partial<Query>) => run({ subject: 'pick', view: 'list', seasons: [2025], ...patch }).rows as PickRow[];
+
+  test('the pick list, in draft order, with whose slot each pick was', () => {
+    const rows = picks({});
+    expect(rows).toHaveLength(224);
+    expect(rows[0]).toMatchObject({
+      season: 2025, pick: 1, round: 1, franchise: { id: 19 }, slotFranchise: { id: 19 },
+      player: { id: CHASE, name: "Ja'Marr Chase", position: 'WR' }, kept: null,
+    });
+    // Pick value: the points he went on to score in the picking franchise's starting lineups that season.
+    expect(rows[0].value).toBe(217);
+    // Pick 6 was the Puffins' slot, traded to Bearnaise Dynamics.
+    expect(rows[5]).toMatchObject({ pick: 6, franchise: { id: BEARNAISE }, slotFranchise: { id: PUFFINS } });
+    const [allen] = picks({ players: [ALLEN] });
+    expect(allen).toMatchObject({ pick: 22, round: 2, franchise: { id: 16 }, value: 316.92 });
+  });
+
+  test('a franchise as the picker, or as the slot owner', () => {
+    expect(picks({ franchises: [PUFFINS] })).toHaveLength(14);
+    expect(picks({ franchises: [PUFFINS] }).filter((r) => r.slotFranchise.id !== PUFFINS)).toHaveLength(10);
+    const slots = picks({ franchises: [PUFFINS], franchiseAs: 'slot' });
+    expect(slots).toHaveLength(14);
+    expect(slots.every((r) => r.slotFranchise.id === PUFFINS)).toBe(true);
+  });
+
+  test('rounds, overall picks and positions', () => {
+    expect(picks({ rounds: [1, 2] })).toHaveLength(32);
+    expect(picks({ picks: [10, 19] }).map((r) => r.pick)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+    expect(picks({ positions: ['QB'], rounds: [1, 1] }).every((r) => r.player.position === 'QB')).toBe(true);
+  });
+
+  test('per franchise by position or by round', () => {
+    const byPos = run({ subject: 'pick', view: 'fr', seasons: [2025], franchises: [PUFFINS] }).rows as PickGroupRow[];
+    expect(byPos.map((r) => [r.group, r.n])).toEqual([['QB', 1], ['RB', 5], ['WR', 6], ['TE', 2]]);
+    expect(byPos[1]).toMatchObject({ franchise: { id: PUFFINS }, dr: 5, kc: 0, top: 16 });
+    const byRound = run({ subject: 'pick', view: 'fr', grouping: 'round', seasons: [2025], franchises: [PUFFINS] }).rows as PickGroupRow[];
+    expect(byRound.map((r) => r.group)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+  });
+
+  test('per NFL player: times drafted, highest pick and the franchises', () => {
+    const [allen] = run({ subject: 'pick', view: 'pl', players: [ALLEN], seasons: [2025] }).rows as PickPlayerRow[];
+    expect(allen).toMatchObject({ n: 1, dr: 1, kc: 0, top: { season: 2025, pick: 22 }, franchises: [{ id: 16 }] });
+  });
+
+  test("keepers can't be told from drafted picks until the season's keepers are recorded", () => {
+    const { notes } = run({ subject: 'pick', seasons: [2025] });
+    expect(notes).toContainEqual({ kind: 'drafts', firstSeason: 2025 });
+    // data/keepers.csv records no 2025 keepers yet.
+    expect(notes).toContainEqual({ kind: 'keepersUnrecorded', seasons: [2025] });
+    expect(picks({ kept: 'kept' })).toEqual([]);
+  });
+
+  test('an NFL.com-era scope has no picks, and explains why', () => {
+    expect(run({ subject: 'pick', seasons: [2015] })).toEqual({ rows: [], notes: [{ kind: 'drafts', firstSeason: 2025 }] });
+  });
+
+  test('the NFL-player subject counts drafted and kept', () => {
+    const [allen] = run({ subject: 'player', seasons: [2025], players: [ALLEN] }).rows as PlayerRow[];
+    expect(allen).toMatchObject({ dr: 1, kc: 0 });
   });
 });
 

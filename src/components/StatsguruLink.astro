@@ -4,8 +4,10 @@ import { statsguruUrl } from '../lib/urls';
 import type { Query } from '../lib/statsguru/query';
 interface Props {
   query: Partial<Query>;
+  /** The link's words: "Open in Statsguru" unless the page links several queries. */
+  label?: string;
 }
-const { query } = Astro.props;
+const { query, label = 'Open in Statsguru' } = Astro.props;
 ---
 
-<a class="more" href={statsguruUrl(query)}>Open in Statsguru</a>
+<a class="more" href={statsguruUrl(query)}>{label}</a>

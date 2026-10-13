@@ -11,7 +11,7 @@ const db = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { re
 const decode = (s) => s.replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 const page = (year) => decode(readFileSync(join(DIST, 'seasons', String(year), 'index.html'), 'utf8'));
 const NFL_SEASONS = db.prepare("select year from seasons where era = 'nfl.com' order by year").all().map((r) => r.year);
-const SECTIONS = ['Format', 'Standings', 'Brackets', 'Awards', 'Highs and lows', 'Breakdown', 'Weekly results', 'Documents'];
+const SECTIONS = ['Format', 'Standings', 'Brackets', 'Awards', 'Highs and lows', 'Breakdown', 'Weekly results', 'Draft', 'Documents'];
 
 // The row a section's label heads, up to the next row.
 const section = (html, label) => {
@@ -143,4 +143,18 @@ test('the 2025 weekly results grid runs from week 1 to week 17', () => {
   const html = section(page(2025), 'Weekly results');
   for (let week = 1; week <= 17; week++) assert.match(html, new RegExp(`id="week-${week}"`), String(week));
   assert.match(section(page(2025), 'Breakdown'), /\d+-\d+-\d+/);
+});
+
+// The draft (#37): keepers once recorded, and the draft board in Statsguru.
+test('each season with a draft links its board and lists keepers or says they are not yet recorded', () => {
+  const drafts = db.prepare('select season, max(kept is not null) as recorded from draft_picks group by season').all();
+  assert.ok(drafts.some((d) => d.season === 2025));
+  for (const { season, recorded } of drafts) {
+    const html = section(page(season), 'Draft');
+    assert.ok(html.includes(`href="/statsguru/?sub=pick&s=${season}"`), String(season));
+    if (!recorded) assert.match(html, /Keepers not yet recorded for this season/, String(season));
+    for (const k of db.prepare('select nfl_player_id as id from draft_picks where season = ? and kept = 1').all(season))
+      assert.ok(html.includes(`p=${k.id}"`), `${season} keeper ${k.id}`);
+  }
+  for (const year of NFL_SEASONS) assert.match(section(page(year), 'Draft'), /drafts from 2025/, String(year));
 });

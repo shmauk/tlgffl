@@ -1,6 +1,6 @@
 ---
 // /franchises/<id>/ (#7, #14, #27): the franchise profile. Section 6, the award
-// tally, is #33's; 7 (records held) #32's; 10 (Sleeper era) is a later ticket. Managers
+// tally, is #33's; 7 (records held) #32's; 10 (Sleeper era) #37's. Managers
 // are never shown. Gaps follow ADR 0001: reported season lines carry †,
 // lost bracket scores ‡, figures over scored games only *.
 import Base from '../../layouts/Base.astro';
@@ -15,7 +15,8 @@ import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
-import { franchises, teamNames, seasonLines, type Franchise, type BracketName } from '../../lib/db';
+import { franchises, teamNames, seasonLines, seasons, type Franchise, type BracketName } from '../../lib/db';
+import { draftSeasons, franchisePicks, mostStarted } from '../../lib/drafts';
 import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
 import { headToHeadUrl, recordUrl } from '../../lib/urls';
 import { categoryOf } from '../../lib/records/catalogue';
@@ -39,6 +40,14 @@ const won = crowns(id);
 const gaps = gapSeasons();
 const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
 const best = bestAndWorst(id);
+// Section 10, the Sleeper era (#37): most-started NFL players, the draft and keepers.
+const sleeperSeasons = seasons()
+  .filter((s) => s.era === 'sleeper' && s.year >= franchise.firstSeason && s.year <= franchise.lastSeason)
+  .map((s) => s.year);
+const started = mostStarted(id);
+const myPicks = franchisePicks(id);
+const drafts = draftSeasons().filter((d) => sleeperSeasons.includes(d.season));
+const unrecordedKeepers = drafts.filter((d) => !d.keepersRecorded).map((d) => d.season);
 const held = recordsHeld(siteDb, id);
 // Section 6, the award tally (#33): each award won, with the seasons.
 const myAwards = awardWinners({ franchiseId: id });
@@ -351,7 +360,83 @@ const unscored = opponents.some((o) => o.scored < o.games);
     {myGaps.length > 0 && <Notes notes={[{ glyph: '*', text: `Only games with a score count: ${seasonsList(myGaps)} ${myGaps.length === 1 ? 'has' : 'have'} weeks with no game scores.` }]} />}
   </Row>
 
-  <Row label="Sleeper era">
-    <p>Most-started NFL players, the draft and keepers are still to come.</p>
+  <Row label="Sleeper era" sub="Lineups and drafts, 2025 on">
+    {
+      sleeperSeasons.length === 0 ? (
+        <p>This franchise didn't play in the Sleeper era.</p>
+      ) : (
+        <>
+          {started.length === 0 ? (
+            <p>No lineups recorded yet.</p>
+          ) : (
+            <table class="t">
+              <caption>Most-started NFL players</caption>
+              <thead><tr><th>NFL player</th><th>Position</th><th class="num">Starts</th><th class="num">Points</th></tr></thead>
+              <tbody>
+                {started.map((s) => (
+                  <tr>
+                    <td><NflPlayerLink player={s.player} /></td>
+                    <td>{s.player.position ?? 'Unknown'}</td>
+                    <td class="num">{s.starts}</td>
+                    <td class="num">{s.points.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p><StatsguruLink query={{ franchises: [id], view: 'pos', seasons: sleeperSeasons }} label="Starter points by position in Statsguru →" /></p>
+          {drafts.map((d) => {
+            const picks = myPicks.filter((p) => p.season === d.season);
+            const kept = picks.filter((p) => p.kept);
+            return (
+              <>
+                <table class="t">
+                  <caption><SeasonLink season={d.season} /> draft</caption>
+                  <thead><tr><th class="num">Pick</th><th class="num">Round</th><th>NFL player</th><th>Position</th><th>From</th><th>Kept</th></tr></thead>
+                  <tbody>
+                    {picks.length === 0 ? (
+                      <tr><td colspan="6">No picks made.</td></tr>
+                    ) : (
+                      picks.map((p) => (
+                        <tr>
+                          <td class="num">{p.pick}</td>
+                          <td class="num">{p.round}</td>
+                          <td><NflPlayerLink player={p.player} /></td>
+                          <td>{p.player.position ?? 'Unknown'}</td>
+                          <td>{p.from && <FranchiseLink franchise={p.from} />}</td>
+                          <td>{p.kept === null ? '–' : p.kept ? 'Keeper' : ''}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+                {d.keepersRecorded && (
+                  <p>
+                    {d.season} keepers:{' '}
+                    {kept.length === 0
+                      ? 'none.'
+                      : kept.map((p, i) => (
+                          <>
+                            {i > 0 && ', '}
+                            <NflPlayerLink player={p.player} /> (round {p.round})
+                          </>
+                        ))}
+                  </p>
+                )}
+              </>
+            );
+          })}
+          <p><StatsguruLink query={{ subject: 'pick', view: 'list', franchises: [id] }} label="Draft picks in Statsguru →" /></p>
+          <Notes
+            notes={[
+              ...(unrecordedKeepers.length
+                ? [{ text: `Keepers not yet recorded for ${unrecordedKeepers.join(', ')}: kept picks show as –.` }]
+                : []),
+              { text: 'From: the franchise whose slot a traded pick was.' },
+            ]}
+          />
+        </>
+      )
+    }
   </Row>
 </Base>

@@ -46,6 +46,7 @@ TRANSACTIONS_WK5 = [
      "waiver_budget": [], "metadata": {"notes": "This player was claimed by another owner."}},
 ]
 DRAFTS = [{"draft_id": "D26", "status": "complete", "type": "snake", "season": "2026"}]
+DRAFT = {**DRAFTS[0], "slot_to_roster_id": {"1": 2, "2": 1}, "last_message_id": "m1"}
 PICKS = [{"pick_no": 1, "round": 1, "roster_id": 1, "picked_by": "u1", "player_id": "11620",
           "metadata": {"first_name": "Bijan", "last_name": "Robinson", "position": "RB", "team": "ATL"}}]
 PLAYERS = {
@@ -68,7 +69,7 @@ class Api:
             f"/league/{LID}/users": USERS, f"/league/{LID}/matchups/5": MATCHUP_WK5,
             f"/league/{LID}/transactions/5": TRANSACTIONS_WK5, f"/league/{LID}/winners_bracket": [],
             f"/league/{LID}/losers_bracket": [], f"/league/{LID}/traded_picks": [],
-            f"/league/{LID}/drafts": DRAFTS, "/draft/D26/picks": PICKS, "/players/nfl": PLAYERS,
+            f"/league/{LID}/drafts": DRAFTS, "/draft/D26": DRAFT, "/draft/D26/picks": PICKS, "/players/nfl": PLAYERS,
         }
         self.responses.update(changes)
         self.calls = []
@@ -95,8 +96,8 @@ def test_a_season_is_about_fifty_gets(data):
     api = Api()
     fetch(data, api, {2026: LID})
     # state, league, rosters, users, 18 + 18 weeks, 2 brackets, traded picks,
-    # drafts, picks, and the players dump.
-    assert len(api.calls) == 46
+    # drafts, the draft, its picks, and the players dump.
+    assert len(api.calls) == 47
 
 
 def test_snapshots_carry_the_privacy_reductions_and_pass_the_privacy_check(data):
@@ -129,6 +130,13 @@ def test_raw_responses_are_kept_per_season_endpoint_and_week(data):
     assert load(data, "2026-matchups-06.json") == []
     assert load(data, "2026-transactions-05.json") == TRANSACTIONS_WK5
     assert load(data, "2026-draft_picks.json") == PICKS
+
+
+def test_the_draft_is_kept_for_its_slot_to_roster_map(data):
+    fetch(data, Api(), {2026: LID})
+    # draft_order is keyed by user id; slot_to_roster_id says whose slot each was.
+    assert load(data, "2026-draft.json")["slot_to_roster_id"] == {"1": 2, "2": 1}
+    assert "last_message_id" not in load(data, "2026-draft.json")
 
 
 def test_a_rerun_with_nothing_new_writes_nothing(data):

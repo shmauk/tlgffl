@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { GameRow, GapRow, GroupRow, PerformanceRow, PlayerRow, PositionRow, QueryResult } from './engine';
+import type { GameRow, GapRow, GroupRow, PerformanceRow, PickGroupRow, PickPlayerRow, PickRow, PlayerRow, PositionRow, QueryResult } from './engine';
 import { DEFAULT_QUERY, type Query } from './query';
 import { renderResults, summary } from './render';
 
@@ -114,7 +114,7 @@ const position = (patch: Partial<PositionRow>): PositionRow => ({
 });
 const player = (patch: Partial<PlayerRow>): PlayerRow => ({
   kind: 'player', player: ALLEN, franchise: null, season: null,
-  ro: 14, st: 13, spts: 310.02, avg: 23.85, bpts: 0, best: 42.68, nfr: 1, ...patch,
+  ro: 14, st: 13, spts: 310.02, avg: 23.85, bpts: 0, best: 42.68, nfr: 1, dr: 1, kc: 0, ...patch,
 });
 const LINEUPS = [{ kind: 'lineups' }] as QueryResult['notes'];
 
@@ -145,9 +145,10 @@ describe('the NFL-player subject', () => {
     const out = html([player({}), player({ player: UNKNOWN })], pq({}), LINEUPS);
     expect(out).toContain('<a class="pl" href="/statsguru/?sub=player&amp;p=4984">Josh Allen</a>');
     expect(out).toContain('<a class="pl" href="/statsguru/?sub=player&amp;p=999">Unknown NFL player (Sleeper id 999)</a>');
-    expect(cells(out).slice(0, 9).map((c) => c.replace(/<[^>]+>/g, ''))).toEqual([
-      'Josh Allen', 'QB', '14', '13', '310.02', '23.85', '0.00', '42.68', '1',
+    expect(cells(out).slice(0, 11).map((c) => c.replace(/<[^>]+>/g, ''))).toEqual([
+      'Josh Allen', 'QB', '14', '13', '310.02', '23.85', '0.00', '42.68', '1', '0', '1',
     ]);
+    expect(out).toMatch(/<th[^>]*><a[^>]*>Drafted.*<th[^>]*><a[^>]*>Kept/);
   });
 
   test('every column header sorts, within the subject', () => {
@@ -188,5 +189,58 @@ describe('lineups only exist from 2025 (¶)', () => {
     const out = html([], q({ subject: 'player', seasons: [2015] }), [{ kind: 'beforeLineups', firstSeason: 2025 }]);
     expect(out).not.toContain('<table');
     expect(out).toMatch(/NFL player data starts in 2025/);
+  });
+});
+
+describe('the draft-picks subject', () => {
+  const kq = (patch: Partial<Query>) => q({ subject: 'pick', view: 'list', ...patch });
+  const DRAFTS = [{ kind: 'drafts', firstSeason: 2025 }] as QueryResult['notes'];
+  const pick = (patch: Partial<PickRow>): PickRow => ({
+    kind: 'pick', season: 2025, pick: 6, round: 1, franchise: SERP, slotFranchise: CATS, player: ALLEN,
+    kept: null, value: 316.92, ...patch,
+  });
+  const text = (out: string) => cells(out).map((c) => c.replace(/<[^>]+>/g, ''));
+
+  test('a pick list line: whose slot it was, the NFL player, kept or drafted and its value', () => {
+    const out = html([pick({}), pick({ slotFranchise: SERP, kept: true }), pick({ kept: false })], kq({}), DRAFTS);
+    expect(text(out).slice(0, 9)).toEqual(['2025', '6', '1', 'SERPION', 'Not Enough Cooks', 'Josh Allen', 'QB', 'Not recorded', '316.92']);
+    // The franchise's own slot needs no "from".
+    expect(text(out)[13]).toBe('');
+    expect(text(out)[16]).toBe('Kept');
+    expect(text(out)[25]).toBe('Drafted');
+    expect(out).toContain('<a class="pl" href="/statsguru/?sub=player&amp;p=4984">Josh Allen</a>');
+  });
+
+  test('the coverage footnote reads drafts from 2025, and unrecorded keepers are named', () => {
+    const out = html([pick({})], kq({}), [...DRAFTS, { kind: 'keepersUnrecorded', seasons: [2025, 2026] }]);
+    const notes = out.split('class="notes"')[1];
+    expect(notes).toMatch(/drafts from 2025/);
+    expect(notes).toMatch(/Keepers not yet recorded for 2025, 2026/);
+  });
+
+  test('a scope before the first draft explains itself', () => {
+    const out = html([], kq({ seasons: [2015] }), DRAFTS);
+    expect(out).not.toContain('<table');
+    expect(out).toMatch(/drafts from 2025/);
+  });
+
+  test('per franchise by round, and per NFL player', () => {
+    const g: PickGroupRow = { kind: 'pickGroup', franchise: SERP, group: 2, n: 3, dr: 2, kc: 1, top: 20, value: 50.5 };
+    const byRound = html([g], kq({ view: 'fr', grouping: 'round' }), DRAFTS);
+    expect(text(byRound)).toEqual(['SERPION', '2', '3', '2', '1', '20', '50.50']);
+    expect(byRound).toMatch(/<th[^>]*><a[^>]*>Round/);
+    const pl: PickPlayerRow = {
+      kind: 'pickPlayer', player: ALLEN, n: 2, dr: 1, kc: 1, top: { season: 2025, pick: 22 }, franchises: [SERP, CATS], value: 400,
+    };
+    expect(text(html([pl], kq({ view: 'pl' }), DRAFTS))).toEqual([
+      'Josh Allen', 'QB', '2', '1', '1', '22 (2025)', 'SERPION, Not Enough Cooks', '400.00',
+    ]);
+  });
+
+  test('the summary says what is counted, in words', () => {
+    expect(summary(kq({}), CTX)).toBe('Draft picks · all seasons · pick list');
+    expect(
+      summary(kq({ franchises: [8], franchiseAs: 'slot', rounds: [1, 3], picks: [1, 16], positions: ['QB'], kept: 'kept', view: 'fr', grouping: 'round' }), CTX),
+    ).toBe("Draft picks · QB · kept · SERPION's slots · rounds 1–3 · picks 1–16 · all seasons · per franchise by round");
   });
 });

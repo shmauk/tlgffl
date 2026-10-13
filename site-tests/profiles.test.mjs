@@ -143,3 +143,28 @@ test('no manager is named on a profile or pair page', () => {
     for (const id of owners) assert.ok(!new RegExp(`\\b${id}\\b`).test(html), `owner id ${id}`);
   }
 });
+
+// Section 10 (#37): the Sleeper era's most-started NFL players, drafts and keepers.
+test('profile section 10 renders for every franchise active in the Sleeper era', () => {
+  const sleeper = db.prepare("select year from seasons where era = 'sleeper'").all().map((r) => r.year);
+  const unrecorded = db.prepare('select distinct season from draft_picks where kept is null order by season').all().map((r) => r.season);
+  for (const f of franchises) {
+    const { first_season: first, last_season: last } = db
+      .prepare('select first_season, last_season from franchises where id = ?').get(f.id);
+    const html = section(profile(f.id), 'Sleeper era');
+    if (!sleeper.some((y) => y >= first && y <= last)) {
+      assert.match(html, /didn't play in the Sleeper era/, `franchise ${f.id}`);
+      continue;
+    }
+    assert.match(html, /Most-started NFL players/, `franchise ${f.id}`);
+    assert.match(html, new RegExp(`href="/statsguru/\\?f=${f.id}&s=[^"]*&view=pos"`), `franchise ${f.id} by position`);
+    assert.ok(html.includes(`href="/statsguru/?sub=pick&f=${f.id}"`), `franchise ${f.id} draft picks`);
+    for (const { season, n } of db
+      .prepare('select season, count(*) as n from draft_picks where franchise_id = ? group by season').all(f.id)) {
+      const table = html.slice(html.indexOf(`/seasons/${season}/">${season}</a> draft`));
+      const body = table.slice(0, table.indexOf('</table>'));
+      assert.equal([...body.matchAll(/<a class="pl"/g)].length, n, `franchise ${f.id} ${season} picks`);
+    }
+    if (unrecorded.length) assert.match(html, new RegExp(`Keepers not yet recorded for ${unrecorded.join(', ')}`));
+  }
+});

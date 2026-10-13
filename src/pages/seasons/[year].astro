@@ -30,6 +30,8 @@ import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
 import PlayoffPicture from '../../components/PlayoffPicture.astro';
 import { checkSleeperSeeds, seasonPicture } from '../../lib/seeding-db';
+import NflPlayerLink from '../../components/NflPlayerLink.astro';
+import { draftSeasons, draftSize, seasonKeepers } from '../../lib/drafts';
 
 export function getStaticPaths() {
   // A finished Sleeper season's computed seeds must match the brackets played (ADR 0005).
@@ -50,6 +52,10 @@ const docs = seasonDocuments(year);
 const nfl = season.era === 'nfl.com';
 // Sleeper seasons are seeded by the seeding module (#34): the playoff picture while the regular season is on.
 const picture = seasonPicture(year);
+// The draft and keepers (#37): a link into Statsguru's draft picks, and the keepers once recorded.
+const draft = draftSeasons().find((d) => d.season === year);
+const firstDraft = draftSize().firstSeason;
+const keepers = seasonKeepers(year);
 // A Sleeper season before its first final week has no games: say so rather than show empty results.
 const sleeperPending = !nfl && games.length === 0 ? "This season's Sleeper games are still to come." : '';
 
@@ -408,8 +414,38 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     {regularGaps.length > 0 && <Notes notes={[{ text: `${NoScores}.` }]} />}
   </Row>
 
+  <Row label="Draft" sub="Draft picks and keepers">
+    {
+      !draft ? (
+        <p>No draft recorded for this season: drafts from {firstDraft ?? 'the first Sleeper draft'}.</p>
+      ) : (
+        <>
+          {!draft.keepersRecorded ? (
+            <Notes notes={[{ text: 'Keepers not yet recorded for this season.' }]} />
+          ) : keepers.length === 0 ? (
+            <p>No keepers this season.</p>
+          ) : (
+            <table class="t">
+              <caption>Keepers</caption>
+              <thead><tr><th>Franchise</th><th>NFL player</th><th class="num">Round</th></tr></thead>
+              <tbody>
+                {keepers.map((k) => (
+                  <tr>
+                    <td><FranchiseLink franchise={k.franchise} /></td>
+                    <td><NflPlayerLink player={k.player} /></td>
+                    <td class="num">{k.round}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p><StatsguruLink query={{ subject: 'pick', view: 'list', seasons: [year] }} label="The draft board in Statsguru →" /></p>
+        </>
+      )
+    }
+  </Row>
+
   <Row label="Documents">
     {docs.map((d) => <p><a class="more" href={d.url}>{d.title} →</a></p>)}
-    <p class="sub">The draft board and keeper list are still to come.</p>
   </Row>
 </Base>

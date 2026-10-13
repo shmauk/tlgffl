@@ -1,17 +1,26 @@
 // A Statsguru query and its URL. The URL is the query's only state: short `&`
 // params with comma lists, writing only what differs from the defaults (#28).
 // Two subjects (#29): franchises, and NFL players (`sub=player`), whose own
-// filters and views only have data from 2025, when lineups start.
+// filters and views only have data from 2025, when lineups start. A third
+// (#37), draft picks (`sub=pick`), has its own filters and views and none of
+// the game filters (opposition, phase, weeks, result, minimum games).
 
 /** R: regular season, P: the Playoffs, C: the Shit Bowl and the Mediocre Bowl. */
 export type Phase = 'R' | 'P' | 'C';
 export type Result = 'W' | 'L' | 'T';
-export type Subject = 'franchise' | 'player';
+export type Subject = 'franchise' | 'player' | 'pick';
 export type FranchiseView = 'totals' | 'season' | 'opp' | 'phase' | 'pos' | 'games';
 export type PlayerView = 'totals' | 'fr' | 'season' | 'log';
-export type View = FranchiseView | PlayerView;
-/** The by-position view's rows: NFL player positions (FLEX folded in) or lineup slots. */
-export type Grouping = 'pos' | 'slot';
+/** The pick list, per franchise (by position or round), per NFL player. */
+export type PickView = 'list' | 'fr' | 'pl';
+export type View = FranchiseView | PlayerView | PickView;
+/** The by-position view's rows: NFL player positions (FLEX folded in) or lineup slots;
+ * draft picks per franchise: NFL player positions or rounds. */
+export type Grouping = 'pos' | 'slot' | 'round';
+/** Which franchise a draft pick belongs to: the one that made it, or the one whose slot it was. */
+export type PickSide = 'pick' | 'slot';
+/** Keepers, or NFL players drafted (every pick not recorded as a keeper). */
+export type Kept = 'kept' | 'drafted';
 /** Started or benched NFL players only. */
 export type Lineup = 'start' | 'bench';
 export type SortDir = 'asc' | 'desc';
@@ -22,7 +31,7 @@ export interface Sort {
 
 export interface Query {
   subject: Subject;
-  /** Empty means every franchise; for NFL players, rostered by any franchise. */
+  /** Empty means every franchise; for NFL players, rostered by any franchise; for draft picks, see franchiseAs. */
   franchises: number[];
   /** Empty means any opposition. */
   opponents: number[];
@@ -40,12 +49,20 @@ export interface Query {
   view: View;
   /** The by-position view only. */
   grouping: Grouping;
-  /** NFL-player subject only: Sleeper ids; empty means every NFL player. */
+  /** NFL-player and draft-pick subjects: Sleeper ids; empty means every NFL player. */
   players: string[];
-  /** NFL-player subject only: empty means every position. */
+  /** NFL-player and draft-pick subjects: empty means every position. */
   positions: string[];
   /** NFL-player subject only: null means started or benched. */
   lineup: Lineup | null;
+  /** Draft-pick subject only: the franchise filter's side. */
+  franchiseAs: PickSide;
+  /** Draft-pick subject only: first and last round, inclusive; null means every round. */
+  rounds: [number, number] | null;
+  /** Draft-pick subject only: first and last overall pick, inclusive; null means every pick. */
+  picks: [number, number] | null;
+  /** Draft-pick subject only: null means kept or drafted. */
+  kept: Kept | null;
   /** Null means the view's own default order. */
   sort: Sort | null;
 }
@@ -54,7 +71,14 @@ export const PHASES: Phase[] = ['R', 'P', 'C'];
 export const RESULTS: Result[] = ['W', 'L', 'T'];
 export const FRANCHISE_VIEWS: FranchiseView[] = ['totals', 'season', 'opp', 'phase', 'pos', 'games'];
 export const PLAYER_VIEWS: PlayerView[] = ['totals', 'fr', 'season', 'log'];
-export const viewsOf = (subject: Subject): View[] => (subject === 'player' ? PLAYER_VIEWS : FRANCHISE_VIEWS);
+export const PICK_VIEWS: PickView[] = ['list', 'fr', 'pl'];
+export const viewsOf = (subject: Subject): View[] =>
+  subject === 'player' ? PLAYER_VIEWS : subject === 'pick' ? PICK_VIEWS : FRANCHISE_VIEWS;
+/** A subject's first view, the one a query without a view opens on. */
+export const defaultView = (subject: Subject): View => viewsOf(subject)[0];
+/** The query's view, or its subject's default if the view isn't the subject's. */
+export const viewOf = (q: Pick<Query, 'subject' | 'view'>): View =>
+  viewsOf(q.subject).includes(q.view) ? q.view : defaultView(q.subject);
 
 /** Positions and lineup slots in the order a lineup lists them; any others follow, A-Z. */
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF'];
@@ -67,7 +91,7 @@ const byPosition = (list: string[]) =>
 
 /** Every column a view shows, by sort key, in order. */
 const FIGURES = ['gp', 'w', 'l', 't', 'pct', 'pf', 'pa', 'apf', 'apa', 'hi', 'lo'];
-const PLAYER_FIGURES = ['ro', 'st', 'spts', 'avg', 'bpts', 'best'];
+const PLAYER_FIGURES = ['ro', 'st', 'spts', 'avg', 'bpts', 'best', 'dr', 'kc'];
 const FRANCHISE_COLUMNS: Record<FranchiseView, string[]> = {
   totals: ['f', ...FIGURES],
   season: ['f', 's', ...FIGURES],
@@ -82,12 +106,23 @@ const PLAYER_COLUMNS: Record<PlayerView, string[]> = {
   season: ['pl', 'pos', 's', ...PLAYER_FIGURES, 'nfr'],
   log: ['s', 'wk', 'ph', 'pl', 'pos', 'f', 'o', 'slot', 'pts'],
 };
+const PICK_COLUMNS: Record<PickView, string[]> = {
+  list: ['s', 'pk', 'rd', 'f', 'sf', 'pl', 'pos', 'kd', 'val'],
+  fr: ['f', 'pos', 'n', 'dr', 'kc', 'top', 'val'],
+  pl: ['pl', 'pos', 'n', 'dr', 'kc', 'top', 'frs', 'val'],
+};
 /** The columns a query's view shows, by sort key, in order. */
-export const columnsOf = (q: Pick<Query, 'subject' | 'view'>): string[] =>
-  q.subject === 'player' ? PLAYER_COLUMNS[q.view as PlayerView] : FRANCHISE_COLUMNS[q.view as FranchiseView];
+export const columnsOf = (q: Pick<Query, 'subject' | 'view'> & { grouping?: Grouping }): string[] => {
+  if (q.subject === 'player') return PLAYER_COLUMNS[q.view as PlayerView];
+  if (q.subject !== 'pick') return FRANCHISE_COLUMNS[q.view as FranchiseView];
+  const view = viewOf(q) as PickView;
+  return view === 'fr' && q.grouping === 'round' ? PICK_COLUMNS.fr.map((k) => (k === 'pos' ? 'rd' : k)) : PICK_COLUMNS[view];
+};
 /** Every column of a subject, for the form's order list. */
 export const allColumns = (subject: Subject): string[] => [
-  ...new Set(viewsOf(subject).flatMap((view) => columnsOf({ subject, view }))),
+  ...new Set(
+    viewsOf(subject).flatMap((view) => [...columnsOf({ subject, view }), ...columnsOf({ subject, view, grouping: 'round' })]),
+  ),
 ];
 
 const FRANCHISE_SORT: Record<FranchiseView, Sort> = {
@@ -104,8 +139,17 @@ const PLAYER_SORT: Record<PlayerView, Sort> = {
   season: { key: 's', dir: 'asc' },
   log: { key: 's', dir: 'asc' },
 };
+const PICK_SORT: Record<PickView, Sort> = {
+  list: { key: 's', dir: 'asc' },
+  fr: { key: 'f', dir: 'asc' },
+  pl: { key: 'n', dir: 'desc' },
+};
 const viewSort = (q: Pick<Query, 'subject' | 'view'>): Sort =>
-  q.subject === 'player' ? PLAYER_SORT[q.view as PlayerView] : FRANCHISE_SORT[q.view as FranchiseView];
+  q.subject === 'player'
+    ? PLAYER_SORT[q.view as PlayerView]
+    : q.subject === 'pick'
+      ? PICK_SORT[viewOf(q) as PickView]
+      : FRANCHISE_SORT[q.view as FranchiseView];
 
 export const DEFAULT_QUERY: Query = {
   subject: 'franchise',
@@ -122,6 +166,10 @@ export const DEFAULT_QUERY: Query = {
   players: [],
   positions: [],
   lineup: null,
+  franchiseAs: 'pick',
+  rounds: null,
+  picks: null,
+  kept: null,
   sort: null,
 };
 
@@ -143,24 +191,34 @@ export function seasonList(seasons: number[]): string {
   return runs.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(',');
 }
 
+const span = (s: [number, number]) => `${s[0]}-${s[1]}`;
+
 export function encodeQuery(q: Query): string {
   const p: string[] = [];
   const player = q.subject === 'player';
-  if (player) p.push('sub=player');
-  if (player && q.players.length) p.push(`p=${playerIds(q.players).join(',')}`);
+  const pick = q.subject === 'pick';
+  const franchise = q.subject === 'franchise';
+  const view = viewOf(q);
+  if (!franchise) p.push(`sub=${q.subject}`);
+  if (!franchise && q.players.length) p.push(`p=${playerIds(q.players).join(',')}`);
   if (q.franchises.length) p.push(`f=${ids(q.franchises).join(',')}`);
-  if (q.opponents.length) p.push(`opp=${ids(q.opponents).join(',')}`);
+  if (pick && q.franchiseAs === 'slot') p.push('fby=slot');
+  if (!pick && q.opponents.length) p.push(`opp=${ids(q.opponents).join(',')}`);
   if (q.seasons.length) p.push(`s=${seasonList(q.seasons)}`);
-  if (player && q.positions.length) p.push(`pos=${byPosition(q.positions).join(',')}`);
+  if (pick && q.rounds) p.push(`rd=${span(q.rounds)}`);
+  if (pick && q.picks) p.push(`pk=${span(q.picks)}`);
+  if (!franchise && q.positions.length) p.push(`pos=${byPosition(q.positions).join(',')}`);
   if (player && q.lineup) p.push(`lu=${q.lineup}`);
+  if (pick && q.kept) p.push(`kd=${q.kept}`);
   const phases = PHASES.filter((ph) => q.phases.includes(ph));
-  if (phases.join() !== DEFAULT_QUERY.phases.join()) p.push(`ph=${phases.join(',')}`);
-  if (q.weeks) p.push(`wk=${q.weeks[0]}-${q.weeks[1]}`);
-  if (!player && q.result) p.push(`res=${q.result}`);
-  if (!player && q.active) p.push('act=1');
-  if (q.minGames > 0) p.push(`min=${q.minGames}`);
-  if (q.view !== DEFAULT_QUERY.view) p.push(`view=${q.view}`);
-  if (!player && q.view === 'pos' && q.grouping !== DEFAULT_QUERY.grouping) p.push(`by=${q.grouping}`);
+  if (!pick && phases.join() !== DEFAULT_QUERY.phases.join()) p.push(`ph=${phases.join(',')}`);
+  if (!pick && q.weeks) p.push(`wk=${span(q.weeks)}`);
+  if (franchise && q.result) p.push(`res=${q.result}`);
+  if (franchise && q.active) p.push('act=1');
+  if (!pick && q.minGames > 0) p.push(`min=${q.minGames}`);
+  if (view !== defaultView(q.subject)) p.push(`view=${view}`);
+  if (franchise && view === 'pos' && q.grouping === 'slot') p.push('by=slot');
+  if (pick && view === 'fr' && q.grouping === 'round') p.push('by=round');
   if (q.sort && !sameSort(q.sort, viewSort(q))) p.push(`sort=${q.sort.key}.${q.sort.dir}`);
   return p.join('&');
 }
@@ -186,33 +244,52 @@ function seasonsOf(v: string | null): number[] {
   return ids(out);
 }
 
+function spanOf(v: string | null): [number, number] | null {
+  const m = (v ?? '').match(/^(\d+)-(\d+)$/);
+  return m && Number(m[1]) <= Number(m[2]) ? [Number(m[1]), Number(m[2])] : null;
+}
+
 export function decodeQuery(search: string): Query {
   const p = new URLSearchParams(search);
   const q: Query = { ...DEFAULT_QUERY };
-  const player = p.get('sub') === 'player';
-  if (player) {
-    q.subject = 'player';
+  const sub = p.get('sub');
+  if (sub === 'player' || sub === 'pick') q.subject = sub;
+  const player = q.subject === 'player';
+  const pick = q.subject === 'pick';
+  const franchise = q.subject === 'franchise';
+  if (!franchise) {
     q.players = playerIds(wordList(p.get('p'), /^[A-Za-z0-9]+$/));
     q.positions = byPosition(wordList(p.get('pos'), /^[A-Z]+$/));
+  }
+  if (player) {
     const lu = p.get('lu');
     if (lu === 'start' || lu === 'bench') q.lineup = lu;
   }
+  if (pick) {
+    if (p.get('fby') === 'slot') q.franchiseAs = 'slot';
+    q.rounds = spanOf(p.get('rd'));
+    q.picks = spanOf(p.get('pk'));
+    const kd = p.get('kd');
+    if (kd === 'kept' || kd === 'drafted') q.kept = kd;
+  }
   q.franchises = idList(p.get('f'));
-  q.opponents = idList(p.get('opp'));
   q.seasons = seasonsOf(p.get('s'));
-  const phases = (p.get('ph') ?? '').split(',');
-  if (phases.every((ph) => PHASES.includes(ph as Phase))) q.phases = PHASES.filter((ph) => phases.includes(ph));
-  const wk = (p.get('wk') ?? '').match(/^(\d+)-(\d+)$/);
-  if (wk && Number(wk[1]) <= Number(wk[2])) q.weeks = [Number(wk[1]), Number(wk[2])];
-  if (!player) {
+  if (!pick) {
+    q.opponents = idList(p.get('opp'));
+    const phases = (p.get('ph') ?? '').split(',');
+    if (phases.every((ph) => PHASES.includes(ph as Phase))) q.phases = PHASES.filter((ph) => phases.includes(ph));
+    q.weeks = spanOf(p.get('wk'));
+    q.minGames = whole(p.get('min') ?? '') ?? 0;
+  }
+  if (franchise) {
     const res = p.get('res');
     if (RESULTS.includes(res as Result)) q.result = res as Result;
     q.active = p.get('act') === '1';
   }
-  q.minGames = whole(p.get('min') ?? '') ?? 0;
   const view = p.get('view');
-  if (viewsOf(q.subject).includes(view as View)) q.view = view as View;
-  if (!player && q.view === 'pos' && p.get('by') === 'slot') q.grouping = 'slot';
+  q.view = viewsOf(q.subject).includes(view as View) ? (view as View) : defaultView(q.subject);
+  if (franchise && q.view === 'pos' && p.get('by') === 'slot') q.grouping = 'slot';
+  if (pick && q.view === 'fr' && p.get('by') === 'round') q.grouping = 'round';
   const [key, dir] = (p.get('sort') ?? '').split('.');
   if (columnsOf(q).includes(key) && (dir === 'asc' || dir === 'desc') && !sameSort({ key, dir }, viewSort(q)))
     q.sort = { key, dir };

@@ -247,10 +247,11 @@ def lineups(year, league, weeks, games, franchise_of):
 def nfl_players(sleeper_dir, lineup_rows):
     """nfl_players rows (id, name, position, NFL team): every NFL player in
     the players dump (players.json) or a weekly players snapshot, the latest
-    snapshot winning, and every NFL player in a lineup. Sleeper only keeps
+    snapshot winning, and every NFL player in a lineup or a draft (a draft
+    snapshot only fills in who no players snapshot knows). Sleeper only keeps
     the current state, so a position or NFL team is the latest one known.
     An NFL player in no snapshot is kept with nothing known about them."""
-    known = {}
+    known = drafted_players(sleeper_dir)
     files = [sleeper_dir / "players.json"] + sorted(sleeper_dir.glob("*-players-*.json"))
     for f in files:
         if f.exists():
@@ -274,16 +275,55 @@ def read_transactions(sleeper_dir, year):
     return out
 
 
+def _read(path):
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
 def draft_picks(sleeper_dir, year, franchise_of):
-    """(season, franchise that made the pick, NFL player, Sleeper's keeper
-    flag) for each pick of the season's draft, if it has been snapshotted.
+    """draft_picks rows (season, overall pick, round, draft slot, franchise
+    whose slot it was, franchise that made the pick, NFL player) for the
+    season's draft, if it has been snapshotted.
+
     A pick's roster_id is the roster that made it, traded-for picks included
-    (it always matches picked_by in 2025)."""
-    f = sleeper_dir / f"{year}-draft_picks.json"
-    if not f.exists():
+    (in 2025 and 2026 it always matches picked_by, a user id that is never
+    read). Whose slot it was comes from the draft's slot_to_roster_id, since
+    draft_order is keyed by user id too. Every pick is checked against the
+    league's traded picks: a pick made by a roster that didn't own it fails.
+    """
+    picks = _read(sleeper_dir / f"{year}-draft_picks.json")
+    if not picks:
         return []
-    return [(year, franchise_of(p["roster_id"]), p["player_id"], bool(p.get("is_keeper")))
-            for p in json.loads(f.read_text(encoding="utf-8")) if p.get("player_id")]
+    draft = _read(sleeper_dir / f"{year}-draft.json")
+    if not draft or not draft.get("slot_to_roster_id"):
+        raise SleeperError(f"data/sleeper/{year}-draft.json (the draft's slot_to_roster_id) is missing: "
+                           "run python -m recordbook.fetch_sleeper")
+    slots = {int(s): r for s, r in draft["slot_to_roster_id"].items()}
+    owner = {(int(t["round"]), t["roster_id"]): t["owner_id"]
+             for t in _read(sleeper_dir / f"{year}-traded_picks.json") or [] if str(t["season"]) == str(year)}
+    rows = []
+    for p in sorted(picks, key=lambda p: p["pick_no"]):
+        if not p.get("player_id"):
+            continue
+        slot_roster = slots[p["draft_slot"]]
+        expected = owner.get((p["round"], slot_roster), slot_roster)
+        if p["roster_id"] != expected:
+            raise SleeperError(f"{year} pick {p['pick_no']} (round {p['round']}) was roster {expected}'s, "
+                               f"but roster {p['roster_id']} made it: check {year}-traded_picks.json")
+        rows.append((year, p["pick_no"], p["round"], p["draft_slot"], franchise_of(slot_roster),
+                     franchise_of(p["roster_id"]), p["player_id"]))
+    return rows
+
+
+def drafted_players(sleeper_dir):
+    """{NFL player: {name, pos, team}} as every draft snapshot knew them."""
+    out = {}
+    for f in sorted(sleeper_dir.glob("*-draft_picks.json")):
+        for p in _read(f) or []:
+            m = p.get("metadata") or {}
+            if p.get("player_id"):
+                name = " ".join(x for x in (m.get("first_name"), m.get("last_name")) if x)
+                out[p["player_id"]] = {"name": name, "pos": m.get("position"), "team": m.get("team")}
+    return out
 
 
 def transactions(year, by_week, franchise_of):

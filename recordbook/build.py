@@ -228,6 +228,21 @@ create table transaction_budget (
     to_franchise_id integer not null references franchises(id),
     amount integer not null
 );
+-- Sleeper era only (#37). Every pick of a season's draft: the franchise whose
+-- slot it was and the franchise that made it (they differ for a traded pick).
+-- kept is 1 for a keeper (data/keepers.csv), 0 for a drafted NFL player, and
+-- null while the season's keepers aren't recorded.
+create table draft_picks (
+    season integer not null references seasons(year),
+    pick_no integer not null,
+    round integer not null,
+    draft_slot integer not null,
+    slot_franchise_id integer not null references franchises(id),
+    franchise_id integer not null references franchises(id),
+    nfl_player_id text not null,
+    kept integer check (kept in (0, 1)),
+    primary key (season, pick_no)
+);
 -- Every waiver claim, won or lost, with its bid (a lost claim is not a
 -- transaction, so it has no transactions row).
 create table waiver_claims (
@@ -481,12 +496,16 @@ def build(data, out):
         for table, rows in sleeperlib.transactions(
                 year, sleeperlib.read_transactions(data / "sleeper", year), of).items():
             moves[table] += rows
-        picks += sleeperlib.draft_picks(data / "sleeper", year, of)
+        try:
+            picks += sleeperlib.draft_picks(data / "sleeper", year, of)
+        except sleeperlib.SleeperError as e:
+            raise BuildError(str(e)) from e
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
     highs_lows = [(season, measure, i + 1, fid, value)
                   for season, measure, i, fid, value in gamelog.highs_and_lows(games)]
+    keepers = read_keepers(read_optional_csv(data / "keepers.csv"))
     lineages = divisionlib.read_lineages(read_optional_csv(data / "division_lineages.csv"))
     try:
         lineage_rows = divisionlib.lineage_rows(lineages, season_lines, formats)
@@ -494,9 +513,10 @@ def build(data, out):
         raise BuildError(str(e)) from e
     award_results, award_unknowns = awardlib.results(
         games=games, coverage=coverage, regular_weeks={y: f.regular_season for y, f in formats.items()},
-        nfl_counts=nfl_moves, moves=moves, lineups=lineups, picks=picks,
+        nfl_counts=nfl_moves, moves=moves, lineups=lineups,
+        picks=[(season, fid, pid, False) for season, *_, fid, pid in picks],
         played={y: {f for f, ys in played.items() if y in ys} for y in sleeper},
-        keepers=read_keepers(read_optional_csv(data / "keepers.csv")))
+        keepers=keepers)
 
     if out.exists():
         out.unlink()
@@ -526,6 +546,8 @@ def build(data, out):
         con.executemany("insert into scissors_paper_rock values (?, ?, ?, ?)", rulings)
         con.executemany("insert into nfl_players values (?, ?, ?, ?)",
                         sleeperlib.nfl_players(data / "sleeper", lineups))
+        con.executemany("insert into draft_picks values (?, ?, ?, ?, ?, ?, ?, ?)",
+                        [(*p, kept(keepers, p)) for p in picks])
         for table, rows in moves.items():
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
@@ -606,6 +628,13 @@ def read_keepers(rows):
     for r in rows:
         out[int(r["season"])].add((int(r["franchise_id"]), r["nfl_player_id"].strip()))
     return dict(out)
+
+
+def kept(keepers, pick):
+    """1 if a draft pick was a keeper, 0 if drafted, None while its season's
+    keepers aren't recorded (a season with no keeper rows)."""
+    season, *_, fid, pid = pick
+    return None if season not in keepers else int((fid, pid) in keepers[season])
 
 
 def season_format_rows(formats):

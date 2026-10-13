@@ -3,8 +3,8 @@
     python3 -m recordbook.fetch_sleeper [--data data]
 
 About 50 unauthenticated GETs per season (league, rosters, users, 18 weeks of
-matchups and of transactions, both brackets, traded picks, drafts and draft
-picks) plus one players dump. A file is written only when its content
+matchups and of transactions, both brackets, traded picks, drafts, the draft
+and its picks) plus one players dump. A file is written only when its content
 changed, so a scheduled run commits nothing on a quiet day.
 
 Privacy reductions are applied before anything is written:
@@ -125,6 +125,8 @@ def fetch(data, get=http_get, leagues=None):
         drafts = save("drafts", get(f"/league/{lid}/drafts"))
         picks = []
         if drafts:
+            # The draft itself for slot_to_roster_id: draft_order is keyed by user id.
+            save("draft", get(f"/draft/{drafts[0]['draft_id']}"))
             picks = save("draft_picks", get(f"/draft/{drafts[0]['draft_id']}/picks"))
         if league.get("status") == "complete":
             continue

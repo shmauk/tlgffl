@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from tests.archive import write_csv, write_games, write_sleeper_league
+from tests.archive import write_csv, write_games, write_sleeper_draft, write_sleeper_league
 from tests.test_games import REGULAR, POSTSEASON, data, built, query  # noqa: F401 (fixture)
 from tests.test_sleeper_build import WEEKS, DIVISIONS, TOTALS, sleeper  # noqa: F401 (fixture)
 
@@ -74,9 +74,8 @@ def season(sleeper):
     write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, totals=TOTALS, lineups=LINEUPS)
     (sleeper / "sleeper" / "2025-transactions-02.json").write_text(json.dumps([
         waiver("w1", 3, "300", 12, True, 1000), waiver("w2", 4, "300", 10, False, 1000)]))
-    (sleeper / "sleeper" / "2025-draft_picks.json").write_text(json.dumps([
-        {"round": r, "roster_id": 1, "player_id": pid, "is_keeper": None}
-        for r, pid in enumerate(["a", "c", "z"], start=1)]))
+    # A one-slot draft: roster 1 picks a, c and z in rounds 1-3.
+    write_sleeper_draft(sleeper, 2025, {1: 1}, [(r, 1, 1, pid) for r, pid in enumerate(["a", "c", "z"], start=1)])
     return sleeper
 
 

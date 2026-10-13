@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 
 from recordbook.validate import main, validate
-from tests.archive import (write_csv, write_documents, write_franchise_keys, write_sleeper_aliases,
-                           write_sleeper_season, write_formats, fmt)
+from tests.archive import (write_csv, write_documents, write_franchise_keys, write_keepers,
+                           write_sleeper_aliases, write_sleeper_draft, write_sleeper_season, write_formats,
+                           fmt)
 
 
 def test_the_archive_fixture_is_valid(archive):
@@ -162,6 +163,47 @@ def test_documents_need_a_kind_a_season_for_agms_and_a_web_link(archive):
         "data/documents.csv line 4: kind 'minutes' must be one of constitution, agm",
         "data/documents.csv line 5: url 'docs.google.com/z' must start with https://",
     ]
+
+
+# The fixture's 2025 rosters 1, 2 and 3 are franchises 3, 1 and 4.
+def drafted(archive):
+    write_sleeper_draft(archive, 2025, {1: 1, 2: 2, 3: 3},
+                        [(1, 1, 1, "a"), (1, 2, 2, "b"), (1, 3, 3, "c"),
+                         (2, 3, 3, "d"), (2, 2, 2, "e"), (2, 1, 1, "f")])
+    return archive
+
+
+def test_a_keeper_is_a_franchises_draft_pick_at_the_round_it_cost(archive):
+    write_keepers(drafted(archive), [(2025, 3, "f", 2), (2025, 4, "c", 1)])
+    assert validate(archive) == []
+
+
+def test_a_keepers_file_with_no_rows_is_valid(archive):
+    write_keepers(drafted(archive), [])
+    assert validate(archive) == []
+
+
+def test_a_keeper_must_name_a_franchise_its_pick_and_its_round(archive):
+    write_keepers(drafted(archive), [(2025, 9, "a", 1), ("twenty", 3, "f", 2), (2025, 3, "f", 2),
+                                     (2025, 3, "f", 2)])
+    assert validate(archive) == [
+        "data/keepers.csv line 3: season 'twenty' must be a whole number",
+        "data/keepers.csv line 5: 2025 franchise 3 NFL player f is already on line 4",
+    ]
+    write_keepers(archive, [(2025, 9, "a", 1), (2025, 1, "a", 1), (2025, 3, "f", 3)])
+    assert validate(archive) == [
+        "data/keepers.csv line 2: franchise_id 9 is not a franchise id in data/franchises.csv",
+        "data/keepers.csv line 3: franchise 1 made no pick of NFL player a in the 2025 draft "
+        "(a keeper takes the pick of the round it cost)",
+        "data/keepers.csv line 4: franchise 3 took NFL player f in round 2 of the 2025 draft, not round 3",
+    ]
+
+
+def test_a_keeper_in_a_season_with_no_sleeper_draft_must_be_a_known_nfl_player(archive):
+    (archive / "sleeper" / "players.json").write_text('{"4984": {"name": "Josh Allen", "pos": "QB"}}')
+    write_keepers(archive, [(2024, 3, "4984", 5), (2024, 3, "nobody", 5)])
+    assert validate(archive) == [
+        "data/keepers.csv line 3: NFL player 'nobody' is not a Sleeper player id any snapshot knows"]
 
 
 def test_a_season_without_a_format_fails(archive):

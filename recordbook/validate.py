@@ -17,6 +17,7 @@ import yaml
 
 from recordbook import build as buildlib
 from recordbook import formats as formatfile
+from recordbook import sleeper as sleeperlib
 
 
 # ---------- column checks: what's wrong with a value, or None ----------
@@ -147,6 +148,12 @@ SCHEMAS = {
     "sleeper_adjustments.csv": Table(
         {"season": whole_number, "roster_id": whole_number, "week": whole_number,
          "points": number, "reason": required}),
+    # Keepers (#37): Sleeper's is_keeper is always null, so they are kept by
+    # hand. A season with no rows shows "keepers not yet recorded".
+    "keepers.csv": Table(
+        {"season": whole_number, "franchise_id": whole_number, "nfl_player_id": required,
+         "round": whole_number},
+        key=lambda row: f"{row['season']} franchise {row['franchise_id']} NFL player {row['nfl_player_id']}"),
     # Each season's divisions and their lineage (#32); the build checks they
     # match the divisions played and keep within one realignment.
     "division_lineages.csv": Table(
@@ -192,6 +199,45 @@ def validate(data):
     for name, table in SCHEMAS.items():
         if table.franchises and (data / name).exists():
             problems += check_franchise_names(name, table, data / name, names)
+    return problems + check_keepers(data)
+
+
+def check_keepers(data):
+    """Each keeper's franchise id must exist and, in a season with a Sleeper
+    draft snapshot, be the franchise that took the NFL player with the pick
+    of the round it cost. Elsewhere the NFL player must be a Sleeper id some
+    snapshot knows."""
+    path = data / "keepers.csv"
+    if not path.exists():
+        return []
+    franchises = {int(fid) for fid in buildlib.franchise_keys(data).values()}
+    sleeper = data / "sleeper"
+    drafts = {}
+    for f in sorted(sleeper.glob("*-draft_picks.json")):
+        drafts[int(f.name[:4])] = {(p["roster_id"], p["player_id"]): p["round"]
+                                   for p in json.loads(f.read_text(encoding="utf-8")) if p.get("player_id")}
+    roster_franchise = {int(slot): fid for (era, slot, _), fid in buildlib.franchise_keys(data).items()
+                        if era == "sleeper"}
+    known = None
+    problems = []
+    for line, row in read_rows(path)[1]:
+        where = f"data/keepers.csv line {line}"
+        season, fid, pid, rnd = int(row["season"]), int(row["franchise_id"]), row["nfl_player_id"].strip(), int(row["round"])
+        if fid not in franchises:
+            problems.append(f"{where}: franchise_id {fid} is not a franchise id in data/franchises.csv")
+        elif season in drafts:
+            taken = {roster_franchise.get(r): n for (r, p), n in drafts[season].items() if p == pid}
+            if fid not in taken:
+                problems.append(f"{where}: franchise {fid} made no pick of NFL player {pid} in the {season} draft "
+                                "(a keeper takes the pick of the round it cost)")
+            elif taken[fid] != rnd:
+                problems.append(f"{where}: franchise {fid} took NFL player {pid} in round {taken[fid]} "
+                                f"of the {season} draft, not round {rnd}")
+        else:
+            if known is None:
+                known = {pid for pid, *_ in sleeperlib.nfl_players(sleeper, [])}
+            if pid not in known:
+                problems.append(f"{where}: NFL player {pid!r} is not a Sleeper player id any snapshot knows")
     return problems
 
 

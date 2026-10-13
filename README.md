@@ -95,11 +95,16 @@ players, and forbidden fields are stripped. A season in progress also gets dated
 `<season>-team_names-<week>.json` and `<season>-players-<week>.json` files, because Sleeper only
 keeps the current team names and NFL teams.
 
-Two hand-kept tables go with it. `data/sleeper_brackets.csv` assigns every pairing Sleeper made in
+Three hand-kept tables go with it. `data/sleeper_brackets.csv` assigns every pairing Sleeper made in
 a bracket week to the Playoffs, the Shit Bowl, the Mediocre Bowl or `filler` (never a game), since
 Sleeper's winners and losers brackets don't match the league's three; a missing or stale row fails
 the build. `data/sleeper_adjustments.csv` explains, to the point, any gap between Sleeper's roster
 season totals and the games (ADR 0001, Sleeper era); an unexplained or stale gap fails the build.
+`data/keepers.csv` records each season's keepers, since Sleeper's `is_keeper` is always null: the
+validation checks each one is the franchise's pick of that NFL player in the round it cost. A season
+with no rows shows "keepers not yet recorded" rather than failing. Each draft pick records the
+franchise whose slot it was (the draft's `slot_to_roster_id`) and the franchise that made it, and a
+pick made by a franchise that didn't own it according to the traded picks fails the build.
 
 Sleeper-era seeds, the playoff picture and clinch marks come from one TypeScript module,
 `src/lib/seeding.ts` (ADR 0005); Python only writes its inputs, including the regular-season

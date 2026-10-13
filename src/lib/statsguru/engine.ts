@@ -5,9 +5,11 @@
 // survive, NFL.com's reported season line less the games that do (ADR 0001).
 // Nothing is estimated: games a filter can't check are left out and counted.
 import { playerRows, positionRows, type PerformanceRow, type PlayerRow, type PositionRow } from './lineups';
-import { positionRank, sortOf, type Phase, type Query, type Result } from './query';
+import { groupRank, pickRows, type PickGroupRow, type PickPlayerRow, type PickRow } from './picks';
+import { positionRank, sortOf, viewOf, type Phase, type Query, type Result } from './query';
 
 export type { NflPlayer, PerformanceRow, PlayerRow, PositionRow } from './lineups';
+export type { PickGroupRow, PickPlayerRow, PickRow } from './picks';
 
 /** The one thing the engine needs from a database: rows for a query. */
 export interface Db {
@@ -79,7 +81,7 @@ export interface GapRow {
   pa: number | null;
 }
 
-export type Row = GroupRow | GameRow | GapRow | PositionRow | PlayerRow | PerformanceRow;
+export type Row = GroupRow | GameRow | GapRow | PositionRow | PlayerRow | PerformanceRow | PickRow | PickGroupRow | PickPlayerRow;
 
 /** Query-level remarks, not tied to any row. */
 export type QueryNote =
@@ -90,7 +92,11 @@ export type QueryNote =
   /** ¶ Lineups and NFL players only exist from the Sleeper era. */
   | { kind: 'lineups' }
   /** The query's seasons all come before lineups do: there is nothing to show. */
-  | { kind: 'beforeLineups'; firstSeason: number | null };
+  | { kind: 'beforeLineups'; firstSeason: number | null }
+  /** Draft picks are only known from this season (null: no draft yet). */
+  | { kind: 'drafts'; firstSeason: number | null }
+  /** Seasons in the query whose keepers aren't recorded: their keepers count as drafted. */
+  | { kind: 'keepersUnrecorded'; seasons: number[] };
 
 export interface QueryResult {
   rows: Row[];
@@ -181,6 +187,16 @@ export function runQuery(db: Db, q: Query): QueryResult {
   const okFranchise = (f: number) =>
     (!q.franchises.length || q.franchises.includes(f)) && (!q.active || franchises.get(f)!.active);
   const phases = new Set(q.phases);
+
+  if (q.subject === 'pick') {
+    const drafted = db.all('select distinct season, kept is null as unrecorded from draft_picks order by season');
+    const first = drafted[0]?.season ?? null;
+    const notes: QueryNote[] = [{ kind: 'drafts', firstSeason: first }];
+    if (!drafted.some((d) => seasons.has(d.season))) return { rows: [], notes };
+    const unrecorded = [...new Set(drafted.filter((d) => d.unrecorded && seasons.has(d.season)).map((d) => d.season as number))];
+    if (unrecorded.length) notes.push({ kind: 'keepersUnrecorded', seasons: unrecorded });
+    return { rows: sortRows(pickRows(db, { ...q, view: viewOf(q) }, seasons, named), q), notes };
+  }
 
   if (q.subject === 'player' || q.view === 'pos') {
     const sleeper = db.all(`select year from seasons where era = 'sleeper' order by year`).map((r) => r.year as number);
@@ -329,13 +345,22 @@ function aggregate(
 function value(r: Row, key: string): number | string | null {
   const name = (n: Named | null) => n?.name.toLowerCase() ?? null;
   switch (key) {
-    case 'f': return name(r.franchise);
+    case 'f': return 'franchise' in r ? name(r.franchise) : null;
     case 'o': return 'opponent' in r ? name(r.opponent) : null;
     case 's': return 'season' in r ? r.season : null;
+    case 'pk': return r.kind === 'pick' ? r.pick : null;
+    case 'rd': return r.kind === 'pick' ? r.round : r.kind === 'pickGroup' ? (r.group as number) : null;
+    case 'sf': return r.kind === 'pick' ? name(r.slotFranchise) : null;
+    case 'kd': return r.kind === 'pick' ? (r.kept == null ? null : r.kept ? 1 : 0) : null;
+    case 'val': return 'value' in r ? r.value : null;
+    case 'top': return r.kind === 'pickGroup' ? r.top : r.kind === 'pickPlayer' ? r.top.season * 1000 + r.top.pick : null;
+    case 'frs': return r.kind === 'pickPlayer' ? r.franchises.length : null;
     case 'wk': return 'week' in r ? r.week : 'weeks' in r ? r.weeks[0] : null;
     case 'ph': return 'phase' in r ? 'R P C'.indexOf(r.phase ?? '') : null;
     case 'pl': return 'player' in r ? (r.player.name ?? r.player.id).toLowerCase() : null;
-    case 'pos': return r.kind === 'position' ? positionRank(r.pos) : 'player' in r ? positionRank(r.player.position) : null;
+    case 'pos':
+      if (r.kind === 'pickGroup') return groupRank(r);
+      return r.kind === 'position' ? positionRank(r.pos) : 'player' in r ? positionRank(r.player.position) : null;
     case 'slot': return r.kind === 'performance' ? positionRank(r.slot === 'BN' ? '~BN' : r.slot) : null;
     case 'res': return r.kind === 'game' ? r.result : null;
     case 'mar': return r.kind === 'game' ? r.margin : null;
@@ -349,7 +374,7 @@ function value(r: Row, key: string): number | string | null {
 function sortRows(rows: Row[], q: Query): Row[] {
   const { key, dir } = sortOf(q);
   const sign = dir === 'asc' ? 1 : -1;
-  const tiebreak = ['s', 'wk', 'f', 'pos', 'pl', 'o', 'ph'];
+  const tiebreak = ['s', 'pk', 'wk', 'f', 'pos', 'rd', 'pl', 'o', 'ph'];
   const cmp = (a: Row, b: Row, k: string, s: number) => {
     const x = value(a, k), y = value(b, k);
     if (x === y) return 0;

@@ -3,8 +3,11 @@
 // Plain strings, so it renders the same in the browser and in tests.
 import { weekList } from '../format';
 import { franchiseUrl, nflPlayerName, nflPlayerUrl, seasonUrl } from '../urls';
-import type { GameRow, GapRow, GroupRow, Named, NflPlayer, PerformanceRow, PlayerRow, PositionRow, QueryResult, Row } from './engine';
-import { columnsOf, encodeQuery, seasonList, sortOf, type FranchiseView, type Phase, type PlayerView, type Query } from './query';
+import type {
+  GameRow, GapRow, GroupRow, Named, NflPlayer, PerformanceRow, PickGroupRow, PickPlayerRow, PickRow, PlayerRow, PositionRow,
+  QueryResult, Row,
+} from './engine';
+import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView, type Phase, type PickView, type PlayerView, type Query } from './query';
 
 export interface Context {
   franchises: Named[];
@@ -33,12 +36,21 @@ export const PLAYER_VIEW_NAMES: Record<PlayerView, string> = {
   season: 'Season by season',
   log: 'Performance log',
 };
+export const PICK_VIEW_NAMES: Record<PickView, string> = {
+  list: 'Pick list',
+  fr: 'Per franchise',
+  pl: 'Per NFL player',
+};
 const viewName = (q: Query) =>
-  q.subject === 'player'
-    ? PLAYER_VIEW_NAMES[q.view as PlayerView]
-    : q.view === 'pos' && q.grouping === 'slot'
-      ? 'By lineup slot'
-      : VIEW_NAMES[q.view as FranchiseView];
+  q.subject === 'pick'
+    ? viewOf(q) === 'fr'
+      ? `Per franchise by ${q.grouping === 'round' ? 'round' : 'position'}`
+      : PICK_VIEW_NAMES[viewOf(q) as PickView]
+    : q.subject === 'player'
+      ? PLAYER_VIEW_NAMES[q.view as PlayerView]
+      : q.view === 'pos' && q.grouping === 'slot'
+        ? 'By lineup slot'
+        : VIEW_NAMES[q.view as FranchiseView];
 const RESULT_NAMES = { W: 'won', L: 'lost', T: 'tied' } as const;
 
 export const HEADINGS: Record<string, string> = {
@@ -47,10 +59,12 @@ export const HEADINGS: Record<string, string> = {
   pl: 'NFL player', pos: 'Position', ro: 'Rostered', st: 'Starts', spts: 'Pts started', ppg: 'Pts/game',
   avg: 'Avg/start', share: 'Share %', rank: 'Lg rank', bpts: 'Pts benched', best: 'Best', nfr: 'Franchises',
   slot: 'Slot', pts: 'Points',
+  pk: 'Pick', rd: 'Round', sf: 'From', kd: 'Kept or drafted', val: 'Value', n: 'Picks', dr: 'Drafted', kc: 'Kept',
+  top: 'Top pick', frs: 'Picked by',
 };
 /** Columns that read A-Z (or oldest first, or best first) before they read the other way. */
-const ASCENDING_FIRST = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 'slot', 'rank']);
-const TEXT_COLUMNS = new Set(['f', 'o', 'ph', 'res', 'pl', 'pos', 'slot']);
+const ASCENDING_FIRST = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 'slot', 'rank', 'pk', 'rd', 'sf', 'top']);
+const TEXT_COLUMNS = new Set(['f', 'o', 'ph', 'res', 'pl', 'pos', 'slot', 'sf', 'kd', 'frs']);
 const heading = (key: string, q: Query) => (key === 'pos' && q.view === 'pos' && q.grouping === 'slot' ? 'Slot' : HEADINGS[key]);
 
 const MARKERS = {
@@ -60,6 +74,8 @@ const MARKERS = {
   '§': "Games with no score can't be checked against a week, opposition or result filter, so they are left out, never estimated.",
   '¶': 'Lineups and NFL players are only known from 2025 (the Sleeper era): earlier seasons contribute nothing.',
 } as const;
+/** Pick value, in words. */
+const VALUE = "The points the NFL player went on to score in the picking franchise's starting lineups that season.";
 type Glyph = keyof typeof MARKERS;
 
 const ENTITIES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -76,6 +92,23 @@ export function summary(q: Query, ctx: Context): string {
   const allSeasons = !q.seasons.length || ctx.seasons.every((y) => q.seasons.includes(y));
   const phases = q.phases.map((p) => (p === 'R' ? 'regular season' : PHASE_NAMES[p]));
   const player = q.subject === 'player';
+  if (q.subject === 'pick') {
+    const range = (word: string, s: [number, number] | null) =>
+      s ? (s[0] === s[1] ? `${word} ${s[0]}` : `${word}s ${s[0]}–${s[1]}`) : null;
+    const franchises = q.franchises.map(name).join(', ');
+    return [
+      q.players.length ? `Draft picks of ${q.players.map(playerName).join(', ')}` : 'Draft picks',
+      q.positions.length ? q.positions.join(', ') : null,
+      q.kept,
+      q.franchises.length ? (q.franchiseAs === 'slot' ? `${franchises}'s slots` : `picked by ${franchises}`) : null,
+      range('round', q.rounds),
+      range('pick', q.picks),
+      allSeasons ? 'all seasons' : seasons.length === 1 ? `season ${seasons[0]}` : `seasons ${years(seasons)}`,
+      viewName(q).replace(/^./, (c) => c.toLowerCase()),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
   return [
     ...(player
       ? [
@@ -114,6 +147,9 @@ export function renderResults(result: QueryResult, q: Query): string {
     const first = result.notes.find((n) => n.kind === 'beforeLineups')!.firstSeason;
     return `<p class="sub">Lineups, and with them NFL player data, are only known from the Sleeper era: NFL player data starts in ${first ?? 'the Sleeper era'}. Choose a season from ${first ?? 'the Sleeper era'} on.</p>`;
   }
+  const drafts = result.notes.find((n) => n.kind === 'drafts');
+  if (drafts && !result.rows.length && q.seasons.length && q.seasons.every((y) => drafts.firstSeason == null || y < drafts.firstSeason))
+    return `<p class="sub">Draft picks are only known from the Sleeper era: drafts from ${drafts.firstSeason ?? 'the first Sleeper draft'}. Choose a season from ${drafts.firstSeason ?? 'then'} on.</p>`;
   const cols = columnsOf(q);
   const sort = sortOf(q);
   const head = cols
@@ -197,6 +233,8 @@ export function renderResults(result: QueryResult, q: Query): string {
           case 's': return td(key, r.season == null ? '' : season(r.season));
           case 'ro':
           case 'st':
+          case 'dr':
+          case 'kc':
           case 'nfr': return td(key, String(r[key]));
           default: return td(key, fixed((r as any)[key]));
         }
@@ -219,8 +257,56 @@ export function renderResults(result: QueryResult, q: Query): string {
         }
       })
       .join('');
+  const keptCell = (kept: boolean | null) =>
+    kept == null ? '<span class="alias">Not recorded</span>' : kept ? 'Kept' : 'Drafted';
+  const value = (v: number) => `<span title="${esc(VALUE)}">${fixed(v)}</span>`;
+  const pickRow = (r: PickRow) =>
+    cols
+      .map((key) => {
+        switch (key) {
+          case 's': return td(key, season(r.season));
+          case 'pk':
+          case 'rd': return td(key, String(key === 'pk' ? r.pick : r.round));
+          case 'f': return td(key, fr(r.franchise));
+          case 'sf': return td(key, r.slotFranchise.id === r.franchise.id ? '' : fr(r.slotFranchise));
+          case 'pl': return td(key, pl(r.player));
+          case 'pos': return td(key, pos(r.player.position));
+          case 'kd': return td(key, keptCell(r.kept));
+          case 'val': return td(key, value(r.value));
+          default: return td(key, '');
+        }
+      })
+      .join('');
+  const pickGroupRow = (r: PickGroupRow) =>
+    cols
+      .map((key) => {
+        switch (key) {
+          case 'f': return td(key, fr(r.franchise));
+          case 'pos': return td(key, pos(r.group as string | null));
+          case 'rd': return td(key, String(r.group));
+          case 'val': return td(key, value(r.value));
+          default: return td(key, String((r as any)[key]));
+        }
+      })
+      .join('');
+  const pickPlayerRow = (r: PickPlayerRow) =>
+    cols
+      .map((key) => {
+        switch (key) {
+          case 'pl': return td(key, pl(r.player));
+          case 'pos': return td(key, pos(r.player.position));
+          case 'top': return td(key, `${r.top.pick} (${season(r.top.season)})`);
+          case 'frs': return td(key, r.franchises.map(fr).join(', '));
+          case 'val': return td(key, value(r.value));
+          default: return td(key, String((r as any)[key]));
+        }
+      })
+      .join('');
   const row = (r: Row) => {
     switch (r.kind) {
+      case 'pick': return `<tr>${pickRow(r)}</tr>`;
+      case 'pickGroup': return `<tr>${pickGroupRow(r)}</tr>`;
+      case 'pickPlayer': return `<tr>${pickPlayerRow(r)}</tr>`;
       case 'group': return `<tr>${groupRow(r)}</tr>`;
       case 'game': return `<tr>${gameRow(r)}</tr>`;
       case 'position': return `<tr>${positionRow(r)}</tr>`;
@@ -233,7 +319,9 @@ export function renderResults(result: QueryResult, q: Query): string {
   const scope = lineups ? `<p class="sub">Sleeper era, 2025 on${mk('¶')}</p>` : '';
   const body = result.rows.length
     ? result.rows.map(row).join('')
-    : `<tr><td colspan="${cols.length}">${q.subject === 'player' ? 'No NFL players match the query.' : 'No games match the query.'}</td></tr>`;
+    : `<tr><td colspan="${cols.length}">${
+        q.subject === 'player' ? 'No NFL players match the query.' : q.subject === 'pick' ? 'No draft picks match the query.' : 'No games match the query.'
+      }</td></tr>`;
 
   const notes = [
     ...(Object.keys(MARKERS) as Glyph[]).filter((g) => used.has(g)).map((g) => [g, MARKERS[g]]),
@@ -242,7 +330,11 @@ export function renderResults(result: QueryResult, q: Query): string {
         ? [['', `Shit Bowl and Mediocre Bowl games were never recorded for ${years(n.seasons)}.`]]
         : n.kind === 'mixed'
           ? [['', "The Shit Bowl and the Mediocre Bowl are counted together: the data doesn't separate them."]]
-          : [],
+          : n.kind === 'drafts'
+            ? [['', `Draft picks are only known from the Sleeper era: drafts from ${n.firstSeason ?? 'the first Sleeper draft'}. Value: ${VALUE}`]]
+            : n.kind === 'keepersUnrecorded'
+              ? [['', `Keepers not yet recorded for ${n.seasons.join(', ')}: their keepers can't be told from drafted NFL players, so they count as drafted.`]]
+              : [],
     ),
   ];
   const notesHtml = notes.length
