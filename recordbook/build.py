@@ -21,6 +21,7 @@ from recordbook import formats as formatfile
 from recordbook import games as gamelog
 from recordbook import profiles
 from recordbook import records
+from recordbook import season_records
 from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
@@ -520,6 +521,9 @@ def build(data, out):
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
         write_records(con, games, seasons, formats, played, current, winners)
+        season_records.write(con, season_lines=season_lines, coverage=coverage, games=games,
+                             winners=winners, formats=formats, seasons=seasons, played=played,
+                             current=current)
         con.executescript(awardlib.SCHEMA)
         con.executemany("insert into awards values (?, ?, ?, ?, ?, ?)", awardlib.award_rows())
         con.executemany("insert into award_results values (?, ?, ?, ?, ?)", award_results)
