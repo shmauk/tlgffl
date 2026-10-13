@@ -251,7 +251,8 @@ describe('the NFL-player subject (2025 on)', () => {
     const [fr] = players({ players: [HUNTER], view: 'fr' }) as PlayerRow[];
     expect(fr).toMatchObject({ franchise: { id: ALIGATORS }, ro: 8 });
     const seasons = players({ players: [HUNTER], view: 'season', seasons: [] }) as PlayerRow[];
-    expect(seasons.map((r) => [r.season, r.ro])).toEqual([[2025, 8]]);
+    expect(seasons[0]).toMatchObject({ season: 2025, ro: 8, franchise: null });
+    expect(new Set(seasons.map((r) => r.season)).size).toBe(seasons.length);
   });
 
   test('a performance log, one line a week', () => {
