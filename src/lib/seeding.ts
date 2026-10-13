@@ -50,97 +50,132 @@ type Dir = 'top' | 'bottom';
 /** How a level group is settled once the known tiebreaks are used up: one club, or null to leave it shared. */
 type Resolve = (level: FranchiseId[], dir: Dir) => FranchiseId | null;
 
-interface Table {
-  pct: Map<FranchiseId, number>;
-  division: Map<FranchiseId, string>;
-  /** [points, games] of a against b, a win 1 and a tie a half. */
-  h2h: (a: FranchiseId, b: FranchiseId) => [number, number];
-  divPct: Map<FranchiseId, number>;
-  /** Breakdown %, or null where it isn't known yet. */
-  breakdown: ((f: FranchiseId) => number) | null;
-}
+/** Win % by every measure the tiebreaks use, kept in arrays: clinch marks build one per outcome. */
+class Table {
+  readonly index = new Map<FranchiseId, number>();
+  readonly division: string[] = [];
+  // Points then games for each franchise (and each ordered pair), a win 1 and a tie a half.
+  private rec: Float64Array;
+  private div: Float64Array;
+  private pair: Float64Array;
 
-function table(input: SeedingInput, played = input.played, breakdownKnown = true): Table {
-  const division = new Map(input.franchises.map((f) => [f.id, f.division]));
-  const rec = new Map<FranchiseId, [number, number]>();
-  const div = new Map<FranchiseId, [number, number]>();
-  const pair = new Map<string, [number, number]>();
-  for (const f of input.franchises) {
-    rec.set(f.id, [0, 0]);
-    div.set(f.id, [0, 0]);
+  /** Breakdown %, or null while it isn't known yet. */
+  readonly breakdown: ((f: FranchiseId) => number) | null;
+
+  /** from copies another table's results. */
+  constructor(input: SeedingInput, breakdown: ((f: FranchiseId) => number) | null, from?: Table) {
+    this.breakdown = breakdown;
+    input.franchises.forEach((f, i) => {
+      this.index.set(f.id, i);
+      this.division.push(f.division);
+    });
+    const n = input.franchises.length;
+    this.rec = from ? from.rec.slice() : new Float64Array(2 * n);
+    this.div = from ? from.div.slice() : new Float64Array(2 * n);
+    this.pair = from ? from.pair.slice() : new Float64Array(2 * n * n);
   }
-  const add = (m: Map<any, [number, number]>, k: any, pts: number) => {
-    const r = m.get(k) ?? [0, 0];
-    m.set(k, [r[0] + pts, r[1] + 1]);
-  };
-  for (const g of played) {
-    for (const [me, them] of [[g.home, g.away], [g.away, g.home]]) {
-      const pts = g.winner === me ? 1 : g.winner === null ? 0.5 : 0;
-      if (rec.has(me)) add(rec, me, pts);
-      if (division.has(them) && division.get(me) === division.get(them)) add(div, me, pts);
-      add(pair, `${me}-${them}`, pts);
+
+  add(home: FranchiseId, away: FranchiseId, winner: FranchiseId | null) {
+    const n = this.division.length;
+    const h = this.index.get(home);
+    const a = this.index.get(away);
+    for (const [me, them, id] of [[h, a, home], [a, h, away]] as const) {
+      if (me === undefined) continue;
+      const pts = winner === id ? 1 : winner === null ? 0.5 : 0;
+      this.rec[2 * me] += pts;
+      this.rec[2 * me + 1]++;
+      if (them === undefined) continue;
+      if (this.division[me] === this.division[them]) {
+        this.div[2 * me] += pts;
+        this.div[2 * me + 1]++;
+      }
+      this.pair[2 * (me * n + them)] += pts;
+      this.pair[2 * (me * n + them) + 1]++;
     }
   }
-  const pctOf = (m: Map<FranchiseId, [number, number]>) =>
-    new Map([...m].map(([k, [p, n]]) => [k, n ? p / n : 0]));
-  return {
-    pct: pctOf(rec),
-    division,
-    h2h: (a, b) => pair.get(`${a}-${b}`) ?? [0, 0],
-    divPct: pctOf(div),
-    breakdown: breakdownKnown ? (f) => input.breakdown[f] ?? 0 : null,
-  };
+
+  private static ratio(a: Float64Array, k: number) {
+    return a[2 * k + 1] ? a[2 * k] / a[2 * k + 1] : 0;
+  }
+  pct(f: FranchiseId) {
+    return Table.ratio(this.rec, this.index.get(f)!);
+  }
+  divPct(f: FranchiseId) {
+    return Table.ratio(this.div, this.index.get(f)!);
+  }
+  divisionOf(f: FranchiseId) {
+    return this.division[this.index.get(f)!];
+  }
+  /** a's win % against b, or null if they never met. */
+  h2h(a: FranchiseId, b: FranchiseId) {
+    const k = this.index.get(a)! * this.division.length + this.index.get(b)!;
+    return this.pair[2 * k + 1] ? this.pair[2 * k] / this.pair[2 * k + 1] : null;
+  }
 }
 
-type Step = (group: FranchiseId[]) => Map<FranchiseId, number> | null;
-
-function steps(t: Table, group: FranchiseId[]): Step[] {
-  const sameDivision = new Set(group.map((f) => t.division.get(f))).size === 1;
-  const h2h: Step = ([a, b]) => {
-    const [p, n] = t.h2h(a, b);
-    return n ? new Map([[a, p / n], [b, (n - p) / n]]) : null;
-  };
-  const divisional: Step = (g) => new Map(g.map((f) => [f, t.divPct.get(f) ?? 0]));
-  const breakdown: Step = (g) => (t.breakdown ? new Map(g.map((f) => [f, t.breakdown!(f)])) : null);
-  if (group.length === 2) return sameDivision ? [h2h, divisional, breakdown] : [h2h, breakdown];
-  return sameDivision ? [divisional, breakdown] : [breakdown];
+function table(input: SeedingInput, breakdownKnown = true): Table {
+  const t = new Table(input, breakdownKnown ? (f) => input.breakdown[f] ?? 0 : null);
+  for (const g of input.played) t.add(g.home, g.away, g.winner);
+  return t;
 }
 
 /** The clubs of a level group (same win %) that come first by the known tiebreaks. */
 function first(t: Table, group: FranchiseId[], dir: Dir): FranchiseId[] {
   if (group.length < 2) return group;
-  for (const step of steps(t, group)) {
-    const values = step(group);
-    if (!values) continue;
-    const best = (dir === 'top' ? Math.max : Math.min)(...values.values());
-    const ahead = group.filter((f) => values.get(f) === best);
-    if (ahead.length < group.length) return first(t, ahead, dir);
+  const better = (x: number, y: number) => (dir === 'top' ? x > y : x < y);
+  // The clubs with the best value, or null if the value separates nobody.
+  const keep = (value: (f: FranchiseId) => number) => {
+    let best = value(group[0]);
+    for (const f of group) if (better(value(f), best)) best = value(f);
+    const ahead = group.filter((f) => value(f) === best);
+    return ahead.length < group.length ? ahead : null;
+  };
+  const sameDivision = group.every((f) => t.divisionOf(f) === t.divisionOf(group[0]));
+  if (group.length === 2) {
+    const [a, b] = group;
+    const p = t.h2h(a, b);
+    if (p !== null && p !== 0.5) return [better(p, 1 - p) ? a : b];
   }
-  return group;
+  const ahead =
+    (sameDivision ? keep((f) => t.divPct(f)) : null) ?? (t.breakdown ? keep(t.breakdown) : null);
+  return ahead ? first(t, ahead, dir) : group;
 }
 
-/** The group ranked best-first (top) or worst-first (bottom), as tiers of franchises that stay level. */
-function rank(t: Table, group: FranchiseId[], dir: Dir, resolve: Resolve): FranchiseId[][] {
+/**
+ * The group ranked best-first (top) or worst-first (bottom), as tiers of
+ * franchises that stay level. With cuts (positions, from 0, where a bracket
+ * place changes hands), level clubs that don't span a cut are left as one
+ * unsettled tier: their order can't change anyone's place.
+ */
+function rank(t: Table, group: FranchiseId[], dir: Dir, resolve: Resolve, cuts?: number[]): FranchiseId[][] {
   const sign = dir === 'top' ? -1 : 1;
-  const sorted = [...group].sort((a, b) => sign * (t.pct.get(a)! - t.pct.get(b)!) || a - b);
+  const pct = new Map(group.map((f) => [f, t.pct(f)]));
+  const sorted = [...group].sort((a, b) => sign * (pct.get(a)! - pct.get(b)!) || a - b);
   const tiers: FranchiseId[][] = [];
   for (let i = 0; i < sorted.length; ) {
     let j = i;
-    while (j < sorted.length && t.pct.get(sorted[j]) === t.pct.get(sorted[i])) j++;
-    tiers.push(...settle(t, sorted.slice(i, j), dir, resolve));
+    while (j < sorted.length && pct.get(sorted[j]) === pct.get(sorted[i])) j++;
+    tiers.push(...settle(t, sorted.slice(i, j), dir, resolve, i, cuts));
     i = j;
   }
   return tiers;
 }
 
-function settle(t: Table, group: FranchiseId[], dir: Dir, resolve: Resolve): FranchiseId[][] {
+function settle(
+  t: Table,
+  group: FranchiseId[],
+  dir: Dir,
+  resolve: Resolve,
+  at: number,
+  cuts?: number[],
+): FranchiseId[][] {
   if (group.length === 0) return [];
   if (group.length === 1) return [group];
+  if (cuts && !cuts.some((c) => at < c && c < at + group.length)) return [group];
   const ahead = first(t, group, dir);
-  if (ahead.length === 1) return [ahead, ...settle(t, without(group, ahead), dir, resolve)];
-  const pick = resolve(ahead, dir);
-  if (pick !== null) return [[pick], ...settle(t, without(group, [pick]), dir, resolve)];
-  return [ahead, ...settle(t, without(group, ahead), dir, resolve)];
+  const pick = ahead.length === 1 ? ahead[0] : resolve(ahead, dir);
+  if (pick !== null) return [[pick], ...settle(t, without(group, [pick]), dir, resolve, at + 1, cuts)];
+  return [ahead, ...settle(t, without(group, ahead), dir, resolve, at + ahead.length, cuts)];
 }
 
 const without = (group: FranchiseId[], out: FranchiseId[]) => group.filter((f) => !out.includes(f));
@@ -160,9 +195,11 @@ interface Seeding {
   divisionWinners: Set<FranchiseId>;
 }
 
-function seed(input: SeedingInput, t: Table, resolve: Resolve): Seeding {
+/** Seeds every franchise. With prune, only what decides a bracket place, a division or a bye is settled. */
+function seed(input: SeedingInput, t: Table, resolve: Resolve, prune = false): Seeding {
   const level = new Map<FranchiseId, Set<FranchiseId>>();
   const note = (tiers: FranchiseId[][]) => {
+    if (prune) return tiers;
     for (const tier of tiers)
       if (tier.length > 1)
         for (const f of tier) {
@@ -177,11 +214,12 @@ function seed(input: SeedingInput, t: Table, resolve: Resolve): Seeding {
   for (const f of input.franchises) divisions.set(f.division, [...(divisions.get(f.division) ?? []), f.id]);
   const winners: FranchiseId[] = [];
   const losers: FranchiseId[] = [];
-  for (const members of divisions.values()) {
-    winners.push(head(note(rank(t, members, 'top', resolve))));
-    if (members.length > 1) losers.push(head(note(rank(t, members, 'bottom', resolve))));
-  }
   const { playoffs, mediocre_bowl: mediocre, shit_bowl: shit } = input.brackets;
+  const cut = (...at: number[]) => (prune ? at : undefined);
+  for (const members of divisions.values()) {
+    winners.push(head(note(rank(t, members, 'top', resolve, cut(1)))));
+    if (members.length > 1) losers.push(head(note(rank(t, members, 'bottom', resolve, cut(1)))));
+  }
   const places: Place[] = [];
   // Seeds follow the tiers: a tier shares the seed of its first place.
   const place = (tiers: FranchiseId[][], bracket: BracketKey, from: number, count = Infinity) => {
@@ -197,12 +235,19 @@ function seed(input: SeedingInput, t: Table, resolve: Resolve): Seeding {
     places.push(...out);
     return out.map((p) => p.franchise);
   };
-  const rest = (...out: FranchiseId[][]) => input.franchises.map((f) => f.id).filter((f) => !out.flat().includes(f));
-  place(note(rank(t, winners, 'top', resolve)), 'playoffs', 1);
-  const wildcards = place(note(rank(t, rest(winners, losers), 'top', resolve)), 'playoffs', winners.length + 1, playoffs - winners.length);
-  place(note(rank(t, losers, 'bottom', resolve)), 'shit_bowl', 1);
-  const worst = place(note(rank(t, rest(winners, losers, wildcards), 'bottom', resolve)), 'shit_bowl', losers.length + 1, shit - losers.length);
-  place(note(rank(t, rest(winners, losers, wildcards, worst), 'top', resolve)), 'mediocre_bowl', playoffs + 1, mediocre);
+  const rest = (...out: FranchiseId[][]) => {
+    const gone = new Set(out.flat());
+    return input.franchises.map((f) => f.id).filter((f) => !gone.has(f));
+  };
+  const wild = playoffs - winners.length;
+  const worstWild = shit - losers.length;
+  place(note(rank(t, winners, 'top', resolve, cut(byes(playoffs)))), 'playoffs', 1);
+  const wildcards = place(note(rank(t, rest(winners, losers), 'top', resolve, cut(wild))), 'playoffs', winners.length + 1, wild);
+  place(note(rank(t, losers, 'bottom', resolve, cut())), 'shit_bowl', 1);
+  const pool = rest(winners, losers, wildcards);
+  const worst = place(note(rank(t, pool, 'bottom', resolve, cut(worstWild))), 'shit_bowl', losers.length + 1, worstWild);
+  place(note(rank(t, rest(winners, losers, wildcards, worst), 'top', resolve, cut())), 'mediocre_bowl', playoffs + 1, mediocre);
+  if (prune) return { places, divisionWinners: new Set(winners) };
   // A tier cut short by the bracket's size, or split between brackets, shares nothing.
   for (const p of places) {
     p.level = [...(level.get(p.franchise) ?? [])].sort((a, b) => a - b);
@@ -225,4 +270,190 @@ function seed(input: SeedingInput, t: Table, resolve: Resolve): Seeding {
  */
 export function playoffPicture(input: SeedingInput): Place[] {
   return seed(input, table(input), sprResolve(input.spr ?? [])).places;
+}
+
+// ---------- clinch and elimination marks ----------
+
+/**
+ * PLAYOFFS: a Playoffs place; DIVISION: a division winner's seed; BYE: a bye
+ * seed; OUT: no Playoffs place; SAFE: no Shit Bowl place; SHIT BOWL: a Shit
+ * Bowl place. The Mediocre Bowl shows OUT and SAFE.
+ */
+export type Mark = 'PLAYOFFS' | 'DIVISION' | 'BYE' | 'OUT' | 'SAFE' | 'SHIT BOWL';
+
+/** Up to this many remaining games, every win/loss outcome is tried. */
+export const EXACT_LIMIT = 16;
+
+/** The Playoffs' bye seeds: the first round is cut to the next power of two. */
+export const byes = (size: number) => 2 ** Math.ceil(Math.log2(size)) - size;
+
+/** What each franchise has been seen doing across the outcomes tried: [it happened, it didn't]. */
+type Seen = Record<'playoffs' | 'division' | 'bye' | 'shit', [boolean, boolean]>;
+
+/**
+ * Each franchise's clinch and elimination marks, the most telling ones only
+ * (BYE rather than DIVISION and PLAYOFFS; SHIT BOWL rather than OUT).
+ *
+ * Conservative: a mark shows only if it holds for every win/loss outcome of
+ * the remaining games, however the tiebreaks beyond head-to-head and
+ * divisional record fall (Breakdown moves with every remaining week's scores,
+ * and scissors-paper-rock is anyone's). With EXACT_LIMIT or fewer remaining
+ * games every outcome is tried; before that, each franchise's best and worst
+ * possible records bound what can happen. Once no games remain, Breakdown is
+ * final and only an unruled scissors-paper-rock is open.
+ */
+export function clinchMarks(input: SeedingInput): Record<FranchiseId, Mark[]> {
+  const seen = input.remaining.length <= EXACT_LIMIT ? exact(input) : bounds(input);
+  const out: Record<FranchiseId, Mark[]> = {};
+  for (const { id } of input.franchises) {
+    const s = seen.get(id)!;
+    const always = (k: keyof Seen) => !s[k][1];
+    const never = (k: keyof Seen) => !s[k][0];
+    const marks: Mark[] = [];
+    if (always('bye')) marks.push('BYE');
+    else if (always('division')) marks.push('DIVISION');
+    else if (always('playoffs')) marks.push('PLAYOFFS');
+    if (always('shit')) marks.push('SHIT BOWL');
+    else {
+      if (never('playoffs')) marks.push('OUT');
+      if (never('shit') && !always('playoffs')) marks.push('SAFE');
+    }
+    out[id] = marks;
+  }
+  return out;
+}
+
+const unseen = (): Seen => ({ playoffs: [false, false], division: [false, false], bye: [false, false], shit: [false, false] });
+
+const FACTS = ['playoffs', 'division', 'bye', 'shit'] as const;
+
+/**
+ * Every win/loss outcome of the remaining games, and every way the open
+ * tiebreaks could fall, searched game by game. What the win bounds rule out
+ * can't happen, so a part of the search where the bounds rule out everything
+ * not yet seen is skipped, and the search stops once everything is seen.
+ */
+function exact(input: SeedingInput): Map<FranchiseId, Seen> {
+  const seen = new Map(input.franchises.map((f) => [f.id, unseen()]));
+  const final = input.remaining.length === 0;
+  const ruled = sprResolve(input.spr ?? []);
+  const bye = byes(input.brackets.playoffs);
+  const base = table(input, final);
+  // Whether anything not yet seen could still happen, given these bounds.
+  const anyNew = (possible: Map<FranchiseId, Seen>) =>
+    [...seen].some(([f, s]) => FACTS.some((k) => (!s[k][0] && possible.get(f)![k][0]) || (!s[k][1] && possible.get(f)![k][1])));
+
+  const leaf = (decided: SeedingInput['played']) => {
+    const t = new Table(input, base.breakdown, base);
+    for (const g of decided) t.add(g.home, g.away, g.winner);
+    // Walk every sequence of tiebreak choices, depth first: `path` holds the choice made at each open
+    // tiebreak met so far, `arity` how many clubs each one had to choose from.
+    let path: number[] = [];
+    for (;;) {
+      const arity: number[] = [];
+      const resolve: Resolve = (level, dir) => {
+        if (final) {
+          const pick = ruled(level, dir);
+          if (pick !== null) return pick;
+        }
+        const i = arity.length;
+        arity.push(level.length);
+        if (i === path.length) path.push(0);
+        return level[path[i]];
+      };
+      const { places, divisionWinners } = seed(input, t, resolve, true);
+      for (const p of places) {
+        const s = seen.get(p.franchise)!;
+        s.playoffs[p.bracket === 'playoffs' ? 0 : 1] = true;
+        s.division[divisionWinners.has(p.franchise) ? 0 : 1] = true;
+        s.bye[p.bracket === 'playoffs' && p.seed <= bye ? 0 : 1] = true;
+        s.shit[p.bracket === 'shit_bowl' ? 0 : 1] = true;
+      }
+      path = path.slice(0, arity.length);
+      while (path.length && path[path.length - 1] + 1 >= arity[path.length - 1]) path.pop();
+      if (!path.length) break;
+      path[path.length - 1]++;
+    }
+  };
+
+  const search = (decided: SeedingInput['played']) => {
+    const i = decided.length;
+    if (i === input.remaining.length) return leaf(decided);
+    const possible = bounds({ ...input, played: [...input.played, ...decided], remaining: input.remaining.slice(i) });
+    if (!anyNew(possible)) return;
+    const g = input.remaining[i];
+    search([...decided, { ...g, winner: g.home }]);
+    search([...decided, { ...g, winner: g.away }]);
+  };
+  search([]);
+  return seen;
+}
+
+/**
+ * Before the last EXACT_LIMIT games, bounds on each franchise's final win %:
+ * the worst if it loses every remaining game, the best if it wins them all.
+ * A rival "could finish level or above" X when its best reaches X's worst, and
+ * is "sure to finish above" X when its worst beats X's best (and the mirror
+ * images below). In any outcome the division's winner is at or above every
+ * club of its division, and its loser at or below, which bounds how many
+ * wildcards can finish ahead of (or behind) X.
+ */
+function bounds(input: SeedingInput): Map<FranchiseId, Seen> {
+  const games = new Map<FranchiseId, number>();
+  const points = new Map<FranchiseId, number>();
+  const left = new Map<FranchiseId, number>();
+  const add = (m: Map<FranchiseId, number>, f: FranchiseId, n: number) => m.set(f, (m.get(f) ?? 0) + n);
+  for (const g of input.played)
+    for (const f of [g.home, g.away]) {
+      add(games, f, 1);
+      add(points, f, g.winner === f ? 1 : g.winner === null ? 0.5 : 0);
+    }
+  for (const g of input.remaining)
+    for (const f of [g.home, g.away]) {
+      add(games, f, 1);
+      add(left, f, 1);
+    }
+  const worst = (f: FranchiseId) => (games.get(f) ? (points.get(f) ?? 0) / games.get(f)! : 0);
+  const best = (f: FranchiseId) => (games.get(f) ? ((points.get(f) ?? 0) + (left.get(f) ?? 0)) / games.get(f)! : 0);
+  const divisions = new Map<string, FranchiseId[]>();
+  for (const f of input.franchises) divisions.set(f.division, [...(divisions.get(f.division) ?? []), f.id]);
+  const D = divisions.size;
+  const { playoffs: P, shit_bowl: S } = input.brackets;
+  const seen = new Map<FranchiseId, Seen>();
+  for (const { id: x, division } of input.franchises) {
+    const rivals = divisions.get(division)!.filter((f) => f !== x);
+    const others = [...divisions.entries()].filter(([d]) => d !== division).map(([, m]) => m);
+    const couldAbove = (y: FranchiseId) => best(y) >= worst(x);
+    const sureAbove = (y: FranchiseId) => worst(y) > best(x);
+    const couldBelow = (y: FranchiseId) => worst(y) <= best(x);
+    const sureBelow = (y: FranchiseId) => best(y) < worst(x);
+    const count = (m: FranchiseId[], p: (y: FranchiseId) => boolean) => m.filter(p).length;
+    // Wildcards that could finish level with or above X: in each division, all but its winner.
+    const wildcardsAbove = [rivals, ...others].reduce((n, m) => n + Math.max(0, count(m, couldAbove) - 1), 0);
+    const wildcardsBelow = [rivals, ...others].reduce((n, m) => n + Math.max(0, count(m, couldBelow) - 1), 0);
+    // Wildcards sure to finish above X: all but the division's winner, and its loser too if the whole
+    // division is above X. X's own division can't be wholly above X unless X is its loser.
+    const sure = (m: FranchiseId[], p: (y: FranchiseId) => boolean, whole: boolean) => {
+      const n = count(m, p);
+      return Math.max(0, n - 1 - (whole && n === m.length ? 1 : 0));
+    };
+    const wildcardsSureAbove = sure(rivals, sureAbove, false) + others.reduce((n, m) => n + sure(m, sureAbove, true), 0);
+    const wildcardsSureBelow = sure(rivals, sureBelow, false) + others.reduce((n, m) => n + sure(m, sureBelow, true), 0);
+    const wins = rivals.every((y) => !couldAbove(y));
+    const loser = rivals.length > 0 && rivals.every(sureAbove);
+    const notWinner = rivals.some(sureAbove);
+    const notLoser = rivals.some(sureBelow);
+    const playoffs = wins || (notLoser && wildcardsAbove < P - D);
+    const out = loser || (notWinner && wildcardsSureAbove >= P - D);
+    const bye = wins && others.filter((m) => m.some(couldAbove)).length < byes(P);
+    const shit = loser || (notWinner && wildcardsBelow < S - D);
+    const safe = playoffs || (notLoser && wildcardsSureBelow >= S - D);
+    seen.set(x, {
+      playoffs: [!out, !playoffs],
+      division: [!notWinner, !wins],
+      bye: [!out && !notWinner, !bye],
+      shit: [!safe, !shit],
+    });
+  }
+  return seen;
 }

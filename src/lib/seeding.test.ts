@@ -1,7 +1,7 @@
 // The seeding and clinch module (ADR 0005, #34): playoffs.md's seeding and
 // tiebreaks, the playoff picture, clinch marks and the seed check.
 import { describe, expect, test } from 'vitest';
-import { playoffPicture, type SeedingInput } from './seeding';
+import { clinchMarks, playoffPicture, type Mark, type Place, type SeedingInput } from './seeding';
 
 // Two divisions of four (A: 1-4, B: 5-8), a 3-team Playoffs (2 division
 // winners and 1 wildcard), a 2-team Mediocre Bowl and a 3-team Shit Bowl.
@@ -149,4 +149,144 @@ describe('the 2026 format', () => {
       'shit_bowl:4:4', 'shit_bowl:3:8', 'shit_bowl:2:12', 'shit_bowl:1:16',
     ]);
   });
+});
+
+// ---------- clinch and elimination marks ----------
+
+/** A seeded pseudo-random generator, so a failing case can be replayed. */
+function random(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** A round-robin schedule (the circle method) for an even number of franchises, week by week. */
+function roundRobin(ids: number[], weeks: number) {
+  const out: { home: number; away: number }[][] = [];
+  const ring = ids.slice(1);
+  for (let w = 0; w < weeks; w++) {
+    const order = [ids[0], ...ring];
+    out.push(Array.from({ length: ids.length / 2 }, (_, i) => ({ home: order[i], away: order[order.length - 1 - i] })));
+    ring.unshift(ring.pop()!);
+  }
+  return out;
+}
+
+const SIXTEEN = Array.from({ length: 16 }, (_, i) => ({ id: i + 1, division: 'ABCD'[Math.floor(i / 4)] }));
+const FORMAT_2026 = { playoffs: 7, mediocre_bowl: 2, shit_bowl: 7 };
+
+/**
+ * A season part-played at random, `left` of its weeks still to play. The
+ * stronger franchise usually wins, so some seasons are lopsided enough for
+ * marks to show.
+ */
+function partPlayed(
+  rand: () => number,
+  franchises: SeedingInput['franchises'],
+  brackets: SeedingInput['brackets'],
+  weeks: number,
+  left: number,
+): SeedingInput {
+  const strength = new Map(franchises.map((f) => [f.id, rand()]));
+  const schedule = roundRobin(franchises.map((f) => f.id), weeks);
+  const played = schedule
+    .slice(0, weeks - left)
+    .flat()
+    .map((g) => {
+      const favourite = strength.get(g.home)! > strength.get(g.away)! ? g.home : g.away;
+      return { ...g, winner: rand() < 0.85 ? favourite : favourite === g.home ? g.away : g.home };
+    });
+  const breakdown = Object.fromEntries(franchises.map((f) => [f.id, Math.round(rand() * 4) / 4]));
+  return { franchises, played, remaining: schedule.slice(weeks - left).flat(), breakdown, brackets };
+}
+
+/** One way the season could end: each remaining game won or lost, any Breakdown, any scissors-paper-rock. */
+function completion(rand: () => number, input: SeedingInput): SeedingInput {
+  const ids = input.franchises.map((f) => f.id);
+  return {
+    ...input,
+    played: [...input.played, ...input.remaining.map((g) => ({ ...g, winner: rand() < 0.5 ? g.home : g.away }))],
+    remaining: [],
+    // Breakdown moves with every remaining week's scores; once none remain it is final.
+    breakdown: input.remaining.length
+      ? Object.fromEntries(ids.map((f) => [f, Math.round(rand() * 4) / 4]))
+      : input.breakdown,
+    spr: [ids.map((f) => [f, rand()] as const).sort((a, b) => a[1] - b[1]).map(([f]) => f)],
+  };
+}
+
+/** The marks a completed season contradicts. */
+function contradictions(marks: Record<number, Mark[]>, done: SeedingInput) {
+  const divisions = new Set(done.franchises.map((f) => f.division)).size;
+  const byes = 2 ** Math.ceil(Math.log2(done.brackets.playoffs)) - done.brackets.playoffs;
+  const holds: Record<Mark, (p: Place) => boolean> = {
+    PLAYOFFS: (p) => p.bracket === 'playoffs',
+    DIVISION: (p) => p.bracket === 'playoffs' && p.seed <= divisions,
+    BYE: (p) => p.bracket === 'playoffs' && p.seed <= byes,
+    OUT: (p) => p.bracket !== 'playoffs',
+    SAFE: (p) => p.bracket !== 'shit_bowl',
+    'SHIT BOWL': (p) => p.bracket === 'shit_bowl',
+  };
+  return playoffPicture(done).flatMap((p) =>
+    (marks[p.franchise] ?? []).filter((m) => !holds[m](p)).map((m) => `${p.franchise} ${m} but ${p.bracket} ${p.seed}`),
+  );
+}
+
+describe('clinch marks', () => {
+  test('a franchise sure of seed 1 whatever happens shows BYE', () => {
+    // One game left, 1 v 5. 1 is 4-0 and every A rival 1-2; 5 (2-1) at best finishes 3-1, behind 1's 4-1.
+    const input = league(
+      [[1, 2], [1, 3], [1, 4], [1, 0], [2, 0], [0, 2], [3, 0], [0, 3], [4, 0], [0, 4],
+       [5, 0], [5, 0], [0, 5], [6, 0], [0, 6], [0, 7], [0, 7], [0, 8], [0, 8]],
+      { remaining: [{ home: 1, away: 5 }] },
+    );
+    expect(clinchMarks(input)[1]).toEqual(['BYE']);
+  });
+
+  test('on week 1 nothing is decided', () => {
+    const input = partPlayed(random(1), SIXTEEN, FORMAT_2026, 14, 14);
+    expect(Object.values(clinchMarks(input)).flat()).toEqual([]);
+  });
+
+  test('a finished regular season marks every franchise for the bracket it is in', () => {
+    const input = { ...partPlayed(random(2), SIXTEEN, FORMAT_2026, 14, 0), spr: [SIXTEEN.map((f) => f.id)] };
+    const marks = clinchMarks(input);
+    for (const p of playoffPicture(input)) {
+      const shown = marks[p.franchise];
+      if (p.bracket === 'playoffs') expect(shown).toEqual([p.seed === 1 ? 'BYE' : p.seed <= 4 ? 'DIVISION' : 'PLAYOFFS']);
+      else expect(shown).toEqual(p.bracket === 'shit_bowl' ? ['SHIT BOWL'] : ['OUT', 'SAFE']);
+    }
+  });
+
+  // The property: no mark is ever contradicted by any way the season could end.
+  const cases: [string, SeedingInput['franchises'], SeedingInput['brackets'], number, number, number][] = [
+    // name, franchises, brackets, regular-season weeks, weeks left, seasons to try
+    ['8 franchises, 1 week left, every outcome tried', twoDivisions(), SMALL, 7, 1, 60],
+    ['8 franchises, 2 weeks left, every outcome tried', twoDivisions(), SMALL, 7, 2, 60],
+    ['8 franchises, 4 weeks left, every outcome tried', twoDivisions(), SMALL, 14, 4, 10],
+    ['8 franchises, 5 weeks left, win bounds', twoDivisions(), SMALL, 14, 5, 60],
+    ['16 franchises, 1 week left, every outcome tried', SIXTEEN, FORMAT_2026, 14, 1, 30],
+    ['16 franchises, 2 weeks left, every outcome tried', SIXTEEN, FORMAT_2026, 14, 2, 3],
+    ['16 franchises, 3 weeks left, win bounds', SIXTEEN, FORMAT_2026, 14, 3, 60],
+    ['16 franchises, 4 weeks left, win bounds', SIXTEEN, FORMAT_2026, 14, 4, 60],
+  ];
+  test.each(cases)('no mark is ever contradicted: %s', (_name, franchises, brackets, weeks, left, seasons) => {
+    const rand = random(weeks * 100 + left);
+    let marked = 0;
+    for (let s = 0; s < seasons; s++) {
+      const input = partPlayed(rand, franchises, brackets, weeks, left);
+      const marks = clinchMarks(input);
+      marked += Object.values(marks).flat().length;
+      for (let c = 0; c < 200; c++) {
+        expect(contradictions(marks, completion(rand, input)), `season ${s}`).toEqual([]);
+      }
+    }
+    // The property says nothing if no franchise is ever marked.
+    expect(marked).toBeGreaterThan(0);
+  }, 120_000);
 });
