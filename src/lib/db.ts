@@ -2,7 +2,7 @@
 // and never derive figures of their own (ADR 0004).
 import { DatabaseSync } from 'node:sqlite';
 
-const DB_PATH = process.env.TLGFFL_DB ?? 'build/league.sqlite';
+export const DB_PATH = process.env.TLGFFL_DB ?? 'build/league.sqlite';
 
 let db: DatabaseSync | undefined;
 export function open(): DatabaseSync {

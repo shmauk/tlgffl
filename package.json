@@ -13,9 +13,11 @@
     "test:components": "vitest run"
   },
   "dependencies": {
-    "astro": "7.3.8"
+    "astro": "7.3.8",
+    "sql.js": "1.14.2"
   },
   "devDependencies": {
+    "@types/sql.js": "^1.4.11",
     "vitest": "^4.1.11"
   }
 }

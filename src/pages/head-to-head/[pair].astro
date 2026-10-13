@@ -9,6 +9,7 @@ import Notes from '../../components/Notes.astro';
 import Stats from '../../components/Stats.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
 import { headToHeads, pairGames, gapSeasons, type HeadToHead } from '../../lib/profiles';
 import { seasonLines } from '../../lib/db';
 import { headToHeadUrl } from '../../lib/urls';
@@ -40,6 +41,7 @@ const winner = (id: number | null) => (id === lo.id ? lo : id === hi.id ? hi : n
 <Base title={`${lo.name} v ${hi.name}`}>
   <Row label="Head-to-head">
     <h1><FranchiseLink franchise={lo} /> v <FranchiseLink franchise={hi} /></h1>
+    <StatsguruLink query={{ franchises: [lo.id], opponents: [hi.id] }} />
   </Row>
 
   <Row label="Record" sub={`${lo.name} first`}>

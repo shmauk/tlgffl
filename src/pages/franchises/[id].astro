@@ -13,6 +13,7 @@ import SeasonLink from '../../components/SeasonLink.astro';
 import SourceNote from '../../components/SourceNote.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
 import { franchises, teamNames, seasonLines, type Franchise, type BracketName } from '../../lib/db';
 import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
 import { headToHeadUrl } from '../../lib/urls';
@@ -109,6 +110,7 @@ const unscored = opponents.some((o) => o.scored < o.games);
       {' · '}{plural(c.seasons, 'season')}, <SeasonLink season={franchise.firstSeason} />–<SeasonLink season={franchise.lastSeason} />
     </p>
     {franchise.active && <p>Division: {c.currentDivision ?? 'not yet known for this season'}</p>}
+    <StatsguruLink query={{ franchises: [franchise.id] }} />
   </Row>
 
   <Row label="Team names">
