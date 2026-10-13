@@ -93,3 +93,45 @@ test('head-to-head pages open the pair in Statsguru', () => {
   for (const { a, b } of pairs)
     assert.match(read(`head-to-head/${a}-${b}/index.html`), new RegExp(`href="/statsguru/\\?f=${a}&(amp;)?opp=${b}"[^>]*>Open in Statsguru`), `${a}-${b}`);
 });
+
+test('the form has both subjects, each with its own views and filters', () => {
+  const html = read('statsguru/index.html');
+  assert.match(html, /<input[^>]*name="subject"[^>]*value="franchise"/);
+  assert.match(html, /<input[^>]*name="subject"[^>]*value="player"/);
+  for (const v of ['totals', 'season', 'opp', 'phase', 'pos', 'games'])
+    assert.match(html, new RegExp(`<input[^>]*name="view"[^>]*value="${v}"`), v);
+  for (const v of ['totals', 'fr', 'season', 'log'])
+    assert.match(html, new RegExp(`<input[^>]*name="pview"[^>]*value="${v}"`), v);
+  assert.match(html, /<select[^>]*name="by"[^>]*>[\s\S]*value="slot"/);
+  assert.match(html, /<select[^>]*name="lu"[^>]*>[\s\S]*value="start"[\s\S]*value="bench"/);
+  for (const pos of ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'])
+    assert.match(html, new RegExp(`<input[^>]*name="pos"[^>]*value="${pos}"`), pos);
+  const select = html.match(/<select[^>]*name="p"[^>]*>([\s\S]*?)<\/select>/)?.[1] ?? '';
+  const inLineups = db.prepare('select distinct nfl_player_id as id from lineups where nfl_player_id is not null').all();
+  assert.ok(inLineups.length > 0);
+  for (const { id } of inLineups) assert.match(select, new RegExp(`<option value="${id}"`), id);
+});
+
+test('every NFL player mention on the site links to their Statsguru query', () => {
+  const players = db.prepare("select id, name from nfl_players where name is not null and position != 'DEF'").all();
+  assert.ok(players.length > 0);
+  const names = new Map(players.map((p) => [p.name, p.id]));
+  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`\\b(${players.map((p) => escape(p.name)).join('|')})\\b`, 'g');
+  // Team names may borrow an NFL player's name ("My Ball Zach Ertz"); that isn't a mention.
+  const teamNames = db.prepare('select team_name as n from team_names union select name from franchises').all().map((r) => r.n);
+  const teamPattern = new RegExp(teamNames.sort((a, b) => b.length - a.length).map(escape).join('|'), 'g');
+  for (const page of files.filter((f) => f.endsWith('.html'))) {
+    // The Statsguru form's own lists aren't mentions either.
+    let html = decode(readFileSync(page, 'utf8'))
+      .replace(/<option[^>]*>[\s\S]*?<\/option>/g, '')
+      .replace(/data-context="[^"]*"/g, '')
+      .replace(teamPattern, '');
+    html = html.replace(/<a class="pl" href="([^"]*)"[^>]*>([^<]*)<\/a>/g, (_, href, text) => {
+      if (names.has(text)) assert.equal(href, `/statsguru/?sub=player&p=${names.get(text)}`, `${page}: ${text}`);
+      return '';
+    });
+    const unlinked = html.match(pattern);
+    assert.equal(unlinked, null, `${page} names ${unlinked?.join(', ')} without linking them`);
+  }
+});

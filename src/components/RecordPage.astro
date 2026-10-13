@@ -11,7 +11,8 @@ import Marker from './Marker.astro';
 import Notes from './Notes.astro';
 import FranchiseLink from './FranchiseLink.astro';
 import SeasonLink from './SeasonLink.astro';
-import { categoryOf, ERA_NAMES, PHASE_NAMES, type Era, type PhaseFilter } from '../lib/records/catalogue';
+import NflPlayerLink from './NflPlayerLink.astro';
+import { categoryOf, ERA_NAMES, PHASE_NAMES, type Era, type PhaseFilter, type Unit } from '../lib/records/catalogue';
 import type { Entry, RecordFranchise, RecordView } from '../lib/records/records';
 import { headToHeadUrl, recordUrl, statsguruUrl } from '../lib/urls';
 import { holders as holdersOf } from '../lib/records/held';
@@ -24,20 +25,41 @@ const { def, era, phase, entries } = view;
 
 const href = (e: Era, p: PhaseFilter) =>
   recordUrl(def.slug, e === def.eras[0] && p === def.phases[0] ? undefined : { era: e, phase: p });
-const figure = (v: number) => (def.unit === 'points' ? v.toFixed(2) : def.unit === 'pct' ? (v * 100).toFixed(1) : String(v));
+const format = (v: number | null | undefined, unit: Unit) =>
+  v == null
+    ? '–'
+    : unit === 'points'
+      ? v.toFixed(2)
+      : unit === 'pct'
+        ? (v * 100).toFixed(1)
+        : unit === 'luck'
+          ? `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}`
+          : String(v);
+const figure = (v: number) => format(v, def.unit);
+const SEASON_HEADINGS: Record<string, string> = {
+  wins: 'Wins', points_for: 'PF', points_against: 'PA', points_for_per_game: 'PF per game', breakdown_pct: 'Breakdown %',
+  luck: 'Luck',
+};
 const heading = def.heading ??
   (def.kind === 'streak'
     ? def.table === 'top_half' ? 'Weeks' : 'Games'
+    : def.kind === 'season'
+      ? SEASON_HEADINGS[def.column!]
+    : def.kind === 'tally'
+      ? 'Total'
+    : def.kind === 'run'
+      ? 'Seasons'
     : def.kind === 'career'
       ? { count: 'Wins', pct: 'Win %', points: 'PF per game' }[def.unit]
       : def.statsguru?.sort?.key === 'mar' ? 'Margin' : 'Points');
 const score = (e: Entry) => `${e.score![0].toFixed(2)}–${e.score![1].toFixed(2)}`;
 const holders = (e: Entry): RecordFranchise[] => holdersOf(def, e);
-const player = (e: Entry) =>
-  e.player!.name === null ? `Unknown NFL player (Sleeper id ${e.player!.id})` : `${e.player!.name}${e.player!.position ? `, ${e.player!.position}` : ''}`;
 const empty =
   def.rate || def.kind === 'rivalry' ? 'No franchise qualifies yet.' : def.table === 'ties' ? 'No game has been tied.' : 'No entries yet.';
-const variantName = `${def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]} only`} · ${def.phases.length > 1 ? PHASE_NAMES[phase] : 'Regular season only'}`;
+const phaseName = def.phases.length > 1 ? PHASE_NAMES[phase] : phase === 'regular' ? 'Regular season only' : null;
+// A record kept in one era only (the Sleeper era's) has no era filter.
+const eraName = def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]} only`;
+const variantName = phaseName ? `${eraName} · ${phaseName}` : eraName;
 ---
 
 <Base title={`${def.name}${era === 'all' && phase === def.phases[0] ? '' : ` (${variantName})`}`}>
@@ -79,6 +101,9 @@ const variantName = `${def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]}
               {def.kind === 'division' && <><th>Division</th><th>Season</th><th>Lineage</th><th>Franchises</th><th class="num">W-L-T</th><th class="num">PF</th></>}
               {def.kind === 'lineup' && <><th>Franchise</th>{def.measure === 'player' && <th>NFL player</th>}<th>Opponent</th><th>Game</th></>}
               {def.kind === 'lineup-season' && <><th>Franchise</th><th>Season</th><th class="num">GP</th></>}
+              {def.kind === 'season' && <><th>Franchise</th><th>Season</th><th class="num">W-L-T</th>{def.alongside!.map((a) => <th class="num">{a.label}</th>)}</>}
+              {def.kind === 'tally' && <><th>Franchise</th><th>Seasons</th></>}
+              {def.kind === 'run' && <><th>Franchise</th><th>From</th><th>To</th></>}
             </tr>
           </thead>
           <tbody>
@@ -128,7 +153,7 @@ const variantName = `${def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]}
                 )}
                 {def.kind === 'lineup' && (
                   <>
-                    {def.measure === 'player' && <td>{player(e)}</td>}
+                    {def.measure === 'player' && <td><NflPlayerLink player={e.player!} />{e.player!.position && `, ${e.player!.position}`}</td>}
                     <td><FranchiseLink franchise={e.opponent!} /></td>
                     <td><SeasonLink season={e.at!.season} week={e.at!.week} /></td>
                   </>
@@ -144,6 +169,22 @@ const variantName = `${def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]}
                     <td><SeasonLink season={e.seasons![0]} />–<SeasonLink season={e.seasons![1]} /></td>
                     <td class="num">{e.games}</td>
                     <td class="num">{e.wlt!.join('-')}</td>
+                  </>
+                )}
+                {def.kind === 'season' && (
+                  <>
+                    <td><SeasonLink season={e.season!} /></td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                    {def.alongside!.map((a, n) => <td class="num">{format(e.alongside![n], a.unit)}</td>)}
+                  </>
+                )}
+                {def.kind === 'tally' && (
+                  <td>{e.list!.map((s, n) => <>{n > 0 && ', '}<SeasonLink season={s} /></>)}</td>
+                )}
+                {def.kind === 'run' && (
+                  <>
+                    <td><SeasonLink season={e.span![0]} /></td>
+                    <td><SeasonLink season={e.span![1]} />{e.ongoing && ' (ongoing)'}</td>
                   </>
                 )}
                 {def.kind === 'streak' && (

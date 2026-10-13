@@ -27,7 +27,7 @@ function readForm(form: HTMLFormElement): Fields {
 function fillForm(form: HTMLFormElement, fields: Fields) {
   for (const el of Array.from(form.elements) as HTMLInputElement[]) {
     const values = fields[el.name];
-    if (!values || el.name === 'subject') continue;
+    if (!values) continue;
     if (el instanceof HTMLSelectElement && el.multiple)
       for (const o of Array.from(el.options)) o.selected = values.includes(o.value);
     else if (el.type === 'checkbox' || el.type === 'radio') el.checked = values.includes(el.value);
@@ -37,16 +37,24 @@ function fillForm(form: HTMLFormElement, fields: Fields) {
 
 export function start(root: HTMLElement) {
   const ctx = JSON.parse(root.dataset.context!) as FormContext & Context;
-  const context: Context = { franchises: ctx.franchises, seasons: ctx.seasons.map((s) => s.year) };
+  const context: Context = { franchises: ctx.franchises, seasons: ctx.seasons.map((s) => s.year), players: ctx.players };
   const form = root.querySelector<HTMLFormElement>('#sg-form')!;
   const queryRow = root.querySelector<HTMLElement>('#sg-query')!;
   const edit = root.querySelector<HTMLAnchorElement>('#sg-edit')!;
   const results = root.querySelector<HTMLElement>('#sg-results')!;
   const said = root.querySelector<HTMLElement>('#sg-summary')!;
 
+  // Each subject shows only its own views and filters.
+  const subject = () => (form.querySelector<HTMLInputElement>('input[name="subject"]:checked')?.value ?? 'franchise');
+  const showSubject = () => {
+    for (const el of root.querySelectorAll<HTMLElement>('[data-subject]')) el.hidden = el.dataset.subject !== subject();
+  };
+  for (const r of form.querySelectorAll('input[name="subject"]')) r.addEventListener('change', showSubject);
+
   async function render() {
     const q = decodeQuery(location.search);
     fillForm(form, formValues(q, ctx));
+    showSubject();
     said.textContent = summary(q, context);
     // A blank URL opens on the form; a query opens on its results.
     const asked = location.search.length > 1;
@@ -70,7 +78,10 @@ export function start(root: HTMLElement) {
     e.preventDefault();
     go(encodeQuery(queryFromForm(readForm(form), ctx)));
   });
-  root.querySelector('#sg-reset')!.addEventListener('click', () => fillForm(form, formValues(DEFAULT_QUERY, ctx)));
+  // Reset the whole query but keep the subject (#9).
+  root.querySelector('#sg-reset')!.addEventListener('click', () =>
+    fillForm(form, formValues({ ...DEFAULT_QUERY, subject: subject() === 'player' ? 'player' : 'franchise' }, ctx)),
+  );
   for (const a of root.querySelectorAll<HTMLAnchorElement>('[data-clear]'))
     a.addEventListener('click', (e) => {
       e.preventDefault();

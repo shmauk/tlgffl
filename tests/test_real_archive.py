@@ -243,3 +243,15 @@ def test_every_division_since_2015_resolves_to_a_lineage_within_its_realignment(
                        "group by lineage having count(*) > 1 order by 2, 1").fetchall()
     assert {(lo, hi) for _, lo, hi in spans if lo < 2025} == {(2023, 2024)}
     assert len([s for s in spans if s[1] == 2023]) == 4
+def test_each_award_exists_for_exactly_its_seasons(db):
+    # #33: game awards 2012-21 and 2025 (fully covered seasons); Pick a Lane
+    # 2012 on; the Sleeper-only awards 2025 on. 2026's regular season isn't over.
+    games, everything = [*range(2012, 2022), 2025], list(range(2012, 2026))
+    seasons = {slug: sorted(s for (s,) in db.execute(
+        "select distinct season from award_results where award = ?", (slug,)))
+        for (slug,) in db.execute("select slug from awards").fetchall()}
+    assert seasons == {"nail-biter": games, "standard-deviation": games, "heartbreaker": games,
+                       "lucky-duck": games, "pick-a-lane": everything, "one-man-army": [2025],
+                       "draft-dodger": [], "highest-failed-bid": [2025], "most-overpaid": [2025]}
+    # Draft Dodger needs 2025's keeper list (#37).
+    assert db.execute("select award, season from award_unknowns").fetchall() == [("draft-dodger", 2025)]

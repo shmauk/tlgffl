@@ -1,6 +1,6 @@
 ---
-// /franchises/<id>/ (#7, #14, #27): the franchise profile. Sections 6 (award
-// tally) and 10 (Sleeper era) are later tickets; 7 (records held) is #32's. Managers
+// /franchises/<id>/ (#7, #14, #27): the franchise profile. Section 6, the award
+// tally, is #33's; 7 (records held) #32's; 10 (Sleeper era) is a later ticket. Managers
 // are never shown. Gaps follow ADR 0001: reported season lines carry †,
 // lost bracket scores ‡, figures over scored games only *.
 import Base from '../../layouts/Base.astro';
@@ -13,6 +13,7 @@ import SeasonLink from '../../components/SeasonLink.astro';
 import SourceNote from '../../components/SourceNote.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
+import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
 import { franchises, teamNames, seasonLines, type Franchise, type BracketName } from '../../lib/db';
 import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
@@ -20,6 +21,8 @@ import { headToHeadUrl, recordUrl } from '../../lib/urls';
 import { categoryOf } from '../../lib/records/catalogue';
 import { figureText, recordsHeld } from '../../lib/records/held';
 import { siteDb } from '../../lib/records/site';
+import AwardLink from '../../components/AwardLink.astro';
+import { awards, awardWinners } from '../../lib/awards';
 
 export function getStaticPaths() {
   return franchises().map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
@@ -37,6 +40,11 @@ const gaps = gapSeasons();
 const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
 const best = bestAndWorst(id);
 const held = recordsHeld(siteDb, id);
+// Section 6, the award tally (#33): each award won, with the seasons.
+const myAwards = awardWinners({ franchiseId: id });
+const tally = awards()
+  .map((award) => ({ award, seasons: myAwards.filter((w) => w.award === award.slug).map((w) => w.season) }))
+  .filter((t) => t.seasons.length > 0);
 
 const reported = 'As NFL.com reported it';
 const lost = 'Score is lost';
@@ -220,8 +228,32 @@ const unscored = opponents.some((o) => o.scored < o.games);
     />
   </Row>
 
-  <Row label="Awards">
-    <p>The award tally is still to come.</p>
+  <Row label="Awards" sub="Award tally">
+    {
+      tally.length === 0 ? (
+        <p>No awards yet.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Award</th><th class="num">Won</th><th>Seasons</th></tr></thead>
+          <tbody>
+            {tally.map(({ award, seasons }) => (
+              <tr>
+                <td><AwardLink award={award} /></td>
+                <td class="num">{seasons.length}</td>
+                <td>
+                  {seasons.map((s, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <SeasonLink season={s} />
+                    </>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   </Row>
 
   <Row label="Records held" sub="Top 10 entries">
@@ -248,7 +280,7 @@ const unscored = opponents.some((o) => o.scored < o.games);
                     e.seasons[0] === e.seasons[1] ? <SeasonLink season={e.seasons[0]} /> : <><SeasonLink season={e.seasons[0]} />–<SeasonLink season={e.seasons[1]} /></>
                   ) : null}
                   {e.opponent && <> v <FranchiseLink franchise={e.opponent.id === id ? e.franchise : e.opponent} /></>}
-                  {e.player && <> · {e.player.name ?? 'Unknown NFL player'}</>}
+                  {e.player && <> · <NflPlayerLink player={e.player} /></>}
                   {e.thisSeason && <Badge kind="this-season" />}
                 </td>
               </tr>

@@ -1,0 +1,11 @@
+---
+// Every NFL player mention on the site links to their Statsguru query (#29):
+// there are no NFL-player pages (#14).
+import { nflPlayerName, nflPlayerUrl } from '../lib/urls';
+interface Props {
+  player: { id: string; name: string | null };
+}
+const { player } = Astro.props;
+---
+
+<a class="pl" href={nflPlayerUrl(player.id)}>{nflPlayerName(player)}</a>

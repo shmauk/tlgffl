@@ -1,0 +1,49 @@
+---
+// /seasons/awards/ (#8, #33): every award's definition and the seasons it was
+// given in. There is no all-time award leaderboard.
+import Base from '../../../layouts/Base.astro';
+import Row from '../../../components/Row.astro';
+import AwardLink from '../../../components/AwardLink.astro';
+import Notes from '../../../components/Notes.astro';
+import { awards, awardSeasons, awardUnknowns, seasonRuns } from '../../../lib/awards';
+
+const unknowns = awardUnknowns();
+---
+
+<Base title="Awards">
+  <Row label="Seasons" sub="Awards">
+    <h1>Awards</h1>
+    <p>
+      Light-hearted titles, one per award each season, decided when the regular season ends. Tied
+      franchises are co-winners.
+    </p>
+  </Row>
+  <Row label="Every award">
+    <table class="t">
+      <thead><tr><th>Award</th><th>Goes to</th><th>Seasons</th></tr></thead>
+      <tbody>
+        {
+          awards().map((a) => {
+            const unknown = unknowns.filter((u) => u.award === a.slug).map((u) => u.season);
+            return (
+              <tr>
+                <td><AwardLink award={a} /></td>
+                <td>{a.definition}</td>
+                <td>
+                  {seasonRuns(awardSeasons(a.slug)) || 'None yet'}
+                  {unknown.length > 0 && <p class="sub">Unknown: {seasonRuns(unknown)}</p>}
+                </td>
+              </tr>
+            );
+          })
+        }
+      </tbody>
+    </table>
+    <Notes
+      notes={[
+        { text: 'A season an award has no data for has no winner: it is left out, never counted as zero.' },
+        ...(unknowns.length ? [{ text: 'Unknown: the award is due, but the data to decide it isn’t recorded yet.' }] : []),
+      ]}
+    />
+  </Row>
+</Base>

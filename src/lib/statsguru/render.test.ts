@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { GameRow, GapRow, GroupRow, QueryResult } from './engine';
+import type { GameRow, GapRow, GroupRow, PerformanceRow, PlayerRow, PositionRow, QueryResult } from './engine';
 import { DEFAULT_QUERY, type Query } from './query';
 import { renderResults, summary } from './render';
 
@@ -103,5 +103,90 @@ describe('gap markers', () => {
     expect(rows[1]).toMatch(/5-0-0/);
     expect(marks(rows[1])).toEqual(['†']);
     expect(marks(rows[2])).toEqual(['§']);
+  });
+});
+
+const ALLEN = { id: '4984', name: 'Josh Allen', position: 'QB' };
+const UNKNOWN = { id: '999', name: null, position: null };
+const position = (patch: Partial<PositionRow>): PositionRow => ({
+  kind: 'position', franchise: SERP, pos: 'QB', gp: 14, st: 14, spts: 231.36, ppg: 16.53, avg: 16.53,
+  share: 0.18355, rank: 13, bpts: 0, best: 29.36, ...patch,
+});
+const player = (patch: Partial<PlayerRow>): PlayerRow => ({
+  kind: 'player', player: ALLEN, franchise: null, season: null,
+  ro: 14, st: 13, spts: 310.02, avg: 23.85, bpts: 0, best: 42.68, nfr: 1, ...patch,
+});
+const LINEUPS = [{ kind: 'lineups' }] as QueryResult['notes'];
+
+describe('the by-position view', () => {
+  test('one row per franchise and position, with its share as a percentage and its league rank', () => {
+    const out = html([position({})], q({ view: 'pos' }), LINEUPS);
+    expect(cells(out).map((c) => c.replace(/<[^>]+>/g, ''))).toEqual([
+      'SERPION', 'QB', '14', '14', '231.36', '16.53', '16.53', '18.4', '13', '0.00', '29.36',
+    ]);
+    expect(out).toMatch(/<th[^>]*><a[^>]*>Position/);
+  });
+
+  test('grouped by lineup slot, the column says so; FLEX has no bench', () => {
+    const out = html([position({ pos: 'FLEX', bpts: null })], q({ view: 'pos', grouping: 'slot' }), LINEUPS);
+    expect(out).toMatch(/<th[^>]*><a[^>]*>Slot/);
+    expect(cells(out)[9]).toBe('');
+  });
+
+  test('NFL players of unknown position are a row of their own', () => {
+    expect(cells(html([position({ pos: null })], q({ view: 'pos' }), LINEUPS))[1]).toBe('Unknown');
+  });
+});
+
+describe('the NFL-player subject', () => {
+  const pq = (patch: Partial<Query>) => q({ subject: 'player', ...patch });
+
+  test('NFL players link to their own query; one no snapshot knows says so', () => {
+    const out = html([player({}), player({ player: UNKNOWN })], pq({}), LINEUPS);
+    expect(out).toContain('<a class="pl" href="/statsguru/?sub=player&amp;p=4984">Josh Allen</a>');
+    expect(out).toContain('<a class="pl" href="/statsguru/?sub=player&amp;p=999">Unknown NFL player (Sleeper id 999)</a>');
+    expect(cells(out).slice(0, 9).map((c) => c.replace(/<[^>]+>/g, ''))).toEqual([
+      'Josh Allen', 'QB', '14', '13', '310.02', '23.85', '0.00', '42.68', '1',
+    ]);
+  });
+
+  test('every column header sorts, within the subject', () => {
+    const out = html([player({})], pq({ view: 'fr' }), LINEUPS);
+    const heads = [...out.matchAll(/<th[^>]*><a href="([^"]*)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
+    expect(heads[0]).toBe('?sub=player&view=fr&sort=pl.asc');
+    expect(heads).toContain('?sub=player&view=fr&sort=best.desc');
+  });
+
+  test('a performance log line', () => {
+    const line: PerformanceRow = {
+      kind: 'performance', season: 2025, week: 5, phase: 'R', player: ALLEN, franchise: SERP, opponent: CATS,
+      slot: 'BN', starter: false, points: 20.1,
+    };
+    const c = cells(html([line], pq({ view: 'log' }), LINEUPS)).map((x) => x.replace(/<[^>]+>/g, ''));
+    expect(c).toEqual(['2025', '5', 'Regular season', 'Josh Allen', 'QB', 'SERPION', 'Not Enough Cooks', 'Bench', '20.10']);
+  });
+
+  test('the summary says what is counted, in words', () => {
+    expect(summary(pq({}), CTX)).toBe('NFL players · all seasons · regular season · totals per NFL player');
+    expect(
+      summary(pq({ players: ['4984'], positions: ['QB', 'WR'], lineup: 'start', franchises: [8], opponents: [17], minGames: 3, view: 'fr' }), {
+        ...CTX,
+        players: [ALLEN],
+      }),
+    ).toBe('Josh Allen · QB, WR · started · rostered by SERPION · v Not Enough Cooks · all seasons · regular season · at least 3 games rostered · per NFL player per franchise');
+  });
+});
+
+describe('lineups only exist from 2025 (¶)', () => {
+  test('every lineup query carries ¶, explained in the notes', () => {
+    const out = html([player({})], q({ subject: 'player' }), LINEUPS);
+    expect(marks(out.split('class="notes"')[0])).toContain('¶');
+    expect(out.split('class="notes"')[1]).toMatch(/<span class="g">¶<\/span>[^<]*2025/);
+  });
+
+  test('an NFL.com-era scope explains itself rather than showing an empty table', () => {
+    const out = html([], q({ subject: 'player', seasons: [2015] }), [{ kind: 'beforeLineups', firstSeason: 2025 }]);
+    expect(out).not.toContain('<table');
+    expect(out).toMatch(/NFL player data starts in 2025/);
   });
 });

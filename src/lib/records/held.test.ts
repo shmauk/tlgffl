@@ -44,7 +44,8 @@ describe('records held', () => {
       }
     }
     expect(holdings.some((h) => h.def.all)).toBe(false);
-    for (const slug of ['most-lopsided-rivalry', 'group-of-death', 'weakest-division-by-wins', 'best-nfl-player-score',
+    // One record from each category beyond scoring and results.
+    for (const slug of ['most-wins', 'luckiest-season', 'championships', 'most-lopsided-rivalry', 'group-of-death', 'weakest-division-by-wins', 'best-nfl-player-score',
       'most-bench-points-in-a-game', 'most-bench-points-in-a-season'])
       expect(holdings.some((h) => h.def.slug === slug), slug).toBe(true);
   });
