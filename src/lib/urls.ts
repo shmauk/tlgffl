@@ -7,6 +7,9 @@ export const seasonUrl = (season: number, week?: number) =>
   `/seasons/${season}/${week === undefined ? '' : `#week-${week}`}`;
 /** A pair page always puts the lower franchise id first (#14). */
 export const headToHeadUrl = (a: number, b: number) => `/head-to-head/${Math.min(a, b)}-${Math.max(a, b)}/`;
+/** A record's own page, or one of its pre-rendered era and phase variants (#14). */
+export const recordUrl = (slug: string, variant?: { era: string; phase: string }) =>
+  `/records/${slug}/${variant ? `${variant.era}/${variant.phase}/` : ''}`;
 export const awardUrl = (slug: string) => `/seasons/awards/${slug}/`;
 /** A prefilled Statsguru query: `{ franchises: [5], opponents: [9] }` -> /statsguru/?f=5&opp=9 */
 export const statsguruUrl = (query: Partial<Query> = {}) => {

@@ -1,0 +1,15 @@
+---
+// /records/<slug>/ (#14, #30): one record over its default era and phase.
+import RecordPage from '../../components/RecordPage.astro';
+import { RECORDS, type RecordDef } from '../../lib/records/catalogue';
+import { recordView } from '../../lib/records/records';
+import { siteDb } from '../../lib/records/site';
+
+export function getStaticPaths() {
+  return RECORDS.map((def) => ({ params: { slug: def.slug }, props: { def } }));
+}
+
+const { def } = Astro.props as { def: RecordDef };
+---
+
+<RecordPage view={recordView(siteDb, def, def.eras[0], def.phases[0])} />
