@@ -167,3 +167,32 @@ def write_sleeper_brackets(data: Path, rows):
 def write_sleeper_adjustments(data: Path, rows):
     """The hand-kept roster-total explanations: (season, roster, week, points, reason)."""
     write_csv(data / "sleeper_adjustments.csv", ["season", "roster_id", "week", "points", "reason"], rows)
+
+
+def write_sleeper_draft(data: Path, year: int, slots, picks, traded=(), positions=None):
+    """A Sleeper draft, as the snapshots hold it. slots: {draft slot: roster
+    whose slot it is}. picks: (round, draft slot, roster that made the pick,
+    NFL player id), in pick order. traded: (round, slot's roster, roster that
+    owns the pick), as the league's traded_picks. positions: {NFL player: position}."""
+    sleeper = data / "sleeper"
+    sleeper.mkdir(parents=True, exist_ok=True)
+    draft = {"draft_id": f"D{year}", "season": str(year), "status": "complete",
+             "draft_order": {f"9{r:05d}": s for s, r in slots.items()},
+             "slot_to_roster_id": {str(s): r for s, r in slots.items()}}
+    (sleeper / f"{year}-drafts.json").write_text(json.dumps(
+        [{k: v for k, v in draft.items() if k != "slot_to_roster_id"}]))
+    (sleeper / f"{year}-draft.json").write_text(json.dumps(draft))
+    positions = positions or {}
+    (sleeper / f"{year}-draft_picks.json").write_text(json.dumps([
+        {"draft_id": f"D{year}", "pick_no": n, "round": rnd, "draft_slot": slot, "roster_id": roster,
+         "picked_by": f"9{roster:05d}", "player_id": pid, "is_keeper": None,
+         "metadata": {"position": positions.get(pid, "RB")}}
+        for n, (rnd, slot, roster, pid) in enumerate(picks, start=1)]))
+    (sleeper / f"{year}-traded_picks.json").write_text(json.dumps([
+        {"season": str(year), "round": rnd, "roster_id": original, "owner_id": owner,
+         "previous_owner_id": original} for rnd, original, owner in traded]))
+
+
+def write_keepers(data: Path, rows):
+    """The hand-kept keepers: (season, franchise id, NFL player id, round)."""
+    write_csv(data / "keepers.csv", ["season", "franchise_id", "nfl_player_id", "round"], rows)

@@ -244,3 +244,12 @@ def test_each_award_exists_for_exactly_its_seasons(db):
                        "draft-dodger": [], "highest-failed-bid": [2025], "most-overpaid": [2025]}
     # Draft Dodger needs 2025's keeper list (#37).
     assert db.execute("select award, season from award_unknowns").fetchall() == [("draft-dodger", 2025)]
+
+
+def test_both_sleeper_drafts_have_every_pick_and_their_traded_picks(db):
+    # 16 slots x 14 rounds. Traded picks used by a franchise other than the
+    # slot's: 2025 had 44; 2026's draft (5 September) had 4.
+    assert db.execute("select season, count(*), sum(slot_franchise_id != franchise_id) from draft_picks "
+                      "where season in (2025, 2026) group by season").fetchall() == [(2025, 224, 44), (2026, 224, 4)]
+    assert db.execute("select count(*) from draft_picks d join nfl_players p on p.id = d.nfl_player_id "
+                      "where p.name is null").fetchone() == (0,)
