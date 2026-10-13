@@ -116,6 +116,17 @@ def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
                       "and season <= 2024").fetchone() == (0,)
 
 
+def test_2025s_roster_totals_agree_with_the_games_but_for_one_explained_gap(db):
+    # Building at all proves the cross-check passed. Sleeper's total for the
+    # Beer Barons kept a 6-point return TD the league doesn't score.
+    from recordbook.build import read_csv
+    entries = [r for r in read_csv(DATA / "sleeper_adjustments.csv") if r["season"] == "2025"]
+    assert [(r["roster_id"], r["week"], float(r["points"])) for r in entries] == [("11", "9", 6.0)]
+    assert db.execute("select l.wins, l.losses, l.points_for from season_lines l "
+                      "join franchises f on f.id = l.franchise_id "
+                      "where l.season = 2025 and f.name = 'The Beer Barons'").fetchall() == [(9, 5, 1385.04)]
+
+
 def test_2025s_games_follow_the_hand_kept_bracket_assignment(db):
     # Sleeper made 6, 7 and 6 pairings in weeks 15-17; 6 of them are filler.
     assert db.execute("select week, bracket, count(*) from games where season = 2025 and phase = 'bracket' "
@@ -130,6 +141,11 @@ def test_2025s_games_follow_the_hand_kept_bracket_assignment(db):
         "where g.season = 2025 and g.bracket = 'playoffs' and g.round = 3").fetchall() == [
         ("Seamen", 93.6, 90.14)]
     assert db.execute("select count(*) from games where season = 2025").fetchone() == (8 * 14 + 13,)
+    assert db.execute("select w.bracket, f.name, w.source from bracket_winners w "
+                      "join franchises f on f.id = w.franchise_id where w.season = 2025 "
+                      "order by w.bracket").fetchall() == [
+        ("mediocre_bowl", "Standard Deviations", "derived"), ("playoffs", "Seamen", "derived"),
+        ("shit_bowl", "Yorkshire Puddings", "derived")]
 
 
 def test_every_nfl_com_season_crowns_a_champion_and_a_shit_bowl_winner(db):

@@ -1,0 +1,12 @@
+# Why Sleeper's roster season totals differ from the games. Hand-kept.
+#
+# Sleeper-era season lines always come from the games (ADR 0001, Sleeper era):
+# each game's score is its matchup points, or the commissioner's
+# custom_points. Sleeper's roster totals (settings.fpts) are only a cross-check.
+# A W-L-T mismatch always fails the build. A points-for mismatch fails it
+# unless the entries here for that season and roster add up to exactly the gap
+# (roster total minus the games), and an entry where there is no gap fails it
+# too, so this list can't go stale. points is that gap; week and reason say
+# where it came from.
+season,roster_id,week,points,reason
+2025,11,9,6.0,"Sleeper's total kept 6 points for a special-teams return TD that the league's scoring doesn't count (#12)"

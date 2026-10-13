@@ -332,9 +332,16 @@ def build(data, out):
     if disagreements:
         raise BuildError("the games and NFL.com's reported season lines disagree (ADR 0001):\n  "
                          + "\n  ".join(disagreements))
+    explained = sleeperlib.read_explanations(read_optional_csv(data / "sleeper_adjustments.csv"))
+    problems = []
     for year, (lg, rosters) in sorted(sleeper.items()):
-        season_lines += sleeperlib.season_lines(year, games, lg, rosters,
-                                                lambda r, y=year: sleeper_franchise(y, r))
+        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
+        lines_of_year = sleeperlib.season_lines(year, games, lg, rosters, of)
+        problems += sleeperlib.cross_check(year, lg, rosters, lines_of_year, of, explained.get(year, {}))
+        season_lines += lines_of_year
+    if problems:
+        raise BuildError("Sleeper's roster totals and the games disagree (ADR 0001, Sleeper era):\n  "
+                         + "\n  ".join(problems))
 
     all_ids = sorted(set(keys.values()))
     current = max(year for year, _, _ in seasons)
@@ -348,10 +355,12 @@ def build(data, out):
     format_rows, bracket_rows = season_format_rows(formats)
     hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
     try:
-        winners = bracketlib.winner_rows(games, formats, nfl, hand_kept,
+        winners = bracketlib.winner_rows([g for g in games if g.season in nfl], formats, nfl, hand_kept,
                                          {name: fid for fid, name, *_ in franchises})
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
+    for year in sorted(sleeper):
+        winners += sleeperlib.crowns(year, games, formats[year])
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))

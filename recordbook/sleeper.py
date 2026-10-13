@@ -125,10 +125,16 @@ def season_games(year, league, weeks, fmt, franchise_of, assigned):
 def season_lines(year, games, league, rosters, franchise_of):
     """Season-line rows (franchise, season, 'derived', W, L, T, PF, PA,
     division, seed, bracket, placing, Breakdown W, L, T, luck), always derived
-    from the season's games (ADR 0001, Sleeper era)."""
+    from the season's games (ADR 0001, Sleeper era). bracket is the league
+    bracket the franchise played in; seed and final placing are left to the
+    seeding module (ADR 0005)."""
     results = regular_season_results(games, {year})
     breakdowns = breakdown(games, {year})
     names = league.get("metadata") or {}
+    brackets = {}
+    for g in sorted((g for g in games if g.season == year and g.bracket), key=lambda g: g.week):
+        brackets.setdefault(g.home, g.bracket)
+        brackets.setdefault(g.away, g.bracket)
     rows = []
     for r in rosters:
         fid = franchise_of(r["roster_id"])
@@ -136,5 +142,85 @@ def season_lines(year, games, league, rosters, franchise_of):
         bd = breakdowns.get((fid, year), (None, None, None))
         luck = win_pct(w, l, t) - win_pct(*bd) if w + l + t and bd[0] is not None else None
         division = names.get(f"division_{(r.get('settings') or {}).get('division')}")
-        rows.append((fid, year, "derived", w, l, t, pf, pa, division, None, None, None, *bd, luck))
+        rows.append((fid, year, "derived", w, l, t, pf, pa, division, None, brackets.get(fid), None, *bd, luck))
     return rows
+
+
+def crowns(year, games, fmt):
+    """bracket_winners rows (season, bracket, franchise, 'derived') for each
+    of the season's brackets whose last week has been played.
+
+    A bracket's last round decides it: in a series, on games won (a tie
+    counting half) and then total points. The Playoffs and the Mediocre Bowl
+    crown the franchise on top; the Shit Bowl, where losing advances you,
+    crowns the one at the bottom.
+    """
+    rows = []
+    for name, b in fmt.brackets.items():
+        played = [g for g in games if g.season == year and g.bracket == name]
+        if not any(g.week == b.last_week for g in played):
+            continue
+        last = max(g.round for g in played)
+        standing = defaultdict(lambda: [0.0, 0.0])
+        for g in played:
+            if g.round != last:
+                continue
+            for me, pts in ((g.home, g.home_points), (g.away, g.away_points)):
+                standing[me][0] += 1 if g.winner == me else 0.5 if g.winner is None else 0
+                standing[me][1] += pts
+        pick = min if name == "shit_bowl" else max
+        rows.append((year, name, pick(standing, key=lambda f: tuple(standing[f])), "derived"))
+    return sorted(rows)
+
+
+ADJUSTMENTS = "data/sleeper_adjustments.csv"
+
+
+def roster_total(r):
+    """Sleeper's season points-for total for a roster."""
+    s = r.get("settings") or {}
+    return round((s.get("fpts") or 0) + (s.get("fpts_decimal") or 0) / 100, 2)
+
+
+def read_explanations(rows):
+    """{season: {roster: points}} from the hand-kept roster-total explanations."""
+    out = defaultdict(lambda: defaultdict(float))
+    for r in rows:
+        out[int(r["season"])][int(r["roster_id"])] += float(r["points"])
+    return out
+
+
+def cross_check(year, league, rosters, lines, franchise_of, explained):
+    """Problems with Sleeper's roster season totals against the season lines
+    derived from games (ADR 0001, Sleeper era), each a sentence.
+
+    W-L-T must agree. Points for must agree, or differ by exactly the amount
+    explained ({roster: points}, from the hand-kept explanations); an
+    explanation where there is no gap is stale. Mid-season, Sleeper's totals
+    can count a week that isn't final yet; such a season isn't checked.
+    """
+    derived = {fid: (w, l, t, pf) for fid, season, _src, w, l, t, pf, *_ in lines if season == year}
+    settings = {r["roster_id"]: r.get("settings") or {} for r in rosters}
+    played = {rid: s.get("wins", 0) + s.get("losses", 0) + s.get("ties", 0) for rid, s in settings.items()}
+    if league.get("status") != "complete" and any(
+            n != sum(derived[franchise_of(rid)][:3]) for rid, n in played.items()):
+        return []
+    problems = []
+    for r in rosters:
+        rid, s = r["roster_id"], settings[r["roster_id"]]
+        w, l, t, pf = derived[franchise_of(rid)]
+        theirs = f"{s.get('wins', 0)}-{s.get('losses', 0)}-{s.get('ties', 0)}"
+        if theirs != f"{w}-{l}-{t}":
+            problems.append(f"{year} roster {rid}: Sleeper's roster totals give W-L-T {theirs}, "
+                            f"the games {w}-{l}-{t}")
+        gap, excuse = round(roster_total(r) - pf, 2), round(explained.get(rid, 0.0), 2)
+        if gap == excuse:
+            continue
+        if not gap:
+            problems.append(f"{ADJUSTMENTS} explains {excuse} points for {year} roster {rid}, but its "
+                            "roster total agrees with the games: the entry is stale")
+        else:
+            problems.append(f"{year} roster {rid}: Sleeper's roster total is {roster_total(r)} points and "
+                            f"the games give {pf}, a gap of {gap} that {ADJUSTMENTS} "
+                            + (f"puts at {excuse}" if excuse else "doesn't explain"))
+    return problems
