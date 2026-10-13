@@ -310,17 +310,19 @@ export function rollOfHonour(): Honours[] {
   const franchise = (season: number, id: number | undefined) =>
     id === undefined ? null : (named.get(season, id) as unknown as SeasonFranchise);
   const formats = new Map(seasonFormats().map((f) => [f.season, f]));
-  return seasons().map((season) => {
+  // A season joins the roll of honour once its Playoffs final is played.
+  return seasons().flatMap((season) => {
     const final = finals.find((f) => f.season === season.year);
+    if (!final) return [];
     const winners = bracketWinners(season.year);
     const hasMediocreBowl = formats.get(season.year)?.brackets.some((b) => b.bracket === 'mediocre_bowl');
-    return {
+    return [{
       season,
-      champion: franchise(season.year, final?.winnerId),
-      runnerUp: franchise(season.year, final?.loserId),
+      champion: franchise(season.year, final.winnerId),
+      runnerUp: franchise(season.year, final.loserId),
       shitBowl: winners.filter((w) => w.bracket === 'shit_bowl'),
       mediocreBowl: hasMediocreBowl ? winners.filter((w) => w.bracket === 'mediocre_bowl') : null,
-    };
+    }];
   });
 }
 

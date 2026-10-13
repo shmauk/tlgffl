@@ -1,5 +1,5 @@
 ---
-// The roll of honour (#24): every season's champion, runner-up, Shit Bowl
+// The roll of honour (#24): every finished season's champion, runner-up, Shit Bowl
 // winner and Mediocre Bowl winner, newest first.
 import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
@@ -25,7 +25,7 @@ import { rollOfHonour } from '../../lib/db';
             <tr>
               <td><SeasonLink season={season.year} /></td>
               {[champion, runnerUp].map((f) => (
-                <td>{f ? <FranchiseLink franchise={f} teamName={f.teamName} /> : <span class="sub">To come</span>}</td>
+                <td>{f && <FranchiseLink franchise={f} teamName={f.teamName} />}</td>
               ))}
               <td><Crowned winners={shitBowl} /></td>
               <td>{mediocreBowl && <Crowned winners={mediocreBowl} />}</td>
