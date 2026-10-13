@@ -44,10 +44,10 @@ export function start(root: HTMLElement) {
   const results = root.querySelector<HTMLElement>('#sg-results')!;
   const said = root.querySelector<HTMLElement>('#sg-summary')!;
 
-  // Each subject shows only its own views and filters.
+  // Each subject shows only its own views and filters (data-subject lists the subjects a field is for).
   const subject = () => (form.querySelector<HTMLInputElement>('input[name="subject"]:checked')?.value ?? 'franchise');
   const showSubject = () => {
-    for (const el of root.querySelectorAll<HTMLElement>('[data-subject]')) el.hidden = el.dataset.subject !== subject();
+    for (const el of root.querySelectorAll<HTMLElement>('[data-subject]')) el.hidden = !el.dataset.subject!.split(' ').includes(subject());
   };
   for (const r of form.querySelectorAll('input[name="subject"]')) r.addEventListener('change', showSubject);
 
@@ -79,9 +79,10 @@ export function start(root: HTMLElement) {
     go(encodeQuery(queryFromForm(readForm(form), ctx)));
   });
   // Reset the whole query but keep the subject (#9).
-  root.querySelector('#sg-reset')!.addEventListener('click', () =>
-    fillForm(form, formValues({ ...DEFAULT_QUERY, subject: subject() === 'player' ? 'player' : 'franchise' }, ctx)),
-  );
+  root.querySelector('#sg-reset')!.addEventListener('click', () => {
+    const s = subject();
+    fillForm(form, formValues({ ...DEFAULT_QUERY, subject: s === 'player' || s === 'pick' ? s : 'franchise' }, ctx));
+  });
   for (const a of root.querySelectorAll<HTMLAnchorElement>('[data-clear]'))
     a.addEventListener('click', (e) => {
       e.preventDefault();

@@ -7,8 +7,9 @@ import Row from '../../components/Row.astro';
 import { franchises, seasons, seasonFormats } from '../../lib/db';
 import { databaseFile } from '../../lib/database-file';
 import { lineupPlayers, lineupPositions } from '../../lib/nfl-players';
-import { HEADINGS, PHASE_NAMES, PLAYER_VIEW_NAMES, VIEW_NAMES } from '../../lib/statsguru/render';
-import { FRANCHISE_VIEWS, PHASES, PLAYER_VIEWS } from '../../lib/statsguru/query';
+import { HEADINGS, PHASE_NAMES, PICK_VIEW_NAMES, PLAYER_VIEW_NAMES, VIEW_NAMES } from '../../lib/statsguru/render';
+import { FRANCHISE_VIEWS, PHASES, PICK_VIEWS, PLAYER_VIEWS } from '../../lib/statsguru/query';
+import { draftSize } from '../../lib/drafts';
 import type { FormContext } from '../../lib/statsguru/form';
 
 const all = franchises();
@@ -16,11 +17,14 @@ const years = seasons().reverse();
 const lastWeek = Math.max(...seasonFormats().flatMap((f) => [f.regularSeason[1], ...f.brackets.map((b) => b.lastWeek)]));
 const players = lineupPlayers();
 const positions = lineupPositions();
+const { lastRound, lastPick, firstSeason: firstDraft } = draftSize();
 const context: FormContext & { franchises: { id: number; name: string }[]; players: { id: string; name: string | null }[] } = {
   franchises: all.map(({ id, name }) => ({ id, name })),
   players: players.map(({ id, name }) => ({ id, name })),
   seasons: years.map(({ year, era }) => ({ year, era })),
   lastWeek,
+  lastRound,
+  lastPick,
 };
 const firstSleeper = years.find((s) => s.era === 'sleeper')?.year;
 const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
@@ -28,7 +32,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
 
 <Base title="Statsguru">
   <div id="statsguru" data-db={databaseFile().url} data-context={JSON.stringify(context)}>
-    <Row label="Statsguru" sub="Franchise and NFL player records">
+    <Row label="Statsguru" sub="Franchise, NFL player and draft records">
       <h1>Statsguru</h1>
       <p class="sub"><span id="sg-summary">Every franchise, every season</span> <a href="#sg-form" id="sg-edit" hidden>Edit query</a></p>
     </Row>
@@ -39,6 +43,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
           <legend>Subject</legend>
           <label><input type="radio" name="subject" value="franchise" checked /> Franchises</label>
           <label><input type="radio" name="subject" value="player" /> NFL players <small>(2025 on)</small></label>
+          <label><input type="radio" name="subject" value="pick" /> Draft picks <small>(drafts from {firstDraft ?? 'the first Sleeper draft'})</small></label>
         </fieldset>
         <fieldset>
           <legend>View</legend>
@@ -57,10 +62,22 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
           <div data-subject="player" hidden>
             {PLAYER_VIEWS.map((v) => <label><input type="radio" name="pview" value={v} checked={v === 'totals'} /> {PLAYER_VIEW_NAMES[v]}</label>)}
           </div>
+          <div data-subject="pick" hidden>
+            {PICK_VIEWS.map((v) => <label><input type="radio" name="kview" value={v} checked={v === 'list'} /> {PICK_VIEW_NAMES[v]}</label>)}
+            <div class="sg-field">
+              <span class="sg-name">Per franchise</span>
+              <span>
+                by <select name="kby">
+                  <option value="pos">NFL player position</option>
+                  <option value="round">round</option>
+                </select>
+              </span>
+            </div>
+          </div>
         </fieldset>
         <fieldset>
           <legend>Filters</legend>
-          <div class="sg-field" data-subject="player" hidden>
+          <div class="sg-field" data-subject="player pick" hidden>
             <span class="sg-name">NFL player</span>
             <span>
               <select name="p" multiple size="8">
@@ -69,7 +86,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
               <a href="#" data-clear="p">clear</a> <small>none = every NFL player</small>
             </span>
           </div>
-          <div class="sg-field" data-subject="player" hidden>
+          <div class="sg-field" data-subject="player pick" hidden>
             <span class="sg-name">Position</span>
             <span>
               {positions.map((p) => <label><input type="checkbox" name="pos" value={p} /> {p}</label>)}
@@ -85,15 +102,21 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
             </span>
           </div>
           <div class="sg-field">
-            <span class="sg-name"><span data-subject="franchise">Franchise</span><span data-subject="player" hidden>Rostered by</span></span>
+            <span class="sg-name"><span data-subject="franchise pick">Franchise</span><span data-subject="player" hidden>Rostered by</span></span>
             <span>
               <select name="f" multiple size="8">
                 {all.map((f) => <option value={f.id}>{f.name}{!f.active && ' (departed)'}</option>)}
               </select>
               <a href="#" data-clear="f">clear</a> <small>none = every franchise</small>
+              <span data-subject="pick" hidden>
+                <select name="fby">
+                  <option value="pick">made the pick</option>
+                  <option value="slot">owned the slot</option>
+                </select>
+              </span>
             </span>
           </div>
-          <div class="sg-field">
+          <div class="sg-field" data-subject="franchise player">
             <span class="sg-name">Opposition</span>
             <span>
               <select name="opp" multiple size="8">
@@ -114,11 +137,33 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
               </select>
             </span>
           </div>
-          <div class="sg-field">
+          <div class="sg-field" data-subject="pick" hidden>
+            <span class="sg-name">Round span</span>
+            <span>
+              from <input name="rdFrom" type="number" min="1" max={lastRound} value="1" />
+              to <input name="rdTo" type="number" min="1" max={lastRound} value={lastRound} />
+            </span>
+          </div>
+          <div class="sg-field" data-subject="pick" hidden>
+            <span class="sg-name">Overall pick</span>
+            <span>
+              from <input name="pkFrom" type="number" min="1" max={lastPick} value="1" />
+              to <input name="pkTo" type="number" min="1" max={lastPick} value={lastPick} />
+            </span>
+          </div>
+          <div class="sg-field" data-subject="pick" hidden>
+            <span class="sg-name">Kept or drafted</span>
+            <span>
+              <select name="kd">
+                <option value="">either</option><option value="kept">keepers only</option><option value="drafted">drafted only</option>
+              </select>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="franchise player">
             <span class="sg-name">Phase</span>
             <span>{PHASES.map((p) => <label><input type="checkbox" name="ph" value={p} checked={p === 'R'} /> {PHASE_NAMES[p]}</label>)}</span>
           </div>
-          <div class="sg-field">
+          <div class="sg-field" data-subject="franchise player">
             <span class="sg-name">Week span</span>
             <span>
               from <input name="wkFrom" type="number" min="1" max={lastWeek} value="1" />
@@ -137,7 +182,7 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
             <span class="sg-name">Franchises</span>
             <span><label><input type="checkbox" name="act" /> active franchises only</label></span>
           </div>
-          <div class="sg-field">
+          <div class="sg-field" data-subject="franchise player">
             <span class="sg-name">Minimum</span>
             <span><input name="min" type="number" min="0" value="0" /> games <span data-subject="franchise">played</span><span data-subject="player" hidden>rostered</span></span>
           </div>

@@ -94,10 +94,17 @@ test('head-to-head pages open the pair in Statsguru', () => {
     assert.match(read(`head-to-head/${a}-${b}/index.html`), new RegExp(`href="/statsguru/\\?f=${a}&(amp;)?opp=${b}"[^>]*>Open in Statsguru`), `${a}-${b}`);
 });
 
-test('the form has both subjects, each with its own views and filters', () => {
+test('the form has all three subjects, each with its own views and filters', () => {
   const html = read('statsguru/index.html');
   assert.match(html, /<input[^>]*name="subject"[^>]*value="franchise"/);
   assert.match(html, /<input[^>]*name="subject"[^>]*value="player"/);
+  assert.match(html, /<input[^>]*name="subject"[^>]*value="pick"/);
+  for (const v of ['list', 'fr', 'pl'])
+    assert.match(html, new RegExp(`<input[^>]*name="kview"[^>]*value="${v}"`), v);
+  for (const field of ['rdFrom', 'rdTo', 'pkFrom', 'pkTo']) assert.match(html, new RegExp(`<input[^>]*name="${field}"`), field);
+  assert.match(html, /<select[^>]*name="kd"[^>]*>[\s\S]*value="kept"[\s\S]*value="drafted"/);
+  assert.match(html, /<select[^>]*name="fby"[^>]*>[\s\S]*value="slot"/);
+  assert.match(html, /<select[^>]*name="kby"[^>]*>[\s\S]*value="round"/);
   for (const v of ['totals', 'season', 'opp', 'phase', 'pos', 'games'])
     assert.match(html, new RegExp(`<input[^>]*name="view"[^>]*value="${v}"`), v);
   for (const v of ['totals', 'fr', 'season', 'log'])
@@ -110,6 +117,8 @@ test('the form has both subjects, each with its own views and filters', () => {
   const inLineups = db.prepare('select distinct nfl_player_id as id from lineups where nfl_player_id is not null').all();
   assert.ok(inLineups.length > 0);
   for (const { id } of inLineups) assert.match(select, new RegExp(`<option value="${id}"`), id);
+  for (const { id } of db.prepare('select distinct nfl_player_id as id from draft_picks').all())
+    assert.match(select, new RegExp(`<option value="${id}"`), id);
 });
 
 test('every NFL player mention on the site links to their Statsguru query', () => {
