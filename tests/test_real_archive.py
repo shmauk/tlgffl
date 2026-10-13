@@ -230,3 +230,16 @@ def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
                     *[(y, None, None, 0) for y in (2022, 2023, 2024)],
                     (2025, 210, 210, 16),
                     *([(2026, 15 * n, 15 * n, 16)] if (n := scored_regular_weeks_2026()) else [])]
+
+
+def test_every_division_since_2015_resolves_to_a_lineage_within_its_realignment(db):
+    unresolved = db.execute("select distinct s.season, s.division from season_lines s "
+                            "left join division_lineages d on d.season = s.season and d.division = s.division "
+                            "where s.season >= 2015 and d.lineage is null").fetchall()
+    assert unresolved == []
+    assert db.execute("select min(season) from division_lineages").fetchone() == (2015,)
+    # 2023-24 and 2025-26 are the two cycles longer than one season.
+    spans = db.execute("select lineage, min(season), max(season) from division_lineages "
+                       "group by lineage having count(*) > 1 order by 2, 1").fetchall()
+    assert {(lo, hi) for _, lo, hi in spans if lo < 2025} == {(2023, 2024)}
+    assert len([s for s in spans if s[1] == 2023]) == 4
