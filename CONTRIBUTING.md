@@ -25,6 +25,8 @@ Most data comes from NFL.com and Sleeper and is never edited by hand. The hand-k
 | `sleeper_aliases.csv` | The franchise behind each Sleeper roster. Every roster needs a row by week 1 |
 | `formats.yaml` | Each season's format. Every season needs one, so write next season's down before it starts |
 | `shitbowl.csv`, `mediocre_bowl.csv` | NFL.com-era Shit Bowl and Mediocre Bowl winners. Blank means unknown, and `A\|B` means disputed |
+| `sleeper_brackets.csv` | Which league bracket (or filler) each Sleeper bracket-week pairing belongs to. Every pairing needs a row once its week is final |
+| `sleeper_adjustments.csv` | Why Sleeper's roster season totals differ from the games, to the point |
 | `emoji.csv` | Each franchise's badge |
 | `documents.csv` | Links to the constitution and AGM documents |
 
