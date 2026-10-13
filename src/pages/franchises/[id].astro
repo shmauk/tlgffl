@@ -1,61 +1,287 @@
 ---
-// A placeholder franchise page so /franchises/<id>/ URLs exist from the start.
-// The full profile is a later ticket.
+// /franchises/<id>/ (#7, #14, #27): the franchise profile. Sections 6 (award
+// tally), 7 (records held) and 10 (Sleeper era) are later tickets. Managers
+// are never shown. Gaps follow ADR 0001: reported season lines carry †,
+// lost bracket scores ‡, figures over scored games only *.
 import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
 import Badge from '../../components/Badge.astro';
 import Marker from '../../components/Marker.astro';
 import Notes from '../../components/Notes.astro';
+import Stats from '../../components/Stats.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
-import { franchises, teamNames, seasonLines, type Franchise } from '../../lib/db';
+import SourceNote from '../../components/SourceNote.astro';
+import FranchiseLink from '../../components/FranchiseLink.astro';
+import GameLine from '../../components/GameLine.astro';
+import { franchises, teamNames, seasonLines, type Franchise, type BracketName } from '../../lib/db';
+import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
+import { headToHeadUrl } from '../../lib/urls';
 
 export function getStaticPaths() {
   return franchises().map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
 }
 
 const { franchise } = Astro.props as { franchise: Franchise };
-const names = teamNames(franchise.id).reverse();
-const lines = new Map(seasonLines(franchise.id).map((l) => [l.season, l]));
+const id = franchise.id;
+const names = teamNames(id);
+const lines = seasonLines(id);
+const c = career(id);
+const games = franchiseGames(id);
+const rounds = bracketRounds();
+const won = crowns(id);
+const gaps = gapSeasons();
+const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
+const best = bestAndWorst(id);
+
 const reported = 'As NFL.com reported it';
+const lost = 'Score is lost';
+const pct = (p: number | null) => (p === null ? '–' : `${(p * 100).toFixed(1)}%`);
+const perGame = (p: number | null) => (p === null ? '–' : p.toFixed(2));
+const record = (w: number, l: number, t: number) => `${w}-${l}-${t}`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const seasonsList = (seasons: number[]) => seasons.join(', ');
+
+const BRACKETS: Record<BracketName, { name: string; crown: string }> = {
+  playoffs: { name: 'Playoffs', crown: 'Champion' },
+  shit_bowl: { name: 'Shit Bowl', crown: 'Shit Bowl winner' },
+  mediocre_bowl: { name: 'Mediocre Bowl', crown: 'Mediocre Bowl winner' },
+};
+const roundName = (round: number, total: number) =>
+  round === total ? 'the final' : round === total - 1 ? 'the semi-finals' : `round ${round}`;
+
+// Bracket history: each season and bracket the franchise is known to have
+// played in or won, with its games.
+type Run = { season: number; bracket: BracketName; seed: number | null; result: string; source?: string; games: typeof games };
+const runs: Run[] = [];
+const seasonsWithBrackets = [...new Set([...games.filter((g) => g.bracket).map((g) => g.season), ...won.map((w) => w.season)])].sort();
+for (const season of seasonsWithBrackets) {
+  for (const bracket of Object.keys(BRACKETS) as BracketName[]) {
+    const played = games.filter((g) => g.season === season && g.bracket === bracket);
+    const crown = won.find((w) => w.season === season && w.bracket === bracket);
+    if (!played.length && !crown) continue;
+    const line = lines.find((l) => l.season === season);
+    let result = '';
+    if (crown) {
+      result = crown.source === 'disputed' ? `${BRACKETS[bracket].crown}?` : BRACKETS[bracket].crown;
+    } else if (bracket === 'playoffs') {
+      const last = played.at(-1)!;
+      const total = rounds.get(`${season}-${bracket}`) ?? last.round!;
+      result = last.round === total ? 'Runner-up' : `Out in ${roundName(last.round!, total)}`;
+    } else {
+      result = 'Played';
+    }
+    runs.push({
+      season,
+      bracket,
+      seed: bracket === 'playoffs' ? line?.seed ?? null : null,
+      result,
+      source: crown?.source,
+      games: played,
+    });
+  }
+}
+
+const opponents = headToHeads(id)
+  .map((p) => {
+    const lo = p.lo.id === id;
+    return {
+      opponent: lo ? p.hi : p.lo,
+      wins: lo ? p.loWins : p.hiWins,
+      losses: lo ? p.hiWins : p.loWins,
+      ties: p.ties,
+      pf: lo ? p.loPoints : p.hiPoints,
+      pa: lo ? p.hiPoints : p.loPoints,
+      games: p.games,
+      scored: p.scoredGames,
+      missing: p.gamesMissing,
+      url: headToHeadUrl(p.lo.id, p.hi.id),
+    };
+  })
+  .sort((a, b) => b.games - a.games || a.opponent.name.localeCompare(b.opponent.name));
+const unscored = opponents.some((o) => o.scored < o.games);
 ---
 
 <Base title={franchise.name}>
   <Row label="Franchise" sub={`${franchise.firstSeason}–${franchise.active ? '' : franchise.lastSeason}`}>
     <h1>{franchise.name}</h1>
-    {!franchise.active && <p class="sub"><Badge kind="departed" /></p>}
+    <p class="sub">
+      {franchise.active ? 'Active' : <Badge kind="departed" />}
+      {' · '}{plural(c.seasons, 'season')}, <SeasonLink season={franchise.firstSeason} />–<SeasonLink season={franchise.lastSeason} />
+    </p>
+    {franchise.active && <p>Division: {c.currentDivision ?? 'not yet known for this season'}</p>}
   </Row>
+
+  <Row label="Team names">
+    <table class="t">
+      <thead><tr><th>Season</th><th>Team name</th></tr></thead>
+      <tbody>
+        {[...names].reverse().map(({ season, teamName }) => (
+          <tr><td><SeasonLink season={season} /></td><td>{teamName}</td></tr>
+        ))}
+      </tbody>
+    </table>
+    {names.length < c.seasons && <Notes notes={[{ text: 'Sleeper-era team names are still to come.' }]} />}
+  </Row>
+
+  <Row label="Career" sub="Regular season">
+    <Stats
+      stats={[
+        { label: 'W-L-T', value: record(c.wins, c.losses, c.ties) },
+        { label: 'Win %', value: pct(c.winPct) },
+        { label: 'PF per game', value: perGame(c.pointsForPerGame) },
+        { label: 'PA per game', value: perGame(c.pointsAgainstPerGame) },
+        { label: 'Breakdown %', value: pct(c.breakdownPct) },
+        { label: 'Championships', value: c.championships },
+        { label: 'Shit Bowl winner titles', value: c.shitBowls },
+      ]}
+    />
+    <Notes
+      notes={[
+        { text: 'Win % counts a tie as half a win.' },
+        {
+          text:
+            c.breakdownPct === null
+              ? 'Breakdown needs every regular-season score, and no season of this franchise has them all yet.'
+              : `Breakdown % is over the ${plural(c.breakdownSeasons, 'season')} with every regular-season score.`,
+        },
+        ...(won.some((w) => w.source === 'disputed')
+          ? [{ text: 'A disputed title counts for nobody until it is settled.' }]
+          : []),
+      ]}
+    />
+  </Row>
+
   <Row label="Season by season">
     <table class="t">
       <thead>
         <tr>
-          <th>Season</th><th>Team name</th><th class="num">W-L-T</th><th class="num">PF</th>
+          <th>Season</th><th>Division</th><th class="num">W-L-T</th><th class="num">PF</th>
           <th class="num">PA</th><th class="num">Seed</th><th class="num">Final</th>
         </tr>
       </thead>
       <tbody>
-        {
-          names.map(({ season, teamName }) => {
-            const l = lines.get(season);
-            return (
-              <tr>
-                <td><SeasonLink season={season} /></td>
-                <td>{teamName}</td>
-                <td class="num">{l && <>{`${l.wins}-${l.losses}-${l.ties}`}{l.source === 'reported' && <Marker glyph="†" title={reported} />}</>}</td>
-                <td class="num">{l?.pointsFor.toFixed(2) ?? ''}</td>
-                <td class="num">{l?.pointsAgainst.toFixed(2) ?? ''}</td>
-                <td class="num">{l?.seed ?? ''}</td>
-                <td class="num">{l?.finalPlacing ?? ''}</td>
-              </tr>
-            );
-          })
-        }
+        {[...lines].reverse().map((l) => (
+          <tr>
+            <td><SeasonLink season={l.season} /></td>
+            <td>{l.division ?? ''}</td>
+            <td class="num">{record(l.wins, l.losses, l.ties)}{l.source === 'reported' && <Marker glyph="†" title={reported} />}</td>
+            <td class="num">{l.pointsFor.toFixed(2)}</td>
+            <td class="num">{l.pointsAgainst.toFixed(2)}</td>
+            <td class="num">{l.seed ?? ''}</td>
+            <td class="num">{l.finalPlacing ?? ''}</td>
+          </tr>
+        ))}
       </tbody>
     </table>
     <Notes
       notes={[
-        { glyph: '†', text: `${reported}: some of the season's games have no score.` },
-        { text: 'Sleeper-era seasons are still to come.' },
+        ...(lines.some((l) => l.source === 'reported')
+          ? [{ glyph: '†' as const, text: `${reported}: some of the season's games have no score.` }]
+          : []),
+        ...(lines.length < c.seasons ? [{ text: 'Sleeper-era season lines are still to come.' }] : []),
       ]}
     />
+  </Row>
+
+  <Row label="Brackets">
+    {
+      runs.length === 0 ? (
+        <p>No bracket games or titles recorded.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Season</th><th>Bracket</th><th class="num">Seed</th><th>Result</th><th>Games</th></tr></thead>
+          <tbody>
+            {[...runs].reverse().map((r) => (
+              <tr>
+                <td><SeasonLink season={r.season} /></td>
+                <td>{BRACKETS[r.bracket].name}</td>
+                <td class="num">{r.seed ?? ''}</td>
+                <td>{r.result}{r.source && r.source !== 'derived' && r.source !== 'confirmed' && <> <SourceNote source={r.source as 'recalled' | 'disputed'} /></>}</td>
+                <td>{r.games.map((g) => <p><GameLine game={g} franchiseId={id} label={`Week ${g.week}`} /></p>)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes
+      notes={[
+        ...(runs.some((r) => r.games.some((g) => g.homePoints === null))
+          ? [{ glyph: '‡' as const, text: `${lost}: the winner is known from the final placings.` }]
+          : []),
+        { text: 'NFL.com-era Shit Bowl and Mediocre Bowl games are not recorded; only their winners are.' },
+      ]}
+    />
+  </Row>
+
+  <Row label="Awards">
+    <p>The award tally is still to come.</p>
+  </Row>
+
+  <Row label="Records held">
+    <p>Records held are still to come.</p>
+  </Row>
+
+  <Row label="Head-to-head" sub="Every opponent, all games">
+    {
+      opponents.length === 0 ? (
+        <p>No games recorded yet.</p>
+      ) : (
+        <table class="t">
+          <thead>
+            <tr><th>Opponent</th><th class="num">Games</th><th class="num">W-L-T</th><th class="num">PF</th><th class="num">PA</th><th></th></tr>
+          </thead>
+          <tbody>
+            {opponents.map((o) => (
+              <tr>
+                <td><FranchiseLink franchise={o.opponent} /></td>
+                <td class="num">{o.games}{o.missing && <Marker glyph="†" title="Some of their games have no record" />}</td>
+                <td class="num">{record(o.wins, o.losses, o.ties)}</td>
+                <td class="num">{o.scored ? o.pf.toFixed(2) : '–'}{o.scored < o.games && <Marker glyph="‡" title={lost} />}</td>
+                <td class="num">{o.scored ? o.pa.toFixed(2) : '–'}</td>
+                <td><a class="more" href={o.url}>Games →</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes
+      notes={[
+        ...(opponents.some((o) => o.missing)
+          ? [{ glyph: '†' as const, text: `Games missing: ${seasonsList(myGaps)} ${myGaps.length === 1 ? 'has' : 'have'} regular-season weeks with no game record, so they may have met more often.` }]
+          : []),
+        ...(unscored ? [{ glyph: '‡' as const, text: `${lost} for some bracket games: they count in W-L-T but not in points.` }] : []),
+      ]}
+    />
+  </Row>
+
+  <Row label="Best and worst games" sub="Games with a score">
+    {
+      best.length === 0 ? (
+        <p>No game scores yet.</p>
+      ) : (
+        (['best', 'worst'] as const).map((m) => (
+          <table class="t">
+            <caption>{m === 'best' ? 'Highest scores' : 'Lowest scores'}</caption>
+            <thead><tr><th class="num">#</th><th class="num">Points</th><th>Game</th></tr></thead>
+            <tbody>
+              {best.filter((b) => b.measure === m).map((b) => (
+                <tr>
+                  <td class="num">{b.rank}</td>
+                  <td class="num">{b.points.toFixed(2)}{myGaps.length > 0 && <Marker glyph="*" title="Only games with a score count" />}</td>
+                  <td><GameLine game={b.game} franchiseId={id} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))
+      )
+    }
+    {myGaps.length > 0 && <Notes notes={[{ glyph: '*', text: `Only games with a score count: ${seasonsList(myGaps)} ${myGaps.length === 1 ? 'has' : 'have'} weeks with no game scores.` }]} />}
+  </Row>
+
+  <Row label="Sleeper era">
+    <p>Most-started NFL players, the draft and keepers are still to come.</p>
   </Row>
 </Base>

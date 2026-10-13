@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 const DB_PATH = process.env.TLGFFL_DB ?? 'build/league.sqlite';
 
 let db: DatabaseSync | undefined;
-function open(): DatabaseSync {
+export function open(): DatabaseSync {
   db ??= new DatabaseSync(DB_PATH, { readOnly: true });
   return db;
 }

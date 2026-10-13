@@ -14,7 +14,9 @@ const walk = (dir) =>
     const p = join(dir, n);
     return statSync(p).isDirectory() ? walk(p) : [p];
   });
-const pages = walk(DIST).filter((f) => f.endsWith('.html'));
+// Redirect pages (such as a reversed head-to-head pair) have no shell.
+const isRedirect = (f) => /^<!doctype html><title>Redirecting to:/.test(readFileSync(f, 'utf8'));
+const pages = walk(DIST).filter((f) => f.endsWith('.html') && !isRedirect(f));
 const read = (path) => decode(readFileSync(join(DIST, path), 'utf8'));
 
 const MENU = [
