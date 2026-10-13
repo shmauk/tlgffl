@@ -155,7 +155,10 @@ def season_lines(year, games, league, rosters, franchise_of):
     division, seed, bracket, placing, Breakdown W, L, T, luck), always derived
     from the season's games (ADR 0001, Sleeper era). bracket is the league
     bracket the franchise played in; seed and final placing are left to the
-    seeding module (ADR 0005)."""
+    seeding module (ADR 0005). Until a regular-season week is final the
+    season has no lines."""
+    if not any(g.season == year and g.phase == "regular" for g in games):
+        return []
     results = regular_season_results(games, {year})
     breakdowns = breakdown(games, {year})
     names = league.get("metadata") or {}
@@ -305,6 +308,8 @@ def cross_check(year, league, rosters, lines, franchise_of, explained):
     can count a week that isn't final yet; such a season isn't checked.
     """
     derived = {fid: (w, l, t, pf) for fid, season, _src, w, l, t, pf, *_ in lines if season == year}
+    if not derived:
+        return []
     settings = {r["roster_id"]: r.get("settings") or {} for r in rosters}
     played = {rid: s.get("wins", 0) + s.get("losses", 0) + s.get("ties", 0) for rid, s in settings.items()}
     if league.get("status") != "complete" and any(

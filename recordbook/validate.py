@@ -33,6 +33,13 @@ def whole_number(value):
         return f"{value!r} must be a whole number"
 
 
+def number(value):
+    try:
+        float(value)
+    except ValueError:
+        return f"{value!r} must be a number"
+
+
 def text(value):
     """Any value, blank included."""
 
@@ -74,7 +81,17 @@ def franchise_key(row):
     return f"sleeper roster {row['slot']}"
 
 
-SHIT_BOWL_SOURCES = ("derived-confirmed", "recalled", "inconclusive")
+def games_need_a_round(row):
+    if row["bracket"] != "filler" and not row["round"].strip():
+        return "a playoffs, shit_bowl or mediocre_bowl game needs a round"
+
+
+def pairing_key(row):
+    a, b = sorted((int(row["roster_a"]), int(row["roster_b"])))
+    return f"{row['season']} week {row['week']} rosters {a} and {b}"
+
+
+SHIT_BOWL_SOURCES =("derived-confirmed", "recalled", "inconclusive")
 MEDIOCRE_BOWL_SOURCES = ("confirmed", "recalled", "disputed")
 
 
@@ -120,6 +137,16 @@ SCHEMAS = {
     "emoji.csv": Table(
         {"franchise": required, "emoji": text},
         key=lambda row: row["franchise"], franchises=("franchise",)),
+    # Sleeper-era tables (#25): the league bracket of each bracket-week
+    # pairing, and the explanations of Sleeper's roster-total gaps.
+    "sleeper_brackets.csv": Table(
+        {"season": whole_number, "week": whole_number, "roster_a": whole_number,
+         "roster_b": whole_number, "bracket": one_of("playoffs", "shit_bowl", "mediocre_bowl", "filler"),
+         "round": optional(whole_number)},
+        [games_need_a_round], pairing_key),
+    "sleeper_adjustments.csv": Table(
+        {"season": whole_number, "roster_id": whole_number, "week": whole_number,
+         "points": number, "reason": required}),
     "documents.csv": Table(
         {"kind": one_of("constitution", "agm"), "season": optional(whole_number),
          "title": required, "url": web_link},

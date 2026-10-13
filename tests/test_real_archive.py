@@ -203,7 +203,7 @@ def test_season_lines_are_derived_through_2021_and_reported_until_sleeper(db):
     assert db.execute("select season, group_concat(distinct source) from season_lines "
                       "group by season order by season").fetchall() == [
         *[(y, "derived") for y in range(2012, 2022)], *[(y, "reported") for y in (2022, 2023, 2024)],
-        (2025, "derived"), (2026, "derived")]
+        (2025, "derived")]
 
 
 def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
@@ -218,4 +218,4 @@ def test_breakdown_and_luck_cover_the_fully_covered_seasons_only(db):
     teams = {2012: 10, 2013: 12, 2014: 12}
     assert rows == [*[(y, n, n, teams.get(y, 16)) for y, n in per_franchise.items() if y < 2022],
                     *[(y, None, None, 0) for y in (2022, 2023, 2024)],
-                    (2025, 210, 210, 16), (2026, None, None, 0)]
+                    (2025, 210, 210, 16)]
