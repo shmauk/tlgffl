@@ -23,6 +23,19 @@ def read_weeks(sleeper_dir, year):
     return out
 
 
+def team_names(sleeper_dir, year):
+    """{roster: team name} from the season's weekly team-name snapshots
+    ({year}-team_names-{week}.json, written by the fetch): each roster's
+    latest non-empty name. Sleeper's team names are only current-state, so
+    an empty one keeps the name the roster had before."""
+    out = {}
+    for f in sorted(sleeper_dir.glob(f"{year}-team_names-*.json")):
+        for r in json.loads(f.read_text(encoding="utf-8")):
+            if (r.get("team_name") or "").strip():
+                out[r["roster_id"]] = r["team_name"].strip()
+    return out
+
+
 def final_weeks(league, weeks):
     """The weeks whose scores are final."""
     if league.get("status") == "complete":

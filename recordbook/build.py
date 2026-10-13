@@ -278,10 +278,17 @@ def build(data, out):
     sleeper_ids = {}
     for year, (lg, rosters) in sleeper.items():
         seasons.append((year, "sleeper", int(lg.get("total_rosters") or len(rosters))))
+        snapshot = sleeperlib.team_names(data / "sleeper", year)
         for r in rosters:
-            fid = sleeper_franchise(year, r["roster_id"])
+            rid = r["roster_id"]
+            fid = sleeper_franchise(year, rid)
             played[fid].add(year)
-            sleeper_ids[fid] = r["roster_id"]
+            sleeper_ids[fid] = rid
+            if rid not in aliases:
+                raise BuildError(f"{year} Sleeper roster {rid} has no row in data/sleeper_aliases.csv")
+            # Never the manager's display name: an unsnapshotted season takes
+            # the name ff-data-project recorded for the roster.
+            team_names[(fid, year)] = snapshot.get(rid) or aliases[rid]["sleeper_name"]
 
     if not seasons:
         raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
@@ -349,7 +356,8 @@ def build(data, out):
     for fid in all_ids:
         if not played[fid]:
             raise BuildError(f"franchise {fid} in data/franchises.csv never played a season")
-        franchises.append((fid, franchise_name(fid, team_names, sleeper_ids, aliases),
+        nfl_names = {k: n for k, n in team_names.items() if k[1] in nfl}
+        franchises.append((fid, franchise_name(fid, nfl_names, sleeper_ids, aliases),
                            int(current in played[fid]), min(played[fid]), max(played[fid])))
     check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
     format_rows, bracket_rows = season_format_rows(formats)
@@ -410,10 +418,13 @@ def season_format_rows(formats):
 
 
 def franchise_name(fid, team_names, sleeper_ids, aliases):
-    """The last real team name the franchise played under.
+    """The last real NFL.com-era team name the franchise played under.
 
-    Sleeper-era team names aren't ingested yet, so a franchise that has only
-    played on Sleeper takes the name ff-data-project gave its roster.
+    Sleeper-era team names are recorded per season but don't rename
+    franchises yet: the hand-kept tables and the golden test name franchises
+    as ff-data-project does, so a franchise that has only played on Sleeper
+    takes the name ff-data-project gave its roster. (Whether Sleeper names
+    should rename franchises is a maintainer's call; see #25.)
     """
     real = [n for (f, y), n in sorted(team_names.items(), key=lambda kv: kv[0][1])
             if f == fid and n not in PLACEHOLDER_NAMES]

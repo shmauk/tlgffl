@@ -80,7 +80,7 @@ def test_a_manager_switching_accounts_stays_one_franchise(archive, tmp_path):
     db = tmp_path / "league.sqlite"
     build(archive, db)
     assert query(db, "select season, team_name from team_names where franchise_id = 1 order by season") == [
-        (2012, "Alpha One"), (2013, "Alpha Two"), (2014, "Alpha Three")]
+        (2012, "Alpha One"), (2013, "Alpha Two"), (2014, "Alpha Three"), (2025, "A")]
 
 
 def test_franchise_ids_must_agree_with_ff_data_projects_sleeper_aliases(archive, tmp_path):
