@@ -28,8 +28,12 @@ import {
 import { formatSummary, weekList } from '../../lib/format';
 import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
+import PlayoffPicture from '../../components/PlayoffPicture.astro';
+import { checkSleeperSeeds, seasonPicture } from '../../lib/seeding-db';
 
 export function getStaticPaths() {
+  // A finished Sleeper season's computed seeds must match the brackets played (ADR 0005).
+  checkSleeperSeeds();
   return seasons().map((season) => ({ params: { year: String(season.year) }, props: { season } }));
 }
 
@@ -44,6 +48,8 @@ const regularGaps = gapWeeks(year, 'regular');
 const weeks = seasonWeeks(year);
 const docs = seasonDocuments(year);
 const nfl = season.era === 'nfl.com';
+// Sleeper seasons are seeded by the seeding module (#34): the playoff picture while the regular season is on.
+const picture = seasonPicture(year);
 // A Sleeper season before its first final week has no games: say so rather than show empty results.
 const sleeperPending = !nfl && games.length === 0 ? "This season's Sleeper games are still to come." : '';
 
@@ -130,10 +136,15 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     }
   </Row>
 
-  <Row label="Standings" sub={divisions.length > 1 ? 'Final standings by division' : 'Final standings'}>
+  <Row
+    label="Standings"
+    sub={picture?.inProgress ? 'Playoff picture by division' : divisions.length > 1 ? 'Final standings by division' : 'Final standings'}
+  >
     {
       standings.length === 0 ? (
         <p>This season's standings are still to come.</p>
+      ) : picture ? (
+        <PlayoffPicture standings={standings} picture={picture} />
       ) : (
         <>
           {divisions.map((division) => (

@@ -100,3 +100,9 @@ a bracket week to the Playoffs, the Shit Bowl, the Mediocre Bowl or `filler` (ne
 Sleeper's winners and losers brackets don't match the league's three; a missing or stale row fails
 the build. `data/sleeper_adjustments.csv` explains, to the point, any gap between Sleeper's roster
 season totals and the games (ADR 0001, Sleeper era); an unexplained or stale gap fails the build.
+
+Sleeper-era seeds, the playoff picture and clinch marks come from one TypeScript module,
+`src/lib/seeding.ts` (ADR 0005); Python only writes its inputs, including the regular-season
+pairings still to play and the hand-kept `data/scissors_paper_rock.csv` rulings. `npm run build`
+fails if a finished season's computed seeds don't match the brackets played, or if its seeds
+still wait on a scissors-paper-rock ruling.

@@ -99,6 +99,7 @@ table.t { width: 100%; font-size: 14px; }
 .num { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
 .t th.num { text-align: right; }
 .t tr.dep td { color: var(--quiet); }
+.t tr.cut td { border-top: 2px solid var(--fg); }
 .t tr.now td:first-child { box-shadow: inset 3px 0 var(--accent); padding-left: 8px; }
 .fr { font-weight: 700; text-decoration: none; }
 .alias { color: var(--quiet); }
