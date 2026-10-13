@@ -331,13 +331,6 @@ describe('the seed check', () => {
     expect(checkSeeds(picture, wrong).join('\n')).toMatch(/Mediocre Bowl/);
   });
 
-  test('a bracket whose pairings were not by seed is checked for who played in it only', () => {
-    const swapped = [...played.slice(0, 4), game('mediocre_bowl', 1, 3, 2, 3)];
-    expect(checkSeeds(picture, swapped, { pairingsNotBySeed: ['mediocre_bowl'] })).toEqual([]);
-    const wrong = [...played.slice(0, 4), game('mediocre_bowl', 1, 2, 7, 2)];
-    expect(checkSeeds(picture, wrong, { pairingsNotBySeed: ['mediocre_bowl'] })).not.toEqual([]);
-  });
-
   test('fails a season whose seeds still wait on scissors-paper-rock', () => {
     const level = playoffPicture(league(levelPairForCheck, { breakdown: { 2: 0.9, 4: 0.1, 8: 0.2 } }));
     expect(checkSeeds(level, []).join('\n')).toMatch(/scissors-paper-rock/);

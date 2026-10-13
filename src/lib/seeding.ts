@@ -296,15 +296,14 @@ const BRACKET_NAMES: Record<BracketKey, string> = {
  * by seed: the top seeds bye up to the next power of two and the rest meet
  * outside-in (3 v 6 and 4 v 5 of six). After byes, the second round is
  * re-seeded: the top seed meets the lowest left. The Shit Bowl's seed 1 is
- * its worst franchise, and losing advances. pairingsNotBySeed lists brackets
- * that were played by other pairings: only who played in them is checked.
- * Franchises still level after every tiebreak but scissors-paper-rock fail
- * the check until a ruling is recorded.
+ * its worst franchise, and losing advances. Franchises still level after
+ * every tiebreak but scissors-paper-rock fail the check until a ruling is
+ * recorded. name shows a franchise in the sentences.
  */
 export function checkSeeds(
   picture: Place[],
   played: BracketGame[],
-  options: { pairingsNotBySeed?: BracketKey[]; name?: (f: FranchiseId) => string } = {},
+  options: { name?: (f: FranchiseId) => string } = {},
 ): string[] {
   const name = options.name ?? String;
   const problems: string[] = [];
@@ -331,7 +330,7 @@ export function checkSeeds(
       );
       continue;
     }
-    if (options.pairingsNotBySeed?.includes(bracket) || !games.length) continue;
+    if (!games.length) continue;
     const bye = byes(seeded.length);
     const outsideIn = (order: FranchiseId[]) =>
       Array.from({ length: Math.floor(order.length / 2) }, (_, i) => pair(order[i], order[order.length - 1 - i]));
