@@ -131,6 +131,7 @@ export function decodeQuery(search: string): Query {
   const view = p.get('view');
   if (VIEWS.includes(view as View)) q.view = view as View;
   const [key, dir] = (p.get('sort') ?? '').split('.');
-  if (COLUMNS[q.view].includes(key) && (dir === 'asc' || dir === 'desc')) q.sort = { key, dir };
+  if (COLUMNS[q.view].includes(key) && (dir === 'asc' || dir === 'desc') && !sameSort({ key, dir }, VIEW_SORT[q.view]))
+    q.sort = { key, dir };
   return q;
 }
