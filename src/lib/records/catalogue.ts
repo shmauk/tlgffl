@@ -4,6 +4,7 @@
 // tables recordbook/records.py writes.
 import type { GameRow, GroupRow } from '../statsguru/engine';
 import type { Query } from '../statsguru/query';
+import { SEASONS_URL } from '../urls';
 
 /** The era filter, as it appears in a record's URL. */
 export type Era = 'all' | 'nfl-com' | 'sleeper';
@@ -228,7 +229,7 @@ export const CATEGORIES: Category[] = [
   {
     ...built('brackets', 'Brackets'),
     // The roll of honour already exists: the category links to it, not a copy (#14).
-    records: [{ name: 'Roll of honour', href: '/seasons/' }, ...built('brackets', 'Brackets').records],
+    records: [{ name: 'Roll of honour', href: SEASONS_URL }, ...built('brackets', 'Brackets').records],
   },
   built('head-to-head', 'Head-to-head'),
   { ...built('divisions', 'Divisions'), sub: 'Since 2015' },

@@ -3,7 +3,7 @@
 // every page. The menu marks the section the page belongs to. The footer
 // carries the build's "updated <date>" stamp (#26).
 import '../styles/swiss.css';
-import { MENU } from '../lib/urls';
+import { HOME_URL, MENU } from '../lib/urls';
 import { buildDate } from '../lib/current';
 
 interface Props {
@@ -24,7 +24,7 @@ const stamp = buildDate();
   </head>
   <body>
     <header class="top">
-      <a class="logo" href="/">The Fantasy League</a>
+      <a class="logo" href={HOME_URL}>The Fantasy League</a>
       <nav aria-label="Sections">
         {MENU.map(({ href, label }) => <a href={href} aria-current={path.startsWith(href) ? 'page' : undefined}>{label}</a>)}
       </nav>

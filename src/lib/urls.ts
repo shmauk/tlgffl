@@ -2,6 +2,10 @@
 // components in src/components/, which build their hrefs here.
 import { DEFAULT_QUERY, encodeQuery, type Query } from './statsguru/query';
 
+export const HOME_URL = '/';
+export const SEASONS_URL = '/seasons/';
+/** Every award (#33). */
+export const AWARDS_URL = '/seasons/awards/';
 export const franchiseUrl = (id: number) => `/franchises/${id}/`;
 export const seasonUrl = (season: number, week?: number) =>
   `/seasons/${season}/${week === undefined ? '' : `#week-${week}`}`;
@@ -12,7 +16,9 @@ export const headToHeadUrl = (a: number, b: number) => `/head-to-head/${Math.min
 /** A record's own page, or one of its pre-rendered era and phase variants (#14). */
 export const recordUrl = (slug: string, variant?: { era: string; phase: string }) =>
   `/records/${slug}/${variant ? `${variant.era}/${variant.phase}/` : ''}`;
-export const awardUrl = (slug: string) => `/seasons/awards/${slug}/`;
+export const awardUrl = (slug: string) => `${AWARDS_URL}${slug}/`;
+/** The league database file Statsguru loads (ADR 0002). */
+export const dataFileUrl = (name: string) => `/data/${name}`;
 /** A prefilled Statsguru query: `{ franchises: [5], opponents: [9] }` -> /statsguru/?f=5&opp=9 */
 export const statsguruUrl = (query: Partial<Query> = {}) => {
   const search = encodeQuery({ ...DEFAULT_QUERY, ...query });
@@ -28,7 +34,7 @@ export const nflPlayerName = (player: { id: string; name: string | null }) =>
 export const MENU = [
   { href: '/records/', label: 'Records' },
   { href: '/franchises/', label: 'Franchises' },
-  { href: '/seasons/', label: 'Seasons' },
+  { href: SEASONS_URL, label: 'Seasons' },
   { href: '/statsguru/', label: 'Statsguru' },
   { href: '/league/', label: 'League' },
 ] as const;

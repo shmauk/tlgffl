@@ -1,4 +1,5 @@
 ---
+import { AWARDS_URL } from '../../lib/urls';
 // The roll of honour (#24): every finished season's champion, runner-up, Shit Bowl
 // winner and Mediocre Bowl winner, newest first.
 import Base from '../../layouts/Base.astro';
@@ -13,7 +14,7 @@ import { rollOfHonour } from '../../lib/db';
 <Base title="Seasons">
   <Row label="Seasons" sub="The roll of honour">
     <h1>Roll of honour</h1>
-    <p><a class="more" href="/seasons/awards/">Awards →</a></p>
+    <p><a class="more" href={AWARDS_URL}>Awards →</a></p>
   </Row>
   <Row label="Every season">
     <table class="t">

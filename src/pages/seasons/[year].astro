@@ -33,7 +33,7 @@ import { buildDate, current } from '../../lib/current';
 import PlayoffPicture from '../../components/PlayoffPicture.astro';
 import { checkSleeperSeeds, seasonPicture } from '../../lib/seeding-db';
 import { predictorSeason } from '../../lib/predictor-db';
-import { predictorUrl } from '../../lib/urls';
+import { AWARDS_URL, predictorUrl } from '../../lib/urls';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import { draftSeasons, draftSize, seasonKeepers } from '../../lib/drafts';
 
@@ -348,7 +348,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
         </div>
       )
     }
-    <p><a class="more" href="/seasons/awards/">Every award →</a></p>
+    <p><a class="more" href={AWARDS_URL}>Every award →</a></p>
   </Row>
 
   <Row label="Highs and lows" sub={`Games with a score${soFar}`}>

@@ -5,7 +5,7 @@
 //   ?w9=3,12&w10=5&spr=7.3
 // picks the winners 3 and 12 in week 9 and 5 in week 10, and orders the
 // level franchises 7 and 3 by scissors-paper-rock, 7 first.
-import { predictorUrl } from './urls';
+import { franchiseUrl, predictorUrl } from './urls';
 import { BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from './brackets';
 import { byes, playoffPicture, type FranchiseId, type Mark, type Place, type SeedingInput } from './seeding';
 
@@ -236,7 +236,7 @@ export function renderPredictor(
   const link = (id: FranchiseId) => {
     const f = franchise.get(id);
     const shown = f?.teamName || f?.name || String(id);
-    return `<a class="fr" href="/franchises/${id}/">${esc(shown)}</a>${f && shown !== f.name ? ` <span class="alias">(${esc(f.name)})</span>` : ''}`;
+    return `<a class="fr" href="${franchiseUrl(id)}">${esc(shown)}</a>${f && shown !== f.name ? ` <span class="alias">(${esc(f.name)})</span>` : ''}`;
   };
   const href = (s: Scenario) => esc(predictorHref(data.season, s));
   const parts: string[] = [];
