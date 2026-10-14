@@ -3,13 +3,14 @@
 import RecordPage from '../../components/RecordPage.astro';
 import { RECORDS, type RecordDef } from '../../lib/records/catalogue';
 import { recordView } from '../../lib/records/records';
-import { siteDb } from '../../lib/records/site';
+import { open } from '../../lib/database';
 
 export function getStaticPaths() {
   return RECORDS.map((def) => ({ params: { slug: def.slug }, props: { def } }));
 }
 
+const db = open();
 const { def } = Astro.props as { def: RecordDef };
 ---
 
-<RecordPage view={recordView(siteDb, def, def.eras[0], def.phases[0])} />
+<RecordPage view={recordView(db, def, def.eras[0], def.phases[0])} />

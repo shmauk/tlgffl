@@ -38,43 +38,46 @@ import { predictorSeason } from '../../lib/predictor-db';
 import { AWARDS_URL, predictorUrl } from '../../lib/urls';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import { draftSeasons, draftSize, seasonKeepers } from '../../lib/drafts';
+import { open } from '../../lib/database';
 
 export function getStaticPaths() {
+  const db = open();
   // A finished Sleeper season's computed seeds must match the brackets played (ADR 0005).
-  checkSleeperSeeds();
-  return seasons().map((season) => ({ params: { year: String(season.year) }, props: { season } }));
+  checkSleeperSeeds(db);
+  return seasons(db).map((season) => ({ params: { year: String(season.year) }, props: { season } }));
 }
 
+const db = open();
 const { season } = Astro.props as { season: Season };
 const year = season.year;
-const format = seasonFormats().find((f) => f.season === year);
-const standings = seasonStandings(year);
-const games = seasonGames(year);
-const winners = bracketWinners(year);
-const highs = highsAndLows(year);
-const leftOut = recordExclusions().filter((x) => x.season === year);
-const regularGaps = gapWeeks(year, 'regular');
-const weeks = seasonWeeks(year);
-const docs = seasonDocuments(year);
+const format = seasonFormats(db).find((f) => f.season === year);
+const standings = seasonStandings(db, year);
+const games = seasonGames(db, year);
+const winners = bracketWinners(db, year);
+const highs = highsAndLows(db, year);
+const leftOut = recordExclusions(db).filter((x) => x.season === year);
+const regularGaps = gapWeeks(db, year, 'regular');
+const weeks = seasonWeeks(db, year);
+const docs = seasonDocuments(db, year);
 const nfl = season.era === 'nfl.com';
 // Sleeper seasons are seeded by the seeding module (#34): the playoff picture while the regular season is on.
-const picture = seasonPicture(year);
+const picture = seasonPicture(db, year);
 // The playoff predictor (#36), for the current season while its regular season is on.
-const predictor = predictorSeason() === year;
+const predictor = predictorSeason(db) === year;
 // The draft and keepers (#37): a link into Statsguru's draft picks, and the keepers once recorded.
-const draft = draftSeasons().find((d) => d.season === year);
-const firstDraft = draftSize().firstSeason;
-const keepers = seasonKeepers(year);
+const draft = draftSeasons(db).find((d) => d.season === year);
+const firstDraft = draftSize(db).firstSeason;
+const keepers = seasonKeepers(db, year);
 // A Sleeper season before its first final week has no games: say so rather than show empty results.
 const sleeperPending = !nfl && games.length === 0 ? "This season's Sleeper games are still to come." : '';
 // The current season while it is being played (#35): through its latest final week, with the
 // matchups still to come, award leaders in place of winners, and brackets set after the regular season.
-const now = current();
+const now = current(db);
 const live = now && now.season === year && now.phase !== 'off-season' ? now : null;
 const liveLine = live
-  ? `In progress, ${live.through === null ? 'week 1 not yet final' : `through week ${live.through}`} · ${buildDate().text.replace('Updated', 'updated')}`
+  ? `In progress, ${live.through === null ? 'week 1 not yet final' : `through week ${live.through}`} · ${buildDate(db).text.replace('Updated', 'updated')}`
   : '';
-const toCome = live ? inProgressWeeks(year) : new Map();
+const toCome = live ? inProgressWeeks(db, year) : new Map();
 const soFar = live ? ', so far' : '';
 const gridWeeks = [...new Set([...weeks, ...toCome.keys()])].sort((a, b) => a - b);
 
@@ -113,16 +116,16 @@ const MEASURES = [
 // Awards (#33): each award given this season, or due but unknown. While the regular season is
 // on, the award leaders so far take the winners' place (#35).
 const leading = live?.phase === 'regular';
-const seasonWinners = leading ? awardLeaders(year) : awardWinners({ season: year });
-const seasonUnknowns = awardUnknowns().filter((u) => u.season === year);
-const awardRows = awards()
+const seasonWinners = leading ? awardLeaders(db, year) : awardWinners(db, { season: year });
+const seasonUnknowns = awardUnknowns(db).filter((u) => u.season === year);
+const awardRows = awards(db)
   .map((award) => ({
     award,
     won: seasonWinners.filter((w) => w.award === award.slug),
     unknown: seasonUnknowns.find((u) => u.award === award.slug),
   }))
   .filter((r) => r.won.length > 0 || r.unknown);
-const notAwarded = awards().filter((a) => !awardRows.some((r) => r.award.slug === a.slug));
+const notAwarded = awards(db).filter((a) => !awardRows.some((r) => r.award.slug === a.slug));
 
 const gamesIn = (week: number) => games.filter((g) => g.week === week);
 const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);

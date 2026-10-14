@@ -8,14 +8,17 @@ import FranchiseLink from '../../../components/FranchiseLink.astro';
 import SeasonLink from '../../../components/SeasonLink.astro';
 import Notes from '../../../components/Notes.astro';
 import { awards, awardWinners, awardUnknowns, awardValue, type Award } from '../../../lib/awards';
+import { open } from '../../../lib/database';
 
 export function getStaticPaths() {
-  return awards().map((award) => ({ params: { slug: award.slug }, props: { award } }));
+  const db = open();
+  return awards(db).map((award) => ({ params: { slug: award.slug }, props: { award } }));
 }
 
+const db = open();
 const { award } = Astro.props as { award: Award };
-const winners = awardWinners({ award: award.slug });
-const unknowns = awardUnknowns().filter((u) => u.award === award.slug);
+const winners = awardWinners(db, { award: award.slug });
+const unknowns = awardUnknowns(db).filter((u) => u.award === award.slug);
 const seasons = [...new Set([...winners.map((w) => w.season), ...unknowns.map((u) => u.season)])].sort((a, b) => b - a);
 
 const tally = new Map<number, { franchise: { id: number; name: string }; seasons: number[] }>();

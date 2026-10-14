@@ -14,23 +14,26 @@ import StatsguruLink from '../../components/StatsguruLink.astro';
 import { headToHeads, pairGames, gapSeasons, type HeadToHead } from '../../lib/profiles';
 import { seasonLines } from '../../lib/db';
 import { headToHeadUrl } from '../../lib/urls';
+import { open } from '../../lib/database';
 
 export function getStaticPaths() {
-  return headToHeads().flatMap((pair) => [
+  const db = open();
+  return headToHeads(db).flatMap((pair) => [
     { params: { pair: `${pair.lo.id}-${pair.hi.id}` }, props: { pair, reversed: false } },
     { params: { pair: `${pair.hi.id}-${pair.lo.id}` }, props: { pair, reversed: true } },
   ]);
 }
 
+const db = open();
 const { pair, reversed } = Astro.props as { pair: HeadToHead; reversed: boolean };
 if (reversed) return Astro.redirect(headToHeadUrl(pair.lo.id, pair.hi.id), 301);
 
 const { lo, hi } = pair;
-const games = pairGames(lo.id, hi.id);
+const games = pairGames(db, lo.id, hi.id);
 const bracketGames = games.filter((g) => g.phase === 'bracket');
-const gaps = gapSeasons();
-const shared = new Set(seasonLines(lo.id).map((l) => l.season));
-const missing = seasonLines(hi.id)
+const gaps = gapSeasons(db);
+const shared = new Set(seasonLines(db, lo.id).map((l) => l.season));
+const missing = seasonLines(db, hi.id)
   .map((l) => l.season)
   .filter((s) => shared.has(s) && gaps.has(s));
 const lost = 'Score is lost';

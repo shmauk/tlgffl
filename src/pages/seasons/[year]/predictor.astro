@@ -12,16 +12,19 @@ import { project } from '../../../lib/predictor';
 import { renderPredictor } from '../../../lib/predictor-page';
 import { buildDate, current } from '../../../lib/current';
 import { throughWeek } from '../../../lib/updated';
+import { open } from '../../../lib/database';
 
 export function getStaticPaths() {
-  const season = predictorSeason();
+  const db = open();
+  const season = predictorSeason(db);
   return season === null ? [] : [{ params: { year: String(season) } }];
 }
 
-const data = predictorData(Number(Astro.params.year));
+const db = open();
+const data = predictorData(db, Number(Astro.params.year));
 const html = renderPredictor(data, project(data, { picks: [], spr: [] }), data.marks, 0);
 // Like every current-season view, it says how fresh it is (#35).
-const stamp = throughWeek(buildDate().iso, current()!.through);
+const stamp = throughWeek(buildDate(db).iso, current(db)!.through);
 ---
 
 <Base title={`${data.season} playoff predictor`}>

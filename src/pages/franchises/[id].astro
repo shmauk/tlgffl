@@ -22,40 +22,42 @@ import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crown
 import { headToHeadUrl, recordUrl } from '../../lib/urls';
 import { categoryOf } from '../../lib/records/catalogue';
 import { figureText, heldOver, recordsHeld } from '../../lib/records/held';
-import { siteDb } from '../../lib/records/site';
 import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardWinners } from '../../lib/awards';
+import { open } from '../../lib/database';
 
 export function getStaticPaths() {
-  return franchises().map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
+  const db = open();
+  return franchises(db).map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
 }
 
+const db = open();
 const { franchise } = Astro.props as { franchise: Franchise };
 const id = franchise.id;
-const names = teamNames(id);
-const lines = seasonLines(id);
-const c = career(id);
-const games = franchiseGames(id);
-const rounds = bracketRounds();
-const won = crowns(id);
-const gaps = gapSeasons();
+const names = teamNames(db, id);
+const lines = seasonLines(db, id);
+const c = career(db, id);
+const games = franchiseGames(db, id);
+const rounds = bracketRounds(db);
+const won = crowns(db, id);
+const gaps = gapSeasons(db);
 const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
-const best = bestAndWorst(id);
-const leftOut = recordExclusions().filter((x) => x.franchise.id === id || x.opponent.id === id);
+const best = bestAndWorst(db, id);
+const leftOut = recordExclusions(db).filter((x) => x.franchise.id === id || x.opponent.id === id);
 // Career figures are over finished seasons (recordbook/profiles.py).
-const unfinished = lines.map((l) => l.season).filter((s) => seasons().some((x) => x.year === s && !x.finished));
+const unfinished = lines.map((l) => l.season).filter((s) => seasons(db).some((x) => x.year === s && !x.finished));
 // Section 10, the Sleeper era (#37): most-started NFL players, the draft and keepers.
-const sleeperSeasons = seasons()
+const sleeperSeasons = seasons(db)
   .filter((s) => s.era === 'sleeper' && s.year >= franchise.firstSeason && s.year <= franchise.lastSeason)
   .map((s) => s.year);
-const started = mostStarted(id);
-const myPicks = franchisePicks(id);
-const drafts = draftSeasons().filter((d) => sleeperSeasons.includes(d.season));
+const started = mostStarted(db, id);
+const myPicks = franchisePicks(db, id);
+const drafts = draftSeasons(db).filter((d) => sleeperSeasons.includes(d.season));
 const unrecordedKeepers = drafts.filter((d) => !d.keepersRecorded).map((d) => d.season);
-const held = recordsHeld(siteDb, id);
+const held = recordsHeld(db, id);
 // Section 6, the award tally (#33): each award won, with the seasons.
-const myAwards = awardWinners({ franchiseId: id });
-const tally = awards()
+const myAwards = awardWinners(db, { franchiseId: id });
+const tally = awards(db)
   .map((award) => ({ award, seasons: myAwards.filter((w) => w.award === award.slug).map((w) => w.season) }))
   .filter((t) => t.seasons.length > 0);
 
@@ -102,7 +104,7 @@ for (const season of seasonsWithBrackets) {
   }
 }
 
-const opponents = headToHeads(id)
+const opponents = headToHeads(db, id)
   .map((p) => {
     const lo = p.lo.id === id;
     return {

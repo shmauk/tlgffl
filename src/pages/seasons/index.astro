@@ -8,7 +8,9 @@ import SeasonLink from '../../components/SeasonLink.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
 import Crowned from '../../components/Crowned.astro';
 import Notes from '../../components/Notes.astro';
-import { rollOfHonour } from '../../lib/db';
+import { open } from '../../lib/database';
+
+const db = open();import { rollOfHonour } from '../../lib/db';
 ---
 
 <Base title="Seasons">
@@ -23,7 +25,7 @@ import { rollOfHonour } from '../../lib/db';
       </thead>
       <tbody>
         {
-          rollOfHonour().map(({ season, champion, runnerUp, shitBowl, mediocreBowl }) => (
+          rollOfHonour(db).map(({ season, champion, runnerUp, shitBowl, mediocreBowl }) => (
             <tr>
               <td><SeasonLink season={season.year} /></td>
               {[champion, runnerUp].map((f) => (
