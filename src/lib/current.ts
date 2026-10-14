@@ -1,7 +1,7 @@
 // The current season (GLOSSARY.md) and its phase (#16, #35), as the Python
 // build chose them for its build date (recordbook/current.py, ADR 0004): the
 // site only reads them, so every page agrees on what "this season" is.
-import { open } from './database';
+import type { Db } from './database';
 import { updatedOn } from './updated';
 
 export type Phase = 'regular' | 'brackets' | 'off-season';
@@ -18,8 +18,8 @@ export interface Current {
 }
 
 /** The current season on the build date, or null if no season has started. */
-export function current(): Current | null {
-  const r = open()
+export function current(db: Db): Current | null {
+  const r = db
     .all('select season, phase, through, playing, next_season as n, next_draft_start as d from current_season')[0] as any;
   if (!r) return null;
   return {
@@ -32,6 +32,6 @@ export function current(): Current | null {
 }
 
 /** The build's date and its "Updated <date>" stamp (#26). */
-export function buildDate(): { text: string; iso: string } {
-  return updatedOn((open().all('select today from build_date')[0] as { today: string }).today);
+export function buildDate(db: Db): { text: string; iso: string } {
+  return updatedOn((db.all('select today from build_date')[0] as { today: string }).today);
 }

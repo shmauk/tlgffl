@@ -6,8 +6,10 @@ import Row from '../../../components/Row.astro';
 import AwardLink from '../../../components/AwardLink.astro';
 import Notes from '../../../components/Notes.astro';
 import { awards, awardSeasons, awardUnknowns, seasonRuns } from '../../../lib/awards';
+import { open } from '../../../lib/database';
 
-const unknowns = awardUnknowns();
+const db = open();
+const unknowns = awardUnknowns(db);
 ---
 
 <Base title="Awards">
@@ -23,14 +25,14 @@ const unknowns = awardUnknowns();
       <thead><tr><th>Award</th><th>Goes to</th><th>Seasons</th></tr></thead>
       <tbody>
         {
-          awards().map((a) => {
+          awards(db).map((a) => {
             const unknown = unknowns.filter((u) => u.award === a.slug).map((u) => u.season);
             return (
               <tr>
                 <td><AwardLink award={a} /></td>
                 <td>{a.definition}</td>
                 <td>
-                  {seasonRuns(awardSeasons(a.slug)) || 'None yet'}
+                  {seasonRuns(awardSeasons(db, a.slug)) || 'None yet'}
                   {unknown.length > 0 && <p class="sub">Unknown: {seasonRuns(unknown)}</p>}
                 </td>
               </tr>

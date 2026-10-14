@@ -6,8 +6,10 @@ import Row from '../components/Row.astro';
 import Home from '../components/Home.astro';
 import { homeData } from '../lib/home-db';
 import { MENU } from '../lib/urls';
+import { open } from '../lib/database';
 
-const data = homeData();
+const db = open();
+const data = homeData(db);
 ---
 
 <Base title="Home">

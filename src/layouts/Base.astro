@@ -6,13 +6,15 @@
 import '../styles/swiss.css';
 import { HOME_URL, MENU, NEW_ISSUE_URL } from '../lib/urls';
 import { buildDate } from '../lib/current';
+import { open } from '../lib/database';
 
 interface Props {
   title: string;
 }
+const db = open();
 const { title } = Astro.props;
 const path = Astro.url.pathname;
-const stamp = buildDate();
+const stamp = buildDate(db);
 ---
 
 <!doctype html>

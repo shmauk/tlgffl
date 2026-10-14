@@ -6,12 +6,14 @@ import Row from '../../components/Row.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
 import { documents, seasonFormats } from '../../lib/db';
 import { formatSummary } from '../../lib/format';
+import { open } from '../../lib/database';
 
-const docs = documents();
+const db = open();
+const docs = documents(db);
 const constitution = docs.filter((d) => d.kind === 'constitution');
 const agmYears = [...new Set(docs.filter((d) => d.kind === 'agm').map((d) => d.season!))].sort((a, b) => b - a);
 const agm = (season: number) => docs.filter((d) => d.kind === 'agm' && d.season === season);
-const formats = seasonFormats().reverse();
+const formats = seasonFormats(db).reverse();
 ---
 
 <Base title="League">

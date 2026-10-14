@@ -4,13 +4,15 @@
 // with synthetic fixtures. Expected values come from plain SQL.
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
+import { open } from './database';
 import { homeData } from './home-db';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
 const all = (sql: string, ...p: any[]) => sqlite.prepare(sql).all(...p) as any[];
+const db = open();
 
 describe('the home page on the build date', () => {
-  const data = homeData()!;
+  const data = homeData(db)!;
   const final = (week: number | null) =>
     all('select home_franchise_id h, away_franchise_id a from games where season = ? and week = ?', data.season, week ?? -1);
 

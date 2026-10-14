@@ -4,8 +4,10 @@ import Row from '../../components/Row.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
 import { franchises } from '../../lib/db';
+import { open } from '../../lib/database';
 
-const all = franchises();
+const db = open();
+const all = franchises(db);
 const active = all.filter((f) => f.active);
 const departed = all.filter((f) => !f.active);
 ---

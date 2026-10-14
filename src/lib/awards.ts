@@ -1,7 +1,7 @@
 // Awards (#33): reads of the tables recordbook/awards.py writes. Like db.ts,
 // nothing here derives a figure; it only groups and formats them.
 import { seasonFranchise, type SeasonFranchise } from './db';
-import { open } from './database';
+import type { Db } from './database';
 import { figure } from './figures';
 
 export type AwardUnit = 'points' | 'count' | 'share' | 'dollars';
@@ -29,15 +29,14 @@ export interface AwardUnknown {
 }
 
 /** The nine awards, in the order the site lists them. */
-export function awards(): Award[] {
-  return open()
+export function awards(db: Db): Award[] {
+  return db
     .all('select slug, name, definition, unit, lowest_wins as lowestWins from awards order by position')
     .map((r: any) => ({ ...r, lowestWins: Boolean(r.lowestWins) }));
 }
 
 /** Every award's winners (rank 1, so co-winners too), by award, season and name. */
-export function awardWinners(where: { award?: string; season?: number; franchiseId?: number } = {}): AwardResult[] {
-  const db = open();
+export function awardWinners(db: Db, where: { award?: string; season?: number; franchiseId?: number } = {}): AwardResult[] {
   const franchise = seasonFranchise(db);
   return db
     .all(
@@ -53,14 +52,14 @@ export function awardWinners(where: { award?: string; season?: number; franchise
 }
 
 /** Seasons an award is due for but can't be decided from the data yet. */
-export function awardUnknowns(): AwardUnknown[] {
-  return open()
+export function awardUnknowns(db: Db): AwardUnknown[] {
+  return db
     .all('select award, season, reason from award_unknowns order by award, season') as unknown as AwardUnknown[];
 }
 
 /** The seasons an award was given in, oldest first. */
-export function awardSeasons(slug: string): number[] {
-  return open()
+export function awardSeasons(db: Db, slug: string): number[] {
+  return db
     .all('select distinct season from award_results where award = ? order by season', [slug])
     .map((r: any) => r.season);
 }
@@ -80,8 +79,7 @@ export function seasonRuns(seasons: number[]): string {
 }
 
 /** A regular season still being played: each award's leaders so far (rank 1, so level leaders too). */
-export function awardLeaders(season: number): AwardResult[] {
-  const db = open();
+export function awardLeaders(db: Db, season: number): AwardResult[] {
   const franchise = seasonFranchise(db);
   return db
     .all(
