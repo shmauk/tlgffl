@@ -20,6 +20,9 @@ season in progress gets dated weekly files, {season}-team_names-{week}.json
 and {season}-players-{week}.json, the week being Sleeper's current week; a
 new one is written only when it differs from the season's latest. A complete
 season gets none: its names would no longer be the ones it was played under.
+
+The season Sleeper's state is about gets {season}-state.json, cut to its
+season_start_date (week 1's date), which the home page switches season on.
 """
 import argparse
 import json
@@ -128,6 +131,11 @@ def fetch(data, get=http_get, leagues=None):
             # The draft itself for slot_to_roster_id: draft_order is keyed by user id.
             save("draft", get(f"/draft/{drafts[0]['draft_id']}"))
             picks = save("draft_picks", get(f"/draft/{drafts[0]['draft_id']}/picks"))
+        if str(state.get("season")) == str(season) and state.get("season_start_date"):
+            # Week 1's date, for the home page's switch of season (#35). Only the date is
+            # kept, so the file changes once a season.
+            _write(folder / f"{season}-state.json",
+                   {"season": str(season), "season_start_date": state["season_start_date"]}, written)
         if league.get("status") == "complete":
             continue
         week = int(state.get("week") or 0) if str(state.get("season")) == str(season) else 0

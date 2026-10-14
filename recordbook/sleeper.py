@@ -146,6 +146,17 @@ def upcoming(year, league, weeks, fmt, franchise_of):
             for a, _pa, b, _pb in pairings(weeks[week])]
 
 
+def calendar(sleeper_dir, year):
+    """The season_calendar row (season, draft start, week 1 date): the draft's
+    start time in ms (the earliest of drafts[].start_time, None until set) and
+    the NFL season's start date from the {year}-state.json snapshot (None if
+    the fetch never saw that season in Sleeper's state)."""
+    drafts = _read(sleeper_dir / f"{year}-drafts.json") or []
+    times = [d["start_time"] for d in drafts if d.get("start_time")]
+    state = _read(sleeper_dir / f"{year}-state.json") or {}
+    return (year, min(times) if times else None, state.get("season_start_date") or None)
+
+
 def coverage(year, games, team_count):
     """coverage rows for the season's final weeks. Sleeper keeps every game,
     so each is complete: a regular-season week has a game for every pair of

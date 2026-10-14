@@ -12,7 +12,8 @@ from recordbook.fetch_sleeper import fetch
 from recordbook.privacy import find_violations
 
 LID = "L26"
-STATE = {"week": 5, "leg": 5, "season": "2026", "season_type": "regular", "display_week": 5}
+STATE = {"week": 5, "leg": 5, "season": "2026", "season_type": "regular", "display_week": 5,
+         "season_start_date": "2026-09-09", "previous_season": "2025"}
 LEAGUE = {"name": "The Fantasy League", "status": "in_season", "season": "2026", "league_id": LID,
           "previous_league_id": "L25", "draft_id": "D26", "total_rosters": 2,
           "metadata": {"division_1": "Group A", "latest_league_winner_roster_id": "5"},
@@ -173,3 +174,16 @@ def test_a_complete_season_takes_no_team_name_or_player_snapshot(data):
     assert not list((data / "sleeper").glob("2026-team_names-*"))
     assert not list((data / "sleeper").glob("2026-players-*"))
     assert "/players/nfl" not in api.calls and f"/league/{LID}/users" not in api.calls
+
+
+def test_the_season_in_sleepers_state_keeps_its_start_date_only(data):
+    # Week 1's date, for the home page's switch of season (#35); the week number is left out
+    # so the file changes once a season.
+    fetch(data, Api(), {2026: LID})
+    assert load(data, "2026-state.json") == {"season": "2026", "season_start_date": "2026-09-09"}
+    assert fetch(data, Api(**{"/state/nfl": {**STATE, "week": 6}}), {2026: LID}) == []
+
+
+def test_a_season_sleepers_state_is_not_about_gets_no_state_snapshot(data):
+    fetch(data, Api(**{"/state/nfl": {**STATE, "season": "2027"}}), {2026: LID})
+    assert not (data / "sleeper" / "2026-state.json").exists()

@@ -265,6 +265,14 @@ create table upcoming_games (
     home_franchise_id integer not null references franchises(id),
     away_franchise_id integer not null references franchises(id)
 );
+-- Sleeper era only. When each season's draft starts (ms since the epoch, null
+-- until Sleeper has a date) and its week 1 (the NFL season's start date, null
+-- if no state snapshot saw it). The site picks the current season with them.
+create table season_calendar (
+    season integer primary key references seasons(year),
+    draft_start integer,
+    week1_date text
+);
 -- Scissors-paper-rock rulings, from the hand-kept data/scissors_paper_rock.csv:
 -- each ruling orders the franchises it names, its winner at position 1. The
 -- seeding module applies them; nobody else seeds Sleeper-era seasons.
@@ -487,7 +495,9 @@ def build(data, out):
     moves = defaultdict(list)
     picks = []
     upcoming = []
+    calendar = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
+        calendar.append(sleeperlib.calendar(data / "sleeper", year))
         of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         upcoming += sleeperlib.upcoming(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
                                         formats[year], of)
@@ -543,6 +553,7 @@ def build(data, out):
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
         con.executemany("insert into upcoming_games values (?, ?, ?, ?)", upcoming)
+        con.executemany("insert into season_calendar values (?, ?, ?)", calendar)
         con.executemany("insert into scissors_paper_rock values (?, ?, ?, ?)", rulings)
         con.executemany("insert into nfl_players values (?, ?, ?, ?)",
                         sleeperlib.nfl_players(data / "sleeper", lineups))
