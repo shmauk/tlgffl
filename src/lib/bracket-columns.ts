@@ -1,9 +1,10 @@
 // The current season's brackets as Swiss-style columns (#16, #35): one
 // column per bracket week, round by round, with seeds from the seeding module
 // (ADR 0005). Final games come from the database with their hand-kept
-// bracket; pairings still to play come from Sleeper, placed here by the seeds
-// and results when no maintainer has assigned them yet. Pure.
-import type { BracketKey, FranchiseId, Place } from './seeding';
+// bracket; pairings still to play come from Sleeper, already placed by the
+// build (recordbook/sleeper.py) or, in a bracket's opening week, by the
+// seeding module. This only lays them out. Pure.
+import type { BracketKey, FranchiseId, Place, UpcomingPairing } from './seeding';
 
 export interface BracketSpec {
   bracket: BracketKey;
@@ -26,46 +27,8 @@ export interface PlayedGame {
   winner: FranchiseId | null;
 }
 
-/** A bracket-week pairing still to play: its bracket and round, or null if nobody has assigned it. */
-export interface Pairing {
-  week: number;
-  home: FranchiseId;
-  away: FranchiseId;
-  bracket: BracketKey | null;
-  round: number | null;
-}
-
-const roundOf = (spec: BracketSpec, week: number) => (spec.series ? 1 : week - spec.firstWeek + 1);
-
-/**
- * The pairings that are bracket games, each with its bracket and round. An
- * unassigned pairing belongs to a bracket when both franchises are seeded in
- * it and still in it (a loser is out, or in the Shit Bowl a winner; a series
- * keeps both), and the bracket plays that week. Any other pairing is filler.
- */
-export function placePairings(
-  pairings: Pairing[],
-  places: Place[],
-  played: PlayedGame[],
-  specs: BracketSpec[],
-): (Pairing & { bracket: BracketKey; round: number })[] {
-  const bracketOf = new Map(places.map((p) => [p.franchise, p.bracket]));
-  const out = new Set<FranchiseId>();
-  for (const g of played) {
-    const spec = specs.find((s) => s.bracket === g.bracket);
-    if (!spec || spec.series || g.winner === null) continue;
-    const loser = g.winner === g.home ? g.away : g.home;
-    out.add(g.bracket === 'shit_bowl' ? g.winner : loser);
-  }
-  return pairings.flatMap((p) => {
-    if (p.bracket) return [{ ...p, bracket: p.bracket, round: p.round ?? 1 }];
-    const bracket = bracketOf.get(p.home);
-    const spec = specs.find((s) => s.bracket === bracket);
-    if (!bracket || !spec || bracketOf.get(p.away) !== bracket || out.has(p.home) || out.has(p.away)) return [];
-    if (p.week < spec.firstWeek || p.week > spec.lastWeek) return [];
-    return [{ ...p, bracket, round: roundOf(spec, p.week) }];
-  });
-}
+/** A placed bracket-week pairing still to play. */
+export type Pairing = UpcomingPairing & { bracket: BracketKey };
 
 export interface Side {
   id: FranchiseId;

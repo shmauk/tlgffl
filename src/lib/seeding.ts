@@ -272,6 +272,39 @@ export function playoffPicture(input: SeedingInput): Place[] {
   return seed(input, table(input), sprResolve(input.spr ?? [])).places;
 }
 
+// ---------- placing a bracket's opening pairings ----------
+
+/** A bracket-week pairing still to play: its bracket and round, or null if the build couldn't place it. */
+export interface UpcomingPairing {
+  week: number;
+  home: FranchiseId;
+  away: FranchiseId;
+  bracket: BracketKey | null;
+  round: number | null;
+}
+
+/**
+ * The pairings that are bracket games. The Python build places every pairing
+ * it can, from the hand-kept assignment and the bracket games already played
+ * (recordbook/sleeper.py); before either franchise has played a bracket game,
+ * only the seeds can. Such a pairing is round 1 of the bracket both franchises
+ * are seeded in, in that bracket's opening week. Any other is filler.
+ */
+export function placeOpeningPairings(
+  pairings: UpcomingPairing[],
+  places: Place[],
+  openings: { bracket: BracketKey; firstWeek: number }[],
+): (UpcomingPairing & { bracket: BracketKey; round: number })[] {
+  const bracketOf = new Map(places.map((p) => [p.franchise, p.bracket]));
+  return pairings.flatMap((p) => {
+    if (p.bracket) return [{ ...p, bracket: p.bracket, round: p.round ?? 1 }];
+    const bracket = bracketOf.get(p.home);
+    const opening = openings.find((o) => o.bracket === bracket);
+    if (!bracket || !opening || bracketOf.get(p.away) !== bracket || p.week !== opening.firstWeek) return [];
+    return [{ ...p, bracket, round: 1 }];
+  });
+}
+
 // ---------- the seed check ----------
 
 export interface BracketGame {

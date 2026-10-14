@@ -105,8 +105,10 @@ the UK date unless `python -m recordbook.build --today YYYY-MM-DD` says otherwis
 "Updated <date>" stamp is that date. Records, the season pages, the predictor and the home page all
 read it, and a season counts as finished (for career and bracket records) once it reaches its
 off-season. Only final weeks
-have scores; the week being played shows Sleeper's pairings, and a bracket-week pairing with no row
-in `data/sleeper_brackets.csv` yet is placed by seed until it has one.
+have scores; the week being played shows Sleeper's pairings. Until a bracket-week pairing has its
+row in `data/sleeper_brackets.csv`, the build places it from the bracket games already played (a
+franchise still in a bracket plays its next round); a bracket's opening-week pairings, which only
+the seeds can place, are placed by the seeding module.
 
 Three hand-kept tables go with it. `data/sleeper_brackets.csv` assigns every pairing Sleeper made in
 a bracket week to the Playoffs, the Shit Bowl, the Mediocre Bowl or `filler` (never a game), since

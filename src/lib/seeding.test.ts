@@ -1,7 +1,7 @@
 // The seeding and clinch module (ADR 0005, #34): playoffs.md's seeding and
 // tiebreaks, the playoff picture, clinch marks and the seed check.
 import { describe, expect, test } from 'vitest';
-import { checkSeeds, clinchMarks, playoffPicture, type Mark, type Place, type SeedingInput } from './seeding';
+import { checkSeeds, clinchMarks, placeOpeningPairings, playoffPicture, type Mark, type Place, type SeedingInput } from './seeding';
 
 // Two divisions of four (A: 1-4, B: 5-8), a 3-team Playoffs (2 division
 // winners and 1 wildcard), a 2-team Mediocre Bowl and a 3-team Shit Bowl.
@@ -342,3 +342,33 @@ const levelPairForCheck: [number, number][] = [
   [1, 0], [1, 0], [1, 0], [2, 0], [2, 0], [0, 2], [3, 0], [0, 3], [0, 3], [0, 4], [0, 4], [0, 4],
   [5, 0], [5, 0], [5, 0], [6, 0], [6, 0], [0, 6], [7, 0], [7, 0], [0, 7], [0, 8], [0, 8], [0, 8],
 ];
+
+describe('placing a bracket’s opening-week pairings by seed', () => {
+  // The build places every pairing it can from the bracket games (recordbook/sleeper.py); before
+  // either franchise has played one, only the seeds can.
+  const place = (franchise: number, bracket: Place['bracket'], seed: number): Place => ({
+    franchise, bracket, seed, shared: false, level: [],
+  });
+  const places = [place(2, 'playoffs', 2), place(3, 'playoffs', 3), place(4, 'mediocre_bowl', 4), place(6, 'shit_bowl', 3)];
+  const openings = [
+    { bracket: 'playoffs' as const, firstWeek: 15 },
+    { bracket: 'mediocre_bowl' as const, firstWeek: 16 },
+    { bracket: 'shit_bowl' as const, firstWeek: 15 },
+  ];
+  const unplaced = (week: number, home: number, away: number) => ({ week, home, away, bracket: null, round: null });
+
+  test('two franchises seeded in the same bracket, in its opening week, are its round 1', () => {
+    expect(placeOpeningPairings([unplaced(15, 2, 3)], places, openings)).toEqual([
+      { week: 15, home: 2, away: 3, bracket: 'playoffs', round: 1 },
+    ]);
+  });
+
+  test('a pairing across brackets, or outside a bracket’s opening week, is filler and left out', () => {
+    expect(placeOpeningPairings([unplaced(15, 4, 6), unplaced(16, 2, 3), unplaced(15, 4, 2)], places, openings)).toEqual([]);
+  });
+
+  test('a pairing the build already placed is kept as it is', () => {
+    const placed = { week: 16, home: 2, away: 9, bracket: 'playoffs' as const, round: 2 };
+    expect(placeOpeningPairings([placed], places, openings)).toEqual([placed]);
+  });
+});

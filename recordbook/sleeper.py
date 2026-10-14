@@ -146,22 +146,55 @@ def upcoming(year, league, weeks, fmt, franchise_of):
             for a, _pa, b, _pb in pairings(weeks[week])]
 
 
-def upcoming_brackets(year, league, weeks, fmt, franchise_of, assigned):
+def still_in(games, fmt):
+    """{franchise: bracket} for every franchise that has played in one of the
+    season's brackets and not gone out of it. A loser goes out, but in the Shit
+    Bowl, where losing advances you, a winner does; a tie puts nobody out, and
+    a series ("best of three") keeps both franchises to the end."""
+    out, member = set(), {}
+    for g in sorted(games, key=lambda g: g.week):
+        if g.phase != "bracket" or g.bracket not in fmt.brackets:
+            continue
+        member.setdefault(g.home, g.bracket)
+        member.setdefault(g.away, g.bracket)
+        if fmt.brackets[g.bracket].series or g.winner is None:
+            continue
+        loser = g.away if g.winner == g.home else g.home
+        out.add(g.winner if g.bracket == "shit_bowl" else loser)
+    return {f: b for f, b in member.items() if f not in out}
+
+
+def round_of(bracket, week):
+    """A bracket's round in one of its weeks: a series is all round 1."""
+    return 1 if bracket.series else week - bracket.first_week + 1
+
+
+def upcoming_brackets(year, league, weeks, fmt, franchise_of, assigned, games):
     """upcoming_bracket_pairings rows (season, week, home, away, bracket,
-    round): the pairings Sleeper has made in bracket weeks not yet final, with
-    their bracket and round from the hand-kept assignment when it already has
-    a row (filler is left out), else None for the site to place by seed. They
-    are never games, and their scores are never kept."""
+    round): the pairings Sleeper has made in bracket weeks not yet final, never
+    games, and their scores never kept. Each takes its bracket and round from
+    the hand-kept assignment when it already has a row (filler is left out).
+    Until then, a pairing with a franchise still in a bracket (games: the
+    season's final games) is that bracket's game, if it plays that week. The
+    rest, before either franchise has played a bracket game, stay None: only
+    the seeds can place them, and the seeding module owns those (ADR 0005)."""
     bracket_weeks = {w for b in fmt.brackets.values() for w in b.weeks}
     final = final_weeks(league, weeks)
+    alive = still_in([g for g in games if g.season == year], fmt)
     rows = []
     for week in sorted(weeks):
         if week not in bracket_weeks or week in final:
             continue
         for a, _pa, b, _pb in pairings(weeks[week]):
+            home, away = franchise_of(a), franchise_of(b)
             bracket, rnd = assigned.get((week, frozenset((a, b))), (None, None))
+            if bracket is None:
+                found = {alive[f] for f in (home, away) if f in alive}
+                found = found.pop() if len(found) == 1 else None
+                if found and week in fmt.brackets[found].weeks:
+                    bracket, rnd = found, round_of(fmt.brackets[found], week)
             if bracket != "filler":
-                rows.append((year, week, franchise_of(a), franchise_of(b), bracket, rnd))
+                rows.append((year, week, home, away, bracket, rnd))
     return rows
 
 

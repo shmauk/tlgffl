@@ -4,7 +4,7 @@
 // the pairings Sleeper has made, which never carry one.
 import { bracketWinners, open, seasonFormats, seasonGames, seasonStandings, type SeasonFranchise } from './db';
 import { awardLeaders, awardValue, awards, awardWinners } from './awards';
-import { bracketColumns, placePairings, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
+import { bracketColumns, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
 import { buildDate, current } from './current';
 import { BRACKET_ORDER, type HomeData, type Matchup, type Result } from './home';
 import { predictorSeason } from './predictor-db';
@@ -12,7 +12,7 @@ import { siteDb } from './records/site';
 import { figureText, holders, recordsThisSeason } from './records/held';
 import { seasonPicture } from './seeding-db';
 import { predictorUrl } from './urls';
-import type { BracketKey } from './seeding';
+import { placeOpeningPairings, type BracketKey, type UpcomingPairing } from './seeding';
 
 const ukDate = (ms: number) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric' }).format(
@@ -30,8 +30,12 @@ function seasonNames(season: number): Record<number, SeasonFranchise> {
   return Object.fromEntries(rows.map((r) => [r.id, r]));
 }
 
-/** The bracket-week pairings still to play in a week, placed in their brackets. */
-function bracketPairings(season: number, week: number, specs: BracketSpec[], played: PlayedGame[]) {
+/**
+ * The bracket-week pairings still to play in a week, as the build placed them
+ * (recordbook/sleeper.py), with a bracket's opening-week pairings placed by
+ * seed (the seeding module, ADR 0005). Filler is left out.
+ */
+function bracketPairings(season: number, week: number, specs: BracketSpec[]): Pairing[] {
   const picture = seasonPicture(season);
   if (!picture) return [];
   const rows = open()
@@ -39,8 +43,8 @@ function bracketPairings(season: number, week: number, specs: BracketSpec[], pla
       `select week, home_franchise_id as home, away_franchise_id as away, bracket, round
        from upcoming_bracket_pairings where season = ? and week = ? order by rowid`,
     )
-    .all(season, week) as unknown as Pairing[];
-  return placePairings(rows, picture.places, played, specs);
+    .all(season, week) as unknown as UpcomingPairing[];
+  return placeOpeningPairings(rows, picture.places, specs);
 }
 
 /** A season's brackets as specs, its final bracket games, and all its games. */
@@ -76,8 +80,8 @@ export function inProgressWeeks(season: number): Map<number, Matchup[]> {
     .all(season) as { week: number; h: number; a: number }[];
   for (const r of upcoming) add(r.week, { bracket: null, home: names[r.h], away: names[r.a] });
   if (now.phase === 'brackets' && now.playing !== null) {
-    const { specs, played } = bracketsOf(season);
-    for (const p of bracketPairings(season, now.playing, specs, played))
+    const { specs } = bracketsOf(season);
+    for (const p of bracketPairings(season, now.playing, specs))
       add(p.week, { bracket: p.bracket, home: names[p.home], away: names[p.away] });
   }
   return out;
@@ -92,7 +96,7 @@ export function homeData(): HomeData | null {
   const { specs, played, games } = bracketsOf(season);
 
   let thisWeek: Matchup[] = [];
-  let placed: ReturnType<typeof placePairings> = [];
+  let placed: Pairing[] = [];
   if (playing !== null && phase === 'regular') {
     thisWeek = (
       open()
@@ -100,7 +104,7 @@ export function homeData(): HomeData | null {
         .all(season, playing) as { h: number; a: number }[]
     ).map((r) => ({ bracket: null, home: names[r.h], away: names[r.a] }));
   } else if (playing !== null && phase === 'brackets') {
-    placed = bracketPairings(season, playing, specs, played);
+    placed = bracketPairings(season, playing, specs);
     thisWeek = placed.map((p) => ({ bracket: p.bracket, home: names[p.home], away: names[p.away] }));
   }
 

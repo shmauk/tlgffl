@@ -267,8 +267,11 @@ create table upcoming_games (
     away_franchise_id integer not null references franchises(id)
 );
 -- Sleeper era only. Pairings Sleeper has made in bracket weeks not yet final,
--- with their bracket and round where data/sleeper_brackets.csv already has a
--- row (null: not yet assigned; filler is left out). Never games, never scores.
+-- with their bracket and round: from data/sleeper_brackets.csv where it has a
+-- row (filler is left out), else from the bracket games already played (a
+-- franchise still in a bracket plays its next round). Null only before either
+-- franchise has played a bracket game, which the seeds alone can place (the
+-- seeding module, ADR 0005). Never games, never scores.
 create table upcoming_bracket_pairings (
     season integer not null references seasons(year),
     week integer not null,
@@ -533,7 +536,8 @@ def build(data, out, today=None):
         calendar.append(sleeperlib.calendar(data / "sleeper", year))
         of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         upcoming_brackets += sleeperlib.upcoming_brackets(
-            year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], of, assigned.get(year, {}))
+            year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], of, assigned.get(year, {}),
+            games)
         upcoming += sleeperlib.upcoming(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
                                         formats[year], of)
         winners += sleeperlib.crowns(year, games, formats[year])
