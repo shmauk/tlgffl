@@ -93,7 +93,15 @@ season's there) and writes a file only when its content changed. Privacy reducti
 before writing: users become `{roster_id, team_name}`, the players dump is cut to the league's NFL
 players, and forbidden fields are stripped. A season in progress also gets dated weekly
 `<season>-team_names-<week>.json` and `<season>-players-<week>.json` files, because Sleeper only
-keeps the current team names and NFL teams.
+keeps the current team names and NFL teams. The season Sleeper's state is about gets
+`<season>-state.json`, cut to its `season_start_date` (week 1).
+
+The home page is the current season's hub (`src/lib/current.ts`). Its phase (regular season,
+brackets or off-season) comes from the data and the build date, never by hand: a season becomes
+current at its week 1 (that date, or its first final week), its brackets start once every
+regular-season week is final, and its off-season once every bracket is crowned. Only final weeks
+have scores; the week being played shows Sleeper's pairings, and a bracket-week pairing with no row
+in `data/sleeper_brackets.csv` yet is placed by seed until it has one.
 
 Three hand-kept tables go with it. `data/sleeper_brackets.csv` assigns every pairing Sleeper made in
 a bracket week to the Playoffs, the Shit Bowl, the Mediocre Bowl or `filler` (never a game), since
