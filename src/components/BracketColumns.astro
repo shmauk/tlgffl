@@ -1,0 +1,59 @@
+---
+// One bracket drawn as simple Swiss-style columns (#16, #35): a column a week,
+// round by round, each game's two franchises with their seeds and, once final,
+// their scores. A game's winner is bold and the bracket's winner red. Games
+// still to play show no score.
+import FranchiseLink from './FranchiseLink.astro';
+import type { SeasonFranchise } from '../lib/db';
+import type { Column, Side } from '../lib/bracket-columns';
+
+interface Props {
+  columns: Column[];
+  names: Record<number, SeasonFranchise>;
+  /** The bracket's winner, once crowned. */
+  winner: number | null;
+}
+const { columns, names, winner } = Astro.props;
+const pts = (p: number | null) => (p === null ? '' : p.toFixed(2));
+const lines = (g: Column['games'][number]) => [
+  { side: g.home, points: g.homePoints },
+  { side: g.away, points: g.awayPoints },
+];
+const name = (s: Side) => names[s.id] ?? { id: s.id, name: String(s.id), teamName: String(s.id) };
+---
+
+<div class="cols">
+  {
+    columns.map((c) => (
+      <div class="col">
+        <h4>{c.title} <small>week {c.week}</small></h4>
+        {c.games.length === 0 && c.byes.length === 0 && <p class="sub">To come</p>}
+        {c.games.map((g) => (
+          <div class="game">
+            {lines(g).map(({ side, points }) => {
+              const label = (
+                <span class={side.id === winner ? 'crowned' : undefined}>
+                  <span class="seed">{side.seed ?? ''}</span> <FranchiseLink franchise={name(side)} teamName={name(side).teamName} />
+                </span>
+              );
+              return (
+                <p>
+                  {g.winner === side.id ? <b class="win">{label}</b> : label}
+                  <span class="num">{pts(points)}</span>
+                </p>
+              );
+            })}
+          </div>
+        ))}
+        {c.byes.map((side) => (
+          <div class="game">
+            <p>
+              <span class="seed">{side.seed ?? ''}</span> <FranchiseLink franchise={name(side)} teamName={name(side).teamName} />{' '}
+              <span class="sub">bye</span>
+            </p>
+          </div>
+        ))}
+      </div>
+    ))
+  }
+</div>

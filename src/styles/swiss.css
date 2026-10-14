@@ -122,6 +122,17 @@ table.t { width: 100%; font-size: 14px; }
 .recs .sub { margin: 0 0 0 8px; font-size: 12px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 
+/* ---------- brackets as columns (#35) ---------- */
+.cols { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 24px; margin-bottom: 18px; }
+.col h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey); font-weight: 400; }
+.col h4 small { font-size: 11px; }
+.col .game { border-top: 2px solid var(--fg); padding: 4px 0; margin-bottom: 12px; font-size: 14px; }
+.col .game p { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+.col .fr { font-weight: 400; }
+.col .win .fr { font-weight: 700; }
+.col .crowned, .col .crowned .fr { color: var(--accent); }
+.col .seed { display: inline-block; min-width: 18px; color: var(--grey); font-variant-numeric: tabular-nums; }
+
 /* ---------- narrow screens: labels stack above their content ---------- */
 @media (max-width: 720px) {
   .top { padding: 16px 20px; }
