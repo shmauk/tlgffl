@@ -38,6 +38,16 @@ create table award_results (
     rank integer not null,
     primary key (award, season, franchise_id)
 );
+-- The award leaders (GLOSSARY.md): like award_results, for a regular season
+-- still being played, over its weeks final so far. Rank 1 leads.
+create table award_leaders (
+    award text not null references awards(slug),
+    season integer not null references seasons(year),
+    franchise_id integer not null references franchises(id),
+    value real not null,
+    rank integer not null,
+    primary key (award, season, franchise_id)
+);
 -- A season an award is due for but can't be decided yet from the data, and why.
 create table award_unknowns (
     award text not null references awards(slug),
@@ -129,6 +139,20 @@ def results(*, games, coverage, regular_weeks, nfl_counts, moves, played, lineup
     rows = [row for a in AWARDS for row in ranked(a.slug, values[a.slug])]
     unknowns = [("draft-dodger", season, KEEPERS_UNKNOWN) for season in sorted((over & drafted) - known)]
     return rows, unknowns
+
+
+def leaders(*, coverage, regular_weeks, **inputs):
+    """award_leaders rows: each award's formula over the regular-season weeks
+    final so far, for each season whose regular season is still being played
+    (the same inputs as results). Nothing is decided by them."""
+    weeks = _regular_weeks_final(coverage, regular_weeks)
+    over = regular_seasons_over(coverage, regular_weeks)
+    so_far = {season: (first, max(weeks[season])) for season, (first, _last) in regular_weeks.items()
+              if season not in over and weeks.get(season)}
+    if not so_far:
+        return []
+    rows, _unknowns = results(coverage=coverage, regular_weeks=so_far, **inputs)
+    return [r for r in rows if r[1] in so_far]
 
 
 def ranked(slug, values):

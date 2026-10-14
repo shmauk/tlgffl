@@ -109,3 +109,24 @@ def test_a_sleeper_season_still_in_its_regular_season_has_no_awards_yet(season, 
     db = built(season, tmp_path)
     assert query(db, "select count(*) from award_results where season = 2025") == [(0,)]
     assert query(db, "select count(*) from award_unknowns") == [(0,)]
+
+
+def leaders(db, slug, season):
+    return query(db, "select franchise_id, round(value, 4), rank from award_leaders "
+                     "where award = ? and season = ? and rank = 1 order by franchise_id", slug, season)
+
+
+def test_a_regular_season_still_being_played_has_award_leaders_over_its_final_weeks(season, tmp_path):
+    write_sleeper_league(season, 2025, WEEKS, DIVISIONS, status="in_season", last_scored_leg=1,
+                         lineups=LINEUPS)
+    db = built(season, tmp_path)
+    # Week 1 margins: 11 and 12 10, 13 and 14 5, 15 and 16 0.5.
+    assert leaders(db, "nail-biter", 2025) == [(15, 0.5, 1), (16, 0.5, 1)]
+    # b's 40 of franchise 11's 50 week-1 starter points.
+    assert leaders(db, "one-man-army", 2025) == [(11, 0.8, 1)]
+    assert query(db, "select count(*) from award_results where season = 2025") == [(0,)]
+
+
+def test_a_finished_regular_season_has_winners_not_leaders(season, tmp_path):
+    db = built(season, tmp_path)
+    assert query(db, "select count(*) from award_leaders") == [(0,)]

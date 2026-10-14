@@ -535,12 +535,14 @@ def build(data, out):
         lineage_rows = divisionlib.lineage_rows(lineages, season_lines, formats)
     except divisionlib.LineageError as e:
         raise BuildError(str(e)) from e
-    award_results, award_unknowns = awardlib.results(
+    award_inputs = dict(
         games=games, coverage=coverage, regular_weeks={y: f.regular_season for y, f in formats.items()},
         nfl_counts=nfl_moves, moves=moves, lineups=lineups,
         picks=[(season, fid, pid, False) for season, *_, fid, pid in picks],
         played={y: {f for f, ys in played.items() if y in ys} for y in sleeper},
         keepers=keepers)
+    award_results, award_unknowns = awardlib.results(**award_inputs)
+    award_leaders = awardlib.leaders(**award_inputs)
 
     if out.exists():
         out.unlink()
@@ -589,6 +591,7 @@ def build(data, out):
         con.executemany("insert into awards values (?, ?, ?, ?, ?, ?)", awardlib.award_rows())
         con.executemany("insert into award_results values (?, ?, ?, ?, ?)", award_results)
         con.executemany("insert into award_unknowns values (?, ?, ?)", award_unknowns)
+        con.executemany("insert into award_leaders values (?, ?, ?, ?, ?)", award_leaders)
         con.commit()
     finally:
         con.close()
