@@ -44,7 +44,10 @@ create table franchises (
 create table seasons (
     year integer primary key,
     era text not null check (era in ('nfl.com', 'sleeper')),
-    team_count integer not null
+    team_count integer not null,
+    -- Over: before the current season, or the current one in its off-season
+    -- (recordbook/current.py). A season in progress or still to start is not.
+    finished integer not null check (finished in (0, 1))
 );
 create table team_names (
     franchise_id integer not null references franchises(id),
@@ -581,7 +584,8 @@ def build(data, out, today=None):
     con = sqlite3.connect(out)
     try:
         con.executescript(SCHEMA)
-        con.executemany("insert into seasons values (?, ?, ?)", sorted(seasons))
+        con.executemany("insert into seasons values (?, ?, ?, ?)",
+                        [(year, era, count, int(year in done)) for year, era, count in sorted(seasons)])
         con.executemany("insert into franchises values (?, ?, ?, ?, ?)", franchises)
         con.executemany("insert into team_names values (?, ?, ?)",
                         [(f, y, n) for (f, y), n in sorted(team_names.items())])

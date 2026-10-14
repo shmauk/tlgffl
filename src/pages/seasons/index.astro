@@ -1,7 +1,7 @@
 ---
-import { AWARDS_URL } from '../../lib/urls';
 // The roll of honour (#24): every finished season's champion, runner-up, Shit Bowl
-// winner and Mediocre Bowl winner, newest first.
+// winner and Mediocre Bowl winner, newest first. The season in progress has no row.
+import { AWARDS_URL } from '../../lib/urls';
 import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
@@ -41,7 +41,6 @@ import { rollOfHonour } from '../../lib/db';
         { text: 'Recalled: from memory, as no surviving game data could have recorded it.' },
         { text: 'Disputed: the league can’t agree, so it counts for nobody until settled.' },
         { text: 'Unknown: nobody has recorded it. The Mediocre Bowl began in 2015.' },
-        { text: 'To come: the season’s Sleeper results are not in the record book yet, or it is still being played.' },
       ]}
     />
   </Row>

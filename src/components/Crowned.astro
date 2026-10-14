@@ -1,8 +1,8 @@
 ---
 // Who a bracket crowned, as the roll of honour shows it: each candidate linked
 // to its franchise, with the outcome's source note. A disputed outcome names
-// every candidate; one nobody recorded reads "Unknown"; one not yet in the
-// database reads "To come".
+// every candidate, and one nobody recorded reads "Unknown". Only finished
+// seasons are shown, so every bracket has its row.
 import FranchiseLink from './FranchiseLink.astro';
 import SourceNote from './SourceNote.astro';
 import type { BracketWinner } from '../lib/db';
@@ -14,8 +14,7 @@ const known = winners.filter((w) => w.franchise !== null);
 const disputed = known.some((w) => w.source === 'disputed');
 ---
 
-{winners.length === 0 && <span class="sub">To come</span>}
-{winners.length > 0 && known.length === 0 && 'Unknown'}
+{known.length === 0 && 'Unknown'}
 {
   known.length > 0 && (
     <>

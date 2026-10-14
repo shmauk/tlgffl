@@ -61,13 +61,16 @@ export interface Season {
   year: number;
   era: 'nfl.com' | 'sleeper';
   teamCount: number;
+  /** Over, as the build decided (recordbook/current.py): not in progress or still to start. */
+  finished: boolean;
 }
 
 /** Every season, newest first. */
 export function seasons(): Season[] {
   return open()
-    .prepare('select year, era, team_count as teamCount from seasons order by year desc')
-    .all() as unknown as Season[];
+    .prepare('select year, era, team_count as teamCount, finished from seasons order by year desc')
+    .all()
+    .map((r: any) => ({ ...r, finished: Boolean(r.finished) }));
 }
 
 
@@ -290,7 +293,7 @@ export interface Honours {
   mediocreBowl: BracketWinner[] | null;
 }
 
-/** Every season's champion and runner-up, newest first. */
+/** Every finished season's champion and runner-up, newest first: the season in progress has no row (#24). */
 export function rollOfHonour(): Honours[] {
   // The Playoffs final is each season's last-round Playoffs game.
   const finals = open()
@@ -310,10 +313,9 @@ export function rollOfHonour(): Honours[] {
   const franchise = (season: number, id: number | undefined) =>
     id === undefined ? null : (named.get(season, id) as unknown as SeasonFranchise);
   const formats = new Map(seasonFormats().map((f) => [f.season, f]));
-  // A season joins the roll of honour once its Playoffs final is played.
   return seasons().flatMap((season) => {
     const final = finals.find((f) => f.season === season.year);
-    if (!final) return [];
+    if (!season.finished || !final) return [];
     const winners = bracketWinners(season.year);
     const hasMediocreBowl = formats.get(season.year)?.brackets.some((b) => b.bracket === 'mediocre_bowl');
     return [{

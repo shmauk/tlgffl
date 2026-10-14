@@ -22,16 +22,9 @@ const rows = new Map(
 const cell = (year, column) => rows.get(year)[COLUMNS.indexOf(column)];
 const links = (s) => [...s.matchAll(/href="\/franchises\/(\d+)\/"/g)].map((m) => Number(m[1]));
 
-// A season is finished once its Playoffs final has a winner.
-const finished = db
-  .prepare(
-    `select year from seasons s where exists (
-       select 1 from games g where g.season = s.year and g.bracket = 'playoffs' and g.winner_franchise_id is not null
-         and g.round = (select max(round) from games m where m.season = s.year and m.bracket = 'playoffs'))
-     order by year desc`,
-  )
-  .all()
-  .map((r) => r.year);
+// The finished seasons, as the build decided them (recordbook/current.py): a user decision
+// keeps the season in progress off the roll of honour.
+const finished = db.prepare('select year from seasons where finished = 1 order by year desc').all().map((r) => r.year);
 
 test('one row per finished season from 2012, newest first, each linking to its season page', () => {
   const years = finished;
@@ -77,10 +70,10 @@ test('disputed and recalled outcomes are marked with their source, and disputed 
   assert.match(html.slice(html.indexOf('</table>')), /Recalled: [^<]*memory/);
 });
 
-test('a season still in progress has no row until its Playoffs final is played', () => {
+test('a season still in progress has no row until it has finished, and nothing reads "To come"', () => {
   const all = db.prepare('select year from seasons').all().map((r) => r.year);
   for (const year of all.filter((y) => !finished.includes(y))) assert.equal(rows.has(year), false, String(year));
-  assert.doesNotMatch(table, /To come/);
+  assert.doesNotMatch(html, /To come/);
 });
 
 test('the Mediocre Bowl is blank before 2015, and unknown where nobody recorded its winner', () => {

@@ -70,6 +70,15 @@ def test_the_current_season_and_its_phase_are_written_once_for_the_build_date(sl
     assert query(db, CURRENT) == [(2025, "regular", 1, 2, None, None, "2025-09-20")]
 
 
+def test_a_season_is_finished_once_it_reaches_its_off_season(sleeper, tmp_path):  # noqa: F811
+    assert query(built_on(sleeper, tmp_path, "2026-01-10"), "select year, finished from seasons") == [(2025, 1)]
+    # Only week 1 is final: the season is in progress.
+    write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, status="in_season", last_scored_leg=1,
+                         totals={1: (1, 0, 0, 100.0), 2: (0, 1, 0, 90.0), 3: (0, 1, 0, 80.0),
+                                 4: (1, 0, 0, 85.0), 5: (0, 1, 0, 70.0), 6: (1, 0, 0, 70.5)})
+    assert query(built_on(sleeper, tmp_path, "2025-09-20"), "select year, finished from seasons") == [(2025, 0)]
+
+
 def test_a_crowned_season_is_in_its_off_season_with_the_next_draft_once_sleeper_has_it(sleeper, tmp_path):  # noqa: F811
     write_sleeper_league(sleeper, 2026, {1: [(1, 0.0, 2, 0.0)]}, DIVISIONS, status="pre_draft", last_scored_leg=0)
     write_snapshot(sleeper, "2026-drafts.json", [{"draft_id": "D", "start_time": 1788285600000}])
