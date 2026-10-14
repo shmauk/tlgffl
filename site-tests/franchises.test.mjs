@@ -37,7 +37,7 @@ test('static pages ship no client-side JS: only the islands, Statsguru and the c
   });
   const files = walk(DIST);
   // The predictor is an island only for the current season, while its regular season is on (#36).
-  const current = db.prepare('select year from seasons order by year desc limit 1').get().year;
+  const current = db.prepare('select season from current_season').get()?.season;
   const islands = [join(DIST, 'statsguru', 'index.html'), join(DIST, 'seasons', String(current), 'predictor', 'index.html')]
     .filter((f) => existsSync(f));
   for (const f of files.filter((f) => f.endsWith('.html') && !islands.includes(f))) {

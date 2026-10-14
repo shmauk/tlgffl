@@ -19,7 +19,7 @@ const season = Number(home.match(/<h1>(\d{4})<\/h1>/)?.[1]);
 const finalWeek = db.prepare('select max(week) as w from games where season = ?').get(season)?.w ?? null;
 
 test('the home page names the current season with its updated line and has no JS', () => {
-  assert.ok(season >= db.prepare('select max(season) as s from games').get().s);
+  assert.equal(season, db.prepare('select season from current_season').get().season);
   assert.match(home, finalWeek === null ? /Updated \d+ \w+ \d{4}, week 1 not yet final/ : new RegExp(`Updated \\d+ \\w+ \\d{4}, through week ${finalWeek}<`));
   assert.doesNotMatch(home, /<script/i);
 });
