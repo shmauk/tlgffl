@@ -17,6 +17,7 @@ from pathlib import Path
 
 from recordbook import awards as awardlib
 from recordbook import brackets as bracketlib
+from recordbook import current as currentlib
 from recordbook import divisions as divisionlib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
@@ -284,6 +285,23 @@ create table season_calendar (
     draft_start integer,
     week1_date text
 );
+-- The date the build is for (the UK date, unless --today says otherwise): the
+-- site's "Updated <date>" stamp, and the date the current season is chosen on.
+create table build_date (
+    today text not null
+);
+-- The current season (GLOSSARY.md) on the build date, and its phase: the one
+-- definition, from recordbook/current.py. No row before any season has started. through is the latest final week, playing
+-- the week being played (null in the off-season); in the off-season,
+-- next_season is the next one if Sleeper has it, with its draft start.
+create table current_season (
+    season integer primary key references seasons(year),
+    phase text not null check (phase in ('regular', 'brackets', 'off-season')),
+    through integer,
+    playing integer,
+    next_season integer,
+    next_draft_start integer
+);
 -- Scissors-paper-rock rulings, from the hand-kept data/scissors_paper_rock.csv:
 -- each ruling orders the franchises it names, its winner at position 1. The
 -- seeding module applies them; nobody else seeds Sleeper-era seasons.
@@ -363,8 +381,11 @@ def franchise_keys(data):
 
 # ---------- build ----------
 
-def build(data, out):
+def build(data, out, today=None):
+    """Write the database. today (YYYY-MM-DD, the UK date by default) is the
+    date the current season is chosen on (recordbook/current.py)."""
     data, out = Path(data), Path(out)
+    today = today or currentlib.uk_today()
     keys = franchise_keys(data)
     nfl = nfl_seasons(data)
     sleeper = sleeper_seasons(data)
@@ -484,14 +505,14 @@ def build(data, out):
                          + "\n  ".join(problems))
 
     all_ids = sorted(set(keys.values()))
-    current = max(year for year, _, _ in seasons)
     franchises = []
     for fid in all_ids:
         if not played[fid]:
             raise BuildError(f"franchise {fid} in data/franchises.csv never played a season")
         nfl_names = {k: n for k, n in team_names.items() if k[1] in nfl}
+        # Whether it is active is known once the current season is (below).
         franchises.append((fid, franchise_name(fid, nfl_names, sleeper_ids, aliases),
-                           int(current in played[fid]), min(played[fid]), max(played[fid])))
+                           None, min(played[fid]), max(played[fid])))
     check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
     format_rows, bracket_rows = season_format_rows(formats)
     hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
@@ -510,9 +531,9 @@ def build(data, out):
     upcoming_brackets = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
         calendar.append(sleeperlib.calendar(data / "sleeper", year))
+        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         upcoming_brackets += sleeperlib.upcoming_brackets(
             year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], of, assigned.get(year, {}))
-        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         upcoming += sleeperlib.upcoming(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
                                         formats[year], of)
         winners += sleeperlib.crowns(year, games, formats[year])
@@ -524,6 +545,12 @@ def build(data, out):
             picks += sleeperlib.draft_picks(data / "sleeper", year, of)
         except sleeperlib.SleeperError as e:
             raise BuildError(str(e)) from e
+    current = currentlib.current_season(season_states(formats, games, winners, calendar, set(nfl)), today)
+    current_row = (current.season, current.phase, current.through, current.playing, current.next_season,
+                   current.next_draft_start) if current else None
+    franchises = [(fid, name, int(current is not None and current.season in played[fid]), first, last)
+                  for fid, name, _active, first, last in franchises]
+    done = currentlib.finished({year for year, _, _ in seasons}, current)
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
@@ -570,6 +597,9 @@ def build(data, out):
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
         con.executemany("insert into upcoming_games values (?, ?, ?, ?)", upcoming)
         con.executemany("insert into season_calendar values (?, ?, ?)", calendar)
+        if current_row:
+            con.execute("insert into current_season values (?, ?, ?, ?, ?, ?)", current_row)
+        con.execute("insert into build_date values (?)", (today,))
         con.executemany("insert into upcoming_bracket_pairings values (?, ?, ?, ?, ?, ?)", upcoming_brackets)
         con.executemany("insert into scissors_paper_rock values (?, ?, ?, ?)", rulings)
         con.executemany("insert into nfl_players values (?, ?, ?, ?)",
@@ -579,14 +609,14 @@ def build(data, out):
         for table, rows in moves.items():
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
-        write_profiles(con, franchises, played, season_lines, winners, current, games, coverage)
-        write_records(con, games, seasons, formats, played, current, winners)
-        completed = completed_seasons(played, current, winners)
-        write_division_records(con, lineage_rows, lineages, season_lines, completed)
-        write_lineup_records(con, lineups, games, lineup_records.player_names(data / "sleeper"), completed)
+        season = current.season if current else None
+        write_profiles(con, franchises, played, season_lines, winners, season, games, coverage)
+        write_records(con, games, seasons, formats, played, season, done)
+        write_division_records(con, lineage_rows, lineages, season_lines, done)
+        write_lineup_records(con, lineups, games, lineup_records.player_names(data / "sleeper"), done)
         season_records.write(con, season_lines=season_lines, coverage=coverage, games=games,
                              winners=winners, formats=formats, seasons=seasons, played=played,
-                             current=current)
+                             current=current, done=done)
         con.executescript(awardlib.SCHEMA)
         con.executemany("insert into awards values (?, ?, ?, ?, ?, ?)", awardlib.award_rows())
         con.executemany("insert into award_results values (?, ?, ?, ?, ?)", award_results)
@@ -608,7 +638,7 @@ def write_profiles(con, franchises, played, season_lines, winners, current, game
                     profiles.best_worst_rows(profiles.game_scores(games)))
 
 
-def write_records(con, games, seasons, formats, played, current, winners):
+def write_records(con, games, seasons, formats, played, current, done):
     """The candidates for the records Statsguru can't express (#30)."""
     eras = {year: era for year, era, _ in seasons}
     con.executescript(records.SCHEMA)
@@ -616,15 +646,28 @@ def write_records(con, games, seasons, formats, played, current, winners):
         games, eras, {y: f.regular_season[1] for y, f in formats.items()},
         {year: count for year, _, count in seasons}, played, current))
     con.executemany("insert into combined_scores values (?, ?)", records.combined_rows(games))
-    crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
     con.executemany("insert into completed_seasons values (?, ?, ?)",
-                    records.completed_rows(played, eras, current, crowned))
+                    records.completed_rows(played, eras, done))
 
 
-def completed_seasons(played, current, winners):
-    """Every season played but a current one whose Playoffs have no champion yet."""
-    crowned = {season for season, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
-    return {s for seasons in played.values() for s in seasons if s != current or s in crowned}
+def season_states(formats, games, winners, calendar, reported):
+    """Every season's progress (recordbook/current.py) from its format, its
+    final games, the brackets it has crowned (an unknown NFL.com-era winner
+    still closes its bracket) and the Sleeper calendar rows. reported is the
+    NFL.com-era seasons, which are over."""
+    weeks, crowned = defaultdict(set), defaultdict(set)
+    for g in games:
+        if g.status == "final":
+            weeks[g.season].add(g.week)
+    for season, bracket, _fid, _source in winners:
+        crowned[season].add(bracket)
+    dates = {season: (draft, week1) for season, draft, week1 in calendar}
+    return [currentlib.SeasonState(season=season, week1=dates.get(season, (None, None))[1],
+                                   draft_start=dates.get(season, (None, None))[0],
+                                   regular_weeks=f.regular_season, final_weeks=sorted(weeks[season]),
+                                   brackets=len(f.brackets), crowned=len(crowned[season]),
+                                   reported=season in reported)
+            for season, f in sorted(formats.items())]
 
 
 def write_division_records(con, lineage_rows, lineages, season_lines, completed):
@@ -735,8 +778,10 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--data", default="data", type=Path)
     p.add_argument("--out", default="build/league.sqlite", type=Path)
+    p.add_argument("--today", help="the date (YYYY-MM-DD) the current season is chosen on; "
+                                   "the UK date by default")
     args = p.parse_args(argv)
-    build(args.data, args.out)
+    build(args.data, args.out, args.today)
     print(f"wrote {args.out}")
 
 

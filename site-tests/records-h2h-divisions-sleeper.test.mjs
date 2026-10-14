@@ -26,7 +26,7 @@ const DIVISIONS = ['group-of-death', 'winningest-division', 'weakest-division-by
 const SLEEPER = ['best-nfl-player-score', 'most-bench-points-in-a-game', 'most-bench-points-in-a-season'];
 const ERAS = ['all', 'nfl-com', 'sleeper'];
 const PHASES = ['all', 'regular', 'playoffs'];
-const current = db.prepare('select max(year) as y from seasons').get().y;
+const current = db.prepare('select season as y from current_season').get().y;
 const crowned = db.prepare("select count(*) as n from bracket_winners where season = ? and bracket = 'playoffs' and franchise_id is not null").get(current).n > 0;
 
 test('all nine records have their pages, linked from the index, with their sensible variants', () => {

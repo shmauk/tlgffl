@@ -1,14 +1,12 @@
-// The build's "updated <date>" stamp (#26), shown in every page's footer. The
-// date is the UK day the site was built: the scheduled refresh rebuilds it
-// each run, so the stamp tells a reader how fresh the data is.
-const UK = 'Europe/London';
+// The build's "updated <date>" stamp (#26), shown in every page's footer and
+// on every current-season view. The date is the UK day the Python build was
+// for (the build_date table, read by src/lib/current.ts): the scheduled
+// refresh rebuilds it each run, so the stamp tells a reader how fresh the data is.
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+  'November', 'December'];
 
-export function updated(at: Date): { text: string; iso: string } {
-  const part = (opts: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('en-GB', { timeZone: UK, ...opts }).format(at);
-  const iso = `${part({ year: 'numeric' })}-${part({ month: '2-digit' })}-${part({ day: '2-digit' })}`;
-  return { text: `Updated ${part({ day: 'numeric', month: 'long', year: 'numeric' })}`, iso };
+/** "2026-10-13" -> { text: 'Updated 13 October 2026', iso: '2026-10-13' } */
+export function updatedOn(iso: string): { text: string; iso: string } {
+  const [y, m, d] = iso.split('-').map(Number);
+  return { text: `Updated ${d} ${MONTHS[m - 1]} ${y}`, iso };
 }
-
-/** When this build ran. */
-export const BUILT_AT = new Date();

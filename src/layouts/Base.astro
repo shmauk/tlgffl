@@ -4,14 +4,14 @@
 // carries the build's "updated <date>" stamp (#26).
 import '../styles/swiss.css';
 import { MENU } from '../lib/urls';
-import { BUILT_AT, updated } from '../lib/updated';
+import { buildDate } from '../lib/current';
 
 interface Props {
   title: string;
 }
 const { title } = Astro.props;
 const path = Astro.url.pathname;
-const stamp = updated(BUILT_AT);
+const stamp = buildDate();
 ---
 
 <!doctype html>

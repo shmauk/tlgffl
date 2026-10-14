@@ -1,8 +1,12 @@
 """What Python writes for the current season (#35): each Sleeper season's
 calendar (draft and week 1), the bracket-week pairings still to play, and the
 award leaders while a regular season is on. Which season is current, and its
-phase, is decided by the site from these and the build date."""
+phase, are decided once, here, from these and the build date (recordbook/current.py)."""
 import json
+
+import yaml
+
+from recordbook.build import build
 
 from tests.archive import write_sleeper_brackets, write_sleeper_league
 from tests.test_seeding_inputs import built, query
@@ -43,3 +47,34 @@ def test_bracket_week_pairings_not_yet_final_carry_their_assignment_and_filler_i
 def test_a_finished_season_has_no_bracket_pairings_to_come(sleeper, tmp_path):  # noqa: F811
     db = built(sleeper, tmp_path)
     assert query(db, "select count(*) from upcoming_bracket_pairings") == [(0,)]
+
+
+def built_on(data, tmp_path, today):
+    db = tmp_path / "league.sqlite"
+    build(data, db, today=today)
+    return db
+
+
+CURRENT = ("select season, phase, through, playing, next_season, next_draft_start, today "
+           "from current_season, build_date")
+
+
+def test_the_current_season_and_its_phase_are_written_once_for_the_build_date(sleeper, tmp_path):  # noqa: F811
+    write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, status="in_season", last_scored_leg=1,
+                         totals={1: (1, 0, 0, 100.0), 2: (0, 1, 0, 90.0), 3: (0, 1, 0, 80.0),
+                                 4: (1, 0, 0, 85.0), 5: (0, 1, 0, 70.0), 6: (1, 0, 0, 70.5)})
+    db = built_on(sleeper, tmp_path, "2025-09-20")
+    assert query(db, CURRENT) == [(2025, "regular", 1, 2, None, None, "2025-09-20")]
+
+
+def test_a_crowned_season_is_in_its_off_season_with_the_next_draft_once_sleeper_has_it(sleeper, tmp_path):  # noqa: F811
+    write_sleeper_league(sleeper, 2026, {1: [(1, 0.0, 2, 0.0)]}, DIVISIONS, status="pre_draft", last_scored_leg=0)
+    write_snapshot(sleeper, "2026-drafts.json", [{"draft_id": "D", "start_time": 1788285600000}])
+    write_snapshot(sleeper, "2026-state.json", {"season": "2026", "season_start_date": "2026-09-09"})
+    formats = yaml.safe_load((sleeper / "formats.yaml").read_text())
+    formats[2026] = formats[2025]
+    (sleeper / "formats.yaml").write_text(yaml.safe_dump(formats, sort_keys=False))
+    db = built_on(sleeper, tmp_path, "2026-09-08")
+    assert query(db, CURRENT) == [(2025, "off-season", 3, None, 2026, 1788285600000, "2026-09-08")]
+    db = built_on(sleeper, tmp_path, "2026-09-09")
+    assert query(db, CURRENT)[0][:4] == (2026, "regular", None, 1)

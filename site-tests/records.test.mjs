@@ -24,7 +24,7 @@ const CAREERS = ['career-wins', 'career-win-pct', 'career-points-per-game'];
 const STREAKS = ['longest-winning-streak', 'longest-losing-streak', 'longest-top-half-run'];
 const RECORDS = [...SCORING, ...CAREERS, ...STREAKS];
 const STATSGURU = [...SCORING.slice(0, 6), ...CAREERS];
-const current = db.prepare('select max(year) as y from seasons').get().y;
+const current = db.prepare('select season as y from current_season').get().y;
 const inactive = new Set(db.prepare('select id from franchises where active = 0').all().map((r) => r.id));
 
 // The table rows of a record page.

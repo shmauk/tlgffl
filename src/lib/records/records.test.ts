@@ -15,7 +15,7 @@ const one = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql)
 const view = (slug: string, era = 'all', phase?: string) =>
   recordView(db, recordDef(slug)!, era as any, (phase ?? recordDef(slug)!.phases[0]) as any);
 const values = (slug: string, era?: string, phase?: string) => view(slug, era, phase).entries.map((e) => e.value);
-const current = one('select max(year) as y from seasons').y;
+const current = one('select season as y from current_season').y;
 
 describe('the catalogue', () => {
   test('has the eight categories, all built', () => {

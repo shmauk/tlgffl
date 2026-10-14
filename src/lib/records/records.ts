@@ -83,7 +83,9 @@ export interface RecordView {
 interface Context {
   franchises: Map<number, { name: string; active: boolean; first: number; last: number }>;
   eraOf: Map<number, 'nfl.com' | 'sleeper'>;
-  current: number;
+  current: number | null;
+  /** The current season's phase. */
+  phase: string | null;
   /** Regular-season weeks with games missing, by season, and how many weeks the season has. */
   gaps: Map<number, { weeks: number[]; of: number }>;
   /** Seasons with a bracket game whose score is lost. */
@@ -114,7 +116,9 @@ function context(db: Db): Context {
       ]),
     ),
     eraOf: new Map(db.all('select year, era from seasons').map((r) => [r.year, r.era])),
-    current: db.all('select max(year) as y from seasons')[0].y,
+    // The current season, as the build chose it (recordbook/current.py); null before any has started.
+    current: db.all('select season from current_season')[0]?.season ?? null,
+    phase: db.all('select phase from current_season')[0]?.phase ?? null,
     gaps,
     lostScores: db
       .all(`select distinct season from games where phase = 'bracket' and home_points is null order by season`)
@@ -223,7 +227,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
     notes.push(...seasonNotes(db, def, seasons, c.current));
   } else if (def.kind === 'tally' || def.kind === 'run') {
     entries = bracketEntries(db, def, DB_ERA[era], franchise, c.current);
-    notes.push(...bracketNotes(db, def, seasons, c.current));
+    notes.push(...bracketNotes(db, def, seasons, c.current, c.phase));
   } else {
     const rows = db.all(
       `select s.franchise_id as f, s.length, s.gap_before, s.gap_after, a.season as fs, a.week as fw,
@@ -292,7 +296,7 @@ const column = (name: string) => {
 };
 
 function seasonEntries(
-  db: Db, def: RecordDef, inEra: (s: number) => boolean, franchise: (id: number) => RecordFranchise, current: number,
+  db: Db, def: RecordDef, inEra: (s: number) => boolean, franchise: (id: number) => RecordFranchise, current: number | null,
 ): Entry[] {
   const extra = (def.alongside ?? []).map((a, n) => `${column(a.column)} as x${n}`);
   return db
@@ -309,7 +313,7 @@ function seasonEntries(
     }));
 }
 
-function seasonNotes(db: Db, def: RecordDef, seasons: number[], current: number): RecordView['notes'] {
+function seasonNotes(db: Db, def: RecordDef, seasons: number[], current: number | null): RecordView['notes'] {
   const notes: RecordView['notes'] = [];
   const ranked = new Set(db.all('select distinct season from record_seasons').map((r) => r.season));
   const lined = new Set(db.all('select distinct season from season_lines').map((r) => r.season));
@@ -328,7 +332,7 @@ function seasonNotes(db: Db, def: RecordDef, seasons: number[], current: number)
 
 // Bracket records (#31): tallies and runs, from record_tallies and record_runs.
 function bracketEntries(
-  db: Db, def: RecordDef, era: string, franchise: (id: number) => RecordFranchise, current: number,
+  db: Db, def: RecordDef, era: string, franchise: (id: number) => RecordFranchise, current: number | null,
 ): Entry[] {
   if (def.kind === 'tally')
     return db
@@ -355,10 +359,11 @@ const BRACKET_OF: Record<string, string> = {
 };
 const BRACKET_NAME: Record<string, string> = { playoffs: 'Playoffs', shit_bowl: 'Shit Bowl', mediocre_bowl: 'Mediocre Bowl' };
 
-function bracketNotes(db: Db, def: RecordDef, seasons: number[], current: number): RecordView['notes'] {
+function bracketNotes(db: Db, def: RecordDef, seasons: number[], current: number | null, phase: string | null): RecordView['notes'] {
   const notes: RecordView['notes'] = [];
-  const crowned = db.all(`select 1 from bracket_winners where season = ? and bracket = 'playoffs' and franchise_id is not null`, [current]);
-  if (seasons.includes(current) && !crowned.length) notes.push({ text: `${current} counts once its champion is crowned.` });
+  // Tallies count finished seasons only (recordbook/current.py): the current one once its brackets are over.
+  if (current !== null && seasons.includes(current) && phase !== 'off-season')
+    notes.push({ text: `${current} counts once its brackets are over.` });
   const bracket = BRACKET_OF[def.record!];
   if (!bracket) return notes;
   const winners = db.all(

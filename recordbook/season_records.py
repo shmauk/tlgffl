@@ -7,8 +7,8 @@ ends (#16).
 from recordbook.games import win_pct
 
 SCHEMA = """
--- Every season line the season and luck records rank: all but a current
--- season whose last regular-season week isn't final yet (#16). Rates count a
+-- Every season line the season and luck records rank: all but the current
+-- season's while its regular season is on (#16; recordbook/current.py). Rates count a
 -- tie as half a win; Breakdown % and luck only exist for fully covered
 -- seasons. reported is 1 where the line is NFL.com's reported one (ADR 0001).
 create table record_seasons (
@@ -28,8 +28,8 @@ create table record_seasons (
     reported integer not null check (reported in (0, 1)),
     primary key (franchise_id, season)
 );
--- Each franchise's bracket tallies (#31) over the finished seasons (all but a
--- current one with no champion yet), over all eras or one: championships,
+-- Each franchise's bracket tallies (#31) over the finished seasons (all but
+-- the current season before its off-season), over all eras or one: championships,
 -- finals reached, Playoff appearances, Shit Bowl winner titles, Shit Bowl
 -- appearances (Sleeper era only: NFL.com never recorded who played in it)
 -- and Mediocre Bowl titles. A disputed or unknown winner counts for nobody.
@@ -58,24 +58,13 @@ create table record_runs (
 """
 
 
-def regular_season_over(season, current, regular_last, games):
-    """Whether a season's regular season has ended: every season but the
-    current one has, and the current one once its last regular-season week
-    is final (Sleeper finalises a week's games together)."""
-    return season != current or any(
-        g.season == season and g.phase == "regular" and g.week == regular_last and g.status == "final"
-        for g in games)
-
-
-def season_rows(season_lines, current, regular_last, games):
-    """record_seasons rows from the season_lines rows and the stored games;
-    regular_last maps a season to its regular season's last week."""
-    over = {season: regular_season_over(season, current, regular_last[season], games)
-            for season in {r[1] for r in season_lines}}
+def season_rows(season_lines, regular_on):
+    """record_seasons rows from the season_lines rows; regular_on is the
+    current season while its regular season is on (else None), left out."""
     rows = []
     for (fid, season, source, w, l, t, pf, pa, _div, _seed, _bracket, _placing,
          bdw, bdl, bdt, luck) in sorted(season_lines, key=lambda r: (r[1], r[0])):
-        if not over[season]:
+        if season == regular_on:
             continue
         games = w + l + t
         rows.append((fid, season, games, w, l, t, win_pct(w, l, t), pf, pa,
@@ -83,12 +72,6 @@ def season_rows(season_lines, current, regular_last, games):
                      win_pct(bdw, bdl, bdt) if bdw is not None else None, luck,
                      int(source == "reported")))
     return rows
-
-
-def finished(seasons, current, winners):
-    """The seasons whose brackets are over: all but a current one with no champion yet."""
-    crowned = {s for s, bracket, fid, _ in winners if bracket == "playoffs" and fid is not None}
-    return {s for s in seasons if s != current or s in crowned}
 
 
 def bracket_seasons(season_lines, games, winners, formats, done):
@@ -168,15 +151,15 @@ def run_rows(appeared, played, season_eras, current, done):
     return rows
 
 
-def write(con, *, season_lines, coverage, games, winners, formats, seasons, played, current):
-    """Write the tables, from what build.py has built."""
-    regular_last = {y: f.regular_season[1] for y, f in formats.items()}
+def write(con, *, season_lines, coverage, games, winners, formats, seasons, played, current, done):
+    """Write the tables, from what build.py has built. current is the
+    current season (recordbook/current.py) or None, done the finished seasons."""
     eras = {year: era for year, era, _ in seasons}
-    done = finished(eras, current, winners)
+    regular_on = current.season if current and current.phase == "regular" else None
     con.executescript(SCHEMA)
     con.executemany(f"insert into record_seasons values ({', '.join('?' * 14)})",
-                    season_rows(season_lines, current, regular_last, games))
+                    season_rows(season_lines, regular_on))
     by_record = bracket_seasons(season_lines, games, winners, formats, done)
     con.executemany("insert into record_tallies values (?, ?, ?, ?, ?)", tally_rows(by_record, eras))
     con.executemany("insert into record_runs values (?, ?, ?, ?, ?, ?, ?)",
-                    run_rows(by_record["playoffs"], played, eras, current, done))
+                    run_rows(by_record["playoffs"], played, eras, current and current.season, done))

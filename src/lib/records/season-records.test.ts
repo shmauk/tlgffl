@@ -15,7 +15,7 @@ const view = (slug: string, era?: string) => {
   expect(def, slug).toBeDefined();
   return recordView(db, def, (era ?? def.eras[0]) as any, def.phases[0]);
 };
-const current = one('select max(year) as y from seasons').y;
+const current = one('select season as y from current_season').y;
 
 const SEASONS = ['most-wins', 'fewest-wins', 'most-points-for', 'fewest-points-for', 'most-points-against',
   'fewest-points-against', 'best-points-per-game', 'worst-points-per-game', 'best-breakdown-pct', 'worst-breakdown-pct'];

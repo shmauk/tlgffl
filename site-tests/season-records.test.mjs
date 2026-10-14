@@ -12,7 +12,7 @@ const decode = (s) => s.replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&').rep
 const read = (path) => decode(readFileSync(join(DIST, path, 'index.html'), 'utf8'));
 const rows = (html) => [...(html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? '').matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
 const figures = (html) => rows(html).map((r) => r.match(/<td class="num fig">([^<]*)/)?.[1]);
-const current = db.prepare('select max(year) as y from seasons').get().y;
+const current = db.prepare('select season as y from current_season').get().y;
 
 const ERAS = ['all', 'nfl-com', 'sleeper'];
 const SEASONS = ['most-wins', 'fewest-wins', 'most-points-for', 'fewest-points-for', 'most-points-against',

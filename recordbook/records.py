@@ -30,8 +30,8 @@ create table combined_scores (
     game_id integer primary key references games(id),
     points real not null
 );
--- Seasons a franchise has completed, over all eras or one: every season it
--- played but a current season whose Playoffs have no champion yet. Career
+-- Seasons a franchise has completed, over all eras or one: every finished
+-- season it played (recordbook/current.py). Career
 -- rates need at least 2 (#7).
 create table completed_seasons (
     franchise_id integer not null references franchises(id),
@@ -126,11 +126,11 @@ def combined_rows(games):
             if g.home_points is not None and g.away_points is not None]
 
 
-def completed_rows(played, season_eras, current, crowned):
-    """completed_seasons rows; crowned is the seasons whose Playoffs have a champion."""
+def completed_rows(played, season_eras, finished):
+    """completed_seasons rows; finished is the seasons that are over."""
     rows = []
     for fid in sorted(played):
-        done = [s for s in played[fid] if s != current or s in crowned]
+        done = [s for s in played[fid] if s in finished]
         for era in ERAS:
             rows.append((fid, era, sum(1 for s in done if _in_era(era, season_eras[s]))))
     return rows

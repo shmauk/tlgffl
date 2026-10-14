@@ -1,46 +1,18 @@
-// The current season (#35) from the league database and the build date: its
-// state for src/lib/current.ts, and everything the home page shows. Build
-// time only. Only final games have scores; the week being played comes from
+// The current season (#35) from the league database: everything the home
+// page shows. Which season is current, and its phase, the Python build decided
+// (src/lib/current.ts). Build time only. Only final games have scores; the week being played comes from
 // the pairings Sleeper has made, which never carry one.
 import { bracketWinners, open, seasonFormats, seasonGames, seasonStandings, type SeasonFranchise } from './db';
 import { awardLeaders, awardValue, awards, awardWinners } from './awards';
 import { bracketColumns, placePairings, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
-import { currentSeason, type Current, type SeasonState } from './current';
+import { buildDate, current } from './current';
 import { BRACKET_ORDER, type HomeData, type Matchup, type Result } from './home';
 import { predictorSeason } from './predictor-db';
 import { siteDb } from './records/site';
 import { figureText, holders, recordsThisSeason } from './records/held';
 import { seasonPicture } from './seeding-db';
-import { BUILT_AT, updated } from './updated';
 import { predictorUrl } from './urls';
 import type { BracketKey } from './seeding';
-
-/** Every season's progress, as current.ts reads it. */
-export function seasonStates(): SeasonState[] {
-  const db = open();
-  const calendar = new Map(
-    (db.prepare('select season, draft_start as d, week1_date as w from season_calendar').all() as any[]).map((r) => [r.season, r]),
-  );
-  const weeks = db.prepare('select distinct week from games where season = ? order by week');
-  const crowned = db.prepare('select count(distinct bracket) as n from bracket_winners where season = ?');
-  return seasonFormats().map((f) => ({
-    season: f.season,
-    week1: calendar.get(f.season)?.w ?? null,
-    draftStart: calendar.get(f.season)?.d ?? null,
-    regularWeeks: f.regularSeason,
-    finalWeeks: weeks.all(f.season).map((r: any) => r.week),
-    brackets: f.brackets.length,
-    crowned: (crowned.get(f.season) as { n: number }).n,
-  }));
-}
-
-/** The build's UK date (YYYY-MM-DD), the "today" the current season is chosen on. */
-export const today = (at: Date = BUILT_AT) => updated(at).iso;
-
-/** The current season on the build date. */
-export function current(at: Date = BUILT_AT): Current | null {
-  return currentSeason(seasonStates(), today(at));
-}
 
 const ukDate = (ms: number) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric' }).format(
@@ -93,8 +65,8 @@ function bracketsOf(season: number) {
  * never a score: the regular-season pairings left and, once the brackets are
  * on, the bracket pairings of the week being played. Empty for any other season.
  */
-export function inProgressWeeks(season: number, at: Date = BUILT_AT): Map<number, Matchup[]> {
-  const now = current(at);
+export function inProgressWeeks(season: number): Map<number, Matchup[]> {
+  const now = current();
   const out = new Map<number, Matchup[]>();
   if (!now || now.season !== season || now.phase === 'off-season') return out;
   const names = seasonNames(season);
@@ -112,8 +84,8 @@ export function inProgressWeeks(season: number, at: Date = BUILT_AT): Map<number
 }
 
 /** The home page's content on the build date, or null if no season has started. */
-export function homeData(at: Date = BUILT_AT): HomeData | null {
-  const now = current(at);
+export function homeData(): HomeData | null {
+  const now = current();
   if (!now) return null;
   const { season, phase, through, playing } = now;
   const names = seasonNames(season);
@@ -196,7 +168,7 @@ export function homeData(at: Date = BUILT_AT): HomeData | null {
     phase,
     through,
     playing,
-    updated: updated(at).text,
+    updated: buildDate().text,
     names,
     thisWeek,
     lastWeek: results.length ? { results, highest: scores[0] ?? null, lowest: scores.at(-1) ?? null } : null,

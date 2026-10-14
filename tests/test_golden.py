@@ -30,8 +30,10 @@ def golden_for_archive():
 
 @pytest.fixture
 def paths(archive, tmp_path):
+    # 2025 has begun, so it is the current season and Delta is active.
+    (archive / "sleeper" / "2025-state.json").write_text('{"season_start_date": "2025-09-04"}')
     db = tmp_path / "league.sqlite"
-    build(archive, db)
+    build(archive, db, today="2025-09-04")
     golden = tmp_path / "league_records.json"
     allow = tmp_path / "allowlist.csv"
     write_csv(allow, ["figure", "reason"], [])

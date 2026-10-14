@@ -15,7 +15,7 @@ const all = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql)
 const one = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql).get(...params) as any;
 const view = (slug: string, era?: string, phase?: string) =>
   recordView(db, recordDef(slug)!, (era ?? recordDef(slug)!.eras[0]) as any, (phase ?? recordDef(slug)!.phases[0]) as any);
-const current = one('select max(year) as y from seasons').y;
+const current = one('select season as y from current_season').y;
 const crowned = one(`select count(*) as n from bracket_winners where season = ? and bracket = 'playoffs' and franchise_id is not null`, current).n > 0;
 const completed = (season: number) => season !== current || crowned;
 

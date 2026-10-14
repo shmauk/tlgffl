@@ -69,11 +69,11 @@ def test_combined_scores_cover_every_game_with_a_score(data, tmp_path):
         (1, 150.0), (1, 190.0), (2, 190.0), (2, 210.0), (3, 210.0), (4, 250.0)]
 
 
-def test_completed_seasons_leave_out_a_current_season_with_no_champion(archive, tmp_path):
+def test_completed_seasons_leave_out_a_season_not_yet_finished(archive, tmp_path):
     db = tmp_path / "league.sqlite"
     from recordbook.build import build
     build(archive, db)
-    # 2012 and 2013 are over; 2025, the current season, has no champion yet.
+    # 2012 and 2013 are over; 2025 has not finished (nor, here, begun).
     assert query(db, "select franchise_id, era, seasons from completed_seasons order by 1, 2") == [
         (1, "all", 2), (1, "nfl.com", 2), (1, "sleeper", 0),
         (2, "all", 1), (2, "nfl.com", 1), (2, "sleeper", 0),

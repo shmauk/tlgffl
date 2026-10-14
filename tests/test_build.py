@@ -49,8 +49,12 @@ def test_an_unplayed_all_zero_nfl_season_is_not_a_season(archive, tmp_path):
 
 
 def test_active_franchises_are_those_in_the_current_season(archive, tmp_path):
+    # 2025 becomes the current season at its week 1; until then it is 2013.
+    (archive / "sleeper" / "2025-state.json").write_text('{"season_start_date": "2025-09-04"}')
     db = tmp_path / "league.sqlite"
-    build(archive, db)
+    build(archive, db, today="2025-09-03")
+    assert query(db, "select id, active from franchises order by id") == [(1, 1), (2, 0), (3, 1), (4, 0)]
+    build(archive, db, today="2025-09-04")
     assert query(db, "select id, active, first_season, last_season from franchises order by id") == [
         (1, 1, 2012, 2025), (2, 0, 2012, 2012), (3, 1, 2013, 2025), (4, 1, 2025, 2025)]
 

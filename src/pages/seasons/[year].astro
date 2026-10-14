@@ -28,8 +28,8 @@ import {
 import { formatSummary, weekList } from '../../lib/format';
 import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardLeaders, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
-import { current, inProgressWeeks } from '../../lib/home-db';
-import { BUILT_AT, updated } from '../../lib/updated';
+import { inProgressWeeks } from '../../lib/home-db';
+import { buildDate, current } from '../../lib/current';
 import PlayoffPicture from '../../components/PlayoffPicture.astro';
 import { checkSleeperSeeds, seasonPicture } from '../../lib/seeding-db';
 import { predictorSeason } from '../../lib/predictor-db';
@@ -69,7 +69,7 @@ const sleeperPending = !nfl && games.length === 0 ? "This season's Sleeper games
 const now = current();
 const live = now && now.season === year && now.phase !== 'off-season' ? now : null;
 const liveLine = live
-  ? `In progress, ${live.through === null ? 'week 1 not yet final' : `through week ${live.through}`} · ${updated(BUILT_AT).text.replace('Updated', 'updated')}`
+  ? `In progress, ${live.through === null ? 'week 1 not yet final' : `through week ${live.through}`} · ${buildDate().text.replace('Updated', 'updated')}`
   : '';
 const toCome = live ? inProgressWeeks(year) : new Map();
 const soFar = live ? ', so far' : '';

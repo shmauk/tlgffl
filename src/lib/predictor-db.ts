@@ -1,6 +1,7 @@
 // The playoff predictor's inputs (#36), read from the league database at build
 // time and shipped to the browser as JSON: the seeding module's input with
 // each remaining game's week, the franchise names and the real clinch marks.
+import { current } from './current';
 import { open, seasonFormats, seasons } from './db';
 import type { PredictorData } from './predictor';
 import { seasonPicture, seedingInput } from './seeding-db';
@@ -10,9 +11,10 @@ import { seasonPicture, seedingInput } from './seeding-db';
  * season is still being played (#16, #17). Null otherwise.
  */
 export function predictorSeason(): number | null {
-  const current = seasons()[0];
-  if (!current || current.era !== 'sleeper') return null;
-  return seasonPicture(current.year)?.inProgress && seedingInput(current.year)!.remaining.length ? current.year : null;
+  const now = current();
+  if (!now || now.phase !== 'regular') return null;
+  if (seasons().find((s) => s.year === now.season)?.era !== 'sleeper') return null;
+  return seedingInput(now.season)?.remaining.length ? now.season : null;
 }
 
 /** Everything the predictor needs for a season. */
