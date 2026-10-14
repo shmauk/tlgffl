@@ -1,6 +1,7 @@
 // Awards (#33): reads of the tables recordbook/awards.py writes. Like db.ts,
 // nothing here derives a figure; it only groups and formats them.
 import { open, type SeasonFranchise } from './db';
+import { figure } from './figures';
 
 export type AwardUnit = 'points' | 'count' | 'share' | 'dollars';
 
@@ -66,18 +67,7 @@ export function awardSeasons(slug: string): number[] {
 }
 
 /** An award result's value as it reads: 12.34 points, 7, 24.0%, $22. */
-export function awardValue(unit: AwardUnit, value: number): string {
-  switch (unit) {
-    case 'points':
-      return value.toFixed(2);
-    case 'count':
-      return String(Math.round(value));
-    case 'share':
-      return `${(value * 100).toFixed(1)}%`;
-    case 'dollars':
-      return `$${Math.round(value)}`;
-  }
-}
+export const awardValue = (unit: AwardUnit, value: number): string => figure(unit, value);
 
 /** Seasons as runs: [2012, ..., 2021, 2025] -> "2012–2021, 2025". */
 export function seasonRuns(seasons: number[]): string {

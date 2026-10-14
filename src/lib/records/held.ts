@@ -2,6 +2,7 @@
 // franchise holds, with its rank, across every record of the catalogue. Each
 // record counts once, over its own page's era and phase (its first ones);
 // entries listed unranked (all ties) aren't top-10 entries.
+import { figure } from '../figures';
 import type { Db } from '../statsguru/engine';
 import { RECORDS, type RecordDef } from './catalogue';
 import { recordView, type Entry, type RecordFranchise } from './records';
@@ -38,24 +39,25 @@ function everyHolding(db: Db): Map<number, Held[]> {
   return byFranchise;
 }
 
+/** Each record's place in the catalogue. */
+const CATALOGUE_ORDER = new Map(RECORDS.map((d, n) => [d.slug, n]));
+/** Catalogue order, best rank first within a record. */
+const inCatalogueOrder = (a: Held, b: Held) =>
+  CATALOGUE_ORDER.get(a.def.slug)! - CATALOGUE_ORDER.get(b.def.slug)! || a.rank - b.rank;
+
 /** A franchise's top-10 entries, in catalogue order, best rank first within a record. */
 export function recordsHeld(db: Db, franchiseId: number): Held[] {
-  const order = new Map(RECORDS.map((d, n) => [d.slug, n]));
-  return [...(everyHolding(db).get(franchiseId) ?? [])].sort(
-    (a, b) => order.get(a.def.slug)! - order.get(b.def.slug)! || a.rank - b.rank,
-  );
+  return [...(everyHolding(db).get(franchiseId) ?? [])].sort(inCatalogueOrder);
 }
 
-/** An entry's figure as its record shows it. */
-export const figureText = (def: RecordDef, value: number) =>
-  def.unit === 'points' ? value.toFixed(2) : def.unit === 'pct' ? `${(value * 100).toFixed(1)}%` : String(value);
+/** An entry's figure as it reads on its own (src/lib/figures.ts). */
+export const figureText = (def: RecordDef, value: number) => figure(def.unit, value);
 
 /** Every top-10 entry set in the current season, in catalogue order (#35's home page). */
 export function recordsThisSeason(db: Db): Held[] {
   const seen = new Set<Entry>();
-  const order = new Map(RECORDS.map((d, n) => [d.slug, n]));
   return [...everyHolding(db).values()]
     .flat()
     .filter((h) => h.entry.thisSeason && !seen.has(h.entry) && seen.add(h.entry))
-    .sort((a, b) => order.get(a.def.slug)! - order.get(b.def.slug)! || a.rank - b.rank);
+    .sort(inCatalogueOrder);
 }

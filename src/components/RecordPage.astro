@@ -12,6 +12,7 @@ import Notes from './Notes.astro';
 import FranchiseLink from './FranchiseLink.astro';
 import SeasonLink from './SeasonLink.astro';
 import NflPlayerLink from './NflPlayerLink.astro';
+import { figure as figureOf } from '../lib/figures';
 import { categoryOf, ERA_NAMES, PHASE_NAMES, type Era, type PhaseFilter, type Unit } from '../lib/records/catalogue';
 import type { Entry, RecordFranchise, RecordView } from '../lib/records/records';
 import { headToHeadUrl, recordUrl, statsguruUrl } from '../lib/urls';
@@ -25,16 +26,8 @@ const { def, era, phase, entries } = view;
 
 const href = (e: Era, p: PhaseFilter) =>
   recordUrl(def.slug, e === def.eras[0] && p === def.phases[0] ? undefined : { era: e, phase: p });
-const format = (v: number | null | undefined, unit: Unit) =>
-  v == null
-    ? '–'
-    : unit === 'points'
-      ? v.toFixed(2)
-      : unit === 'pct'
-        ? (v * 100).toFixed(1)
-        : unit === 'luck'
-          ? `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}`
-          : String(v);
+// The column heading carries a rate's % sign, so the cells show the bare number.
+const format = (v: number | null | undefined, unit: Unit) => (v == null ? '–' : figureOf(unit, v).replace(/%$/, ''));
 const figure = (v: number) => format(v, def.unit);
 const SEASON_HEADINGS: Record<string, string> = {
   wins: 'Wins', points_for: 'PF', points_against: 'PA', points_for_per_game: 'PF per game', breakdown_pct: 'Breakdown %',
