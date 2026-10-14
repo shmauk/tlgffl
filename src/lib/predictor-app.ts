@@ -2,7 +2,8 @@
 // localStorage). Every pick is a link; following one updates the URL and
 // renders the page again from it. Clinch marks are worked out in a Web
 // Worker, the latest request winning.
-import { decodeScenario, encodeScenario, predictorHref, project, renderPredictor, type PredictorData } from './predictor';
+import { decodeScenario, encodeScenario, predictorHref, project, type PredictorData } from './predictor';
+import { renderPredictor } from './predictor-page';
 import type { FranchiseId, Mark } from './seeding';
 
 export function start(root: HTMLElement) {

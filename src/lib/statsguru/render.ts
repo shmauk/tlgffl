@@ -1,6 +1,7 @@
 // Statsguru's results page as HTML: the one-line query summary, one dense
 // table whose every column header sorts, and the notes for the markers used.
 // Plain strings, so it renders the same in the browser and in tests.
+import { esc } from '../html';
 import { weekList } from '../format';
 import { franchiseUrl, nflPlayerName, nflPlayerUrl, seasonUrl } from '../urls';
 import type {
@@ -78,8 +79,6 @@ const MARKERS = {
 const VALUE = "The points the NFL player went on to score in the picking franchise's starting lineups that season.";
 type Glyph = keyof typeof MARKERS;
 
-const ENTITIES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ENTITIES[c]);
 const and = (parts: string[]) =>
   parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? '');
 const years = (seasons: number[]) => seasonList(seasons).replace(/-/g, '–').replace(/,/g, ', ');

@@ -8,7 +8,8 @@ import Base from '../../../layouts/Base.astro';
 import Row from '../../../components/Row.astro';
 import SeasonLink from '../../../components/SeasonLink.astro';
 import { predictorData, predictorSeason } from '../../../lib/predictor-db';
-import { project, renderPredictor } from '../../../lib/predictor';
+import { project } from '../../../lib/predictor';
+import { renderPredictor } from '../../../lib/predictor-page';
 
 export function getStaticPaths() {
   const season = predictorSeason();

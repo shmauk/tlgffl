@@ -1,7 +1,8 @@
 // The playoff predictor (#36): picks of the remaining regular-season games,
 // scissors-paper-rock orders and the projection they give, all held in the URL.
 import { describe, expect, test } from 'vitest';
-import { decodeScenario, encodeScenario, project, renderPredictor, type PredictorData, type Scenario } from './predictor';
+import { decodeScenario, encodeScenario, project, type PredictorData, type Scenario } from './predictor';
+import { renderPredictor } from './predictor-page';
 import { playoffPicture } from './seeding';
 
 // Two divisions of four (A: 1-4, B: 5-8), weeks 1-4, weeks 1-2 played. A
