@@ -10,6 +10,8 @@ import SeasonLink from '../../../components/SeasonLink.astro';
 import { predictorData, predictorSeason } from '../../../lib/predictor-db';
 import { project } from '../../../lib/predictor';
 import { renderPredictor } from '../../../lib/predictor-page';
+import { buildDate, current } from '../../../lib/current';
+import { throughWeek } from '../../../lib/updated';
 
 export function getStaticPaths() {
   const season = predictorSeason();
@@ -18,11 +20,14 @@ export function getStaticPaths() {
 
 const data = predictorData(Number(Astro.params.year));
 const html = renderPredictor(data, project(data, { picks: [], spr: [] }), data.marks, 0);
+// Like every current-season view, it says how fresh it is (#35).
+const stamp = throughWeek(buildDate().iso, current()!.through);
 ---
 
 <Base title={`${data.season} playoff predictor`}>
   <Row label="Predictor" sub="What if…">
     <h1>{data.season} playoff predictor</h1>
+    <p class="sub">{stamp}</p>
     <p class="sub">
       Pick the winners of the games left in the regular season and see where every franchise would land.
       The link holds your picks, so share it. <SeasonLink season={data.season}>Back to {data.season}</SeasonLink>

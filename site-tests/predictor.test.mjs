@@ -17,9 +17,13 @@ const walk = (dir) =>
 const decode = (s) => s.replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&');
 
 // The current season, if its regular season is still being played on Sleeper.
-const current = db.prepare('select year, era from seasons order by year desc limit 1').get();
+const current = db
+  .prepare(`select c.season as year, s.era, c.phase, c.through, b.today from current_season c
+            join seasons s on s.year = c.season, build_date b`)
+  .get();
 const live =
-  current.era === 'sleeper' && db.prepare('select count(*) as n from upcoming_games where season = ?').get(current.year).n > 0
+  current?.era === 'sleeper' && current.phase === 'regular' &&
+  db.prepare('select count(*) as n from upcoming_games where season = ?').get(current.year).n > 0
     ? current.year
     : null;
 const PREDICTOR = live && join(DIST, 'seasons', String(live), 'predictor', 'index.html');
@@ -27,6 +31,15 @@ const PREDICTOR = live && join(DIST, 'seasons', String(live), 'predictor', 'inde
 test('the predictor is generated for the current season’s regular season only', () => {
   const made = readdirSync(join(DIST, 'seasons')).filter((d) => existsSync(join(DIST, 'seasons', d, 'predictor', 'index.html')));
   assert.deepEqual(made, live ? [String(live)] : []);
+});
+
+test('the predictor says when it was updated and through which week, like every current-season view', () => {
+  if (!live) return;
+  const html = readFileSync(PREDICTOR, 'utf8');
+  const [y, m, d] = current.today.split('-').map(Number);
+  const date = `${d} ${new Date(Date.UTC(y, m - 1, d)).toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' })} ${y}`;
+  const week = current.through === null ? 'week 1 not yet final' : `through week ${current.through}`;
+  assert.match(html, new RegExp(`<p class="sub">Updated ${date}, ${week}</p>`));
 });
 
 // Each franchise's row of a standings table: W-L-T, seed, bracket and marks.

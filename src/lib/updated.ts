@@ -10,3 +10,7 @@ export function updatedOn(iso: string): { text: string; iso: string } {
   const [y, m, d] = iso.split('-').map(Number);
   return { text: `Updated ${d} ${MONTHS[m - 1]} ${y}`, iso };
 }
+
+/** A current-season view's line: "Updated 13 October 2026, through week 4" (through: the latest final week). */
+export const throughWeek = (iso: string, through: number | null) =>
+  `${updatedOn(iso).text}, ${through === null ? 'week 1 not yet final' : `through week ${through}`}`;
