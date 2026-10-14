@@ -1,0 +1,21 @@
+---
+// Every franchise name on the site links to its profile (#14). When a row shows
+// the team name a franchise played under that season and it differs from the
+// franchise's name, the franchise name follows in grey.
+import { franchiseUrl } from '../lib/urls';
+interface Props {
+  franchise: { id: number; name: string };
+  teamName?: string;
+}
+const { franchise, teamName } = Astro.props;
+const shown = teamName ?? franchise.name;
+---
+
+<a class="fr" href={franchiseUrl(franchise.id)}>{shown}</a>{
+  shown !== franchise.name && (
+    <>
+      {' '}
+      <span class="alias">({franchise.name})</span>
+    </>
+  )
+}

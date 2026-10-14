@@ -1,0 +1,87 @@
+---
+import { BRACKET_NAMES } from '../lib/brackets';
+// The playoff picture (#16, #34): a Sleeper season's standings by division,
+// sorted by seed as it stands, with a cut-off line wherever the bracket
+// changes. Franchises level after every tiebreak but scissors-paper-rock share
+// a seed ("=3"). While the regular season is on, each franchise carries its
+// clinch and elimination marks (ADR 0005's seeding module decides them all).
+import FranchiseLink from './FranchiseLink.astro';
+import Badge from './Badge.astro';
+import Notes from './Notes.astro';
+import type { Mark, Place } from '../lib/seeding';
+
+interface Line {
+  franchise: { id: number; name: string; teamName: string };
+  division: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointsFor: number;
+  pointsAgainst: number;
+}
+interface Props {
+  standings: Line[];
+  picture: { places: Place[]; marks: Record<number, Mark[]>; inProgress: boolean };
+}
+const { standings, picture } = Astro.props;
+
+const ELIMINATED: Mark[] = ['OUT', 'SHIT BOWL'];
+const order = new Map(picture.places.map((p, i) => [p.franchise, i]));
+const placeOf = new Map(picture.places.map((p) => [p.franchise, p]));
+const divisions = [...new Set(standings.map((s) => s.division ?? ''))].sort();
+const rows = (division: string) =>
+  standings
+    .filter((s) => (s.division ?? '') === division)
+    .sort((a, b) => order.get(a.franchise.id)! - order.get(b.franchise.id)!);
+const pts = (p: number) => p.toFixed(2);
+const shared = picture.places.some((p) => p.level.length);
+const marked = Object.values(picture.marks).some((m) => m.length);
+---
+
+{
+  divisions.map((division) => (
+    <table class="t">
+      {divisions.length > 1 && <caption>{division}</caption>}
+      <thead>
+        <tr>
+          <th>Franchise</th><th class="num">W-L-T</th><th class="num">PF</th><th class="num">PA</th>
+          <th class="num">Seed</th><th>Bracket</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows(division).map((s, i, all) => {
+          const p = placeOf.get(s.franchise.id)!;
+          const cut = i > 0 && placeOf.get(all[i - 1].franchise.id)!.bracket !== p.bracket;
+          return (
+            <tr class={cut ? 'cut' : undefined}>
+              <td>
+                <FranchiseLink franchise={s.franchise} teamName={s.franchise.teamName} />
+                {(picture.marks[s.franchise.id] ?? []).map((m) => (
+                  <Badge kind={ELIMINATED.includes(m) ? 'eliminated' : 'clinch'}>{m}</Badge>
+                ))}
+              </td>
+              <td class="num">{`${s.wins}-${s.losses}-${s.ties}`}</td>
+              <td class="num">{pts(s.pointsFor)}</td>
+              <td class="num">{pts(s.pointsAgainst)}</td>
+              <td class="num">{`${p.level.length ? '=' : ''}${p.seed}`}</td>
+              <td>{BRACKET_NAMES[p.bracket]}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  ))
+}
+<Notes
+  notes={[
+    {
+      text: `${picture.inProgress ? 'Seeds as they stand, by' : 'Seeds by'} the league’s tiebreaks. The Shit Bowl’s seed 1 is the worst franchise; the Mediocre Bowl is numbered on from the Playoffs.`,
+    },
+    ...(shared
+      ? [{ text: '=: level after every tiebreak but scissors-paper-rock. If they are still level after the regular season, scissors-paper-rock decides.' }]
+      : []),
+    ...(picture.inProgress && marked
+      ? [{ text: 'Marks hold whatever happens in the remaining games: BYE, DIVISION (a division winner’s seed) and PLAYOFFS are places won, SAFE means out of reach of the Shit Bowl, and OUT and SHIT BOWL are places lost.' }]
+      : []),
+  ]}
+/>

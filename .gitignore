@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.scratch/
+# The database is a build artifact (ADR 0003): never committed.
+build/
+node_modules/
+dist/
+.astro/
+.wrangler/

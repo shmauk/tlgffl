@@ -1,0 +1,15 @@
+# The league's documents, linked from /league/ (#14). Hand-kept; the links come
+# from fantasy-dashboard (https://alistairwilliamtaylor.github.io/fantasy-dashboard/).
+# kind is constitution or agm; the constitution has no season.
+kind,season,title,url
+constitution,,Constitution,https://docs.google.com/document/d/1WTv6wyyhCLDl3IZdLQZoemQmArVeP3whRqmrmD9foHI/edit
+agm,2021,AGM proposals,https://docs.google.com/spreadsheets/d/105uoTifmmSFjq2B-Uu3GUkJk8uCg0ruyql5vh0XgS-U/edit#gid=0
+agm,2021,AGM minutes,https://docs.google.com/document/d/1-qyTV2dF7fH62IZ0sgOEg8_nLDcYzs2uXvkb3_k8N7U/edit
+agm,2022,AGM proposals,https://docs.google.com/spreadsheets/d/1IyPR-2wBNFr-JoTLk2HOzV8UeoHqUE9XEXwD3BMBmSA/edit#gid=0
+agm,2022,AGM minutes,https://docs.google.com/document/d/1GKPzDf4KHIiEfV1bXp7oaXfHgaQ4ipKL00EamzJVUiE/edit
+agm,2023,AGM proposals,https://docs.google.com/spreadsheets/d/1IyPR-2wBNFr-JoTLk2HOzV8UeoHqUE9XEXwD3BMBmSA
+agm,2023,AGM form,https://docs.google.com/forms/d/e/1FAIpQLSdXkinzyAvLBU3aimGjDXHK5KgulsWBc2jbIEqD85Crtx2Gyg/viewform
+agm,2023,AGM form responses,https://docs.google.com/spreadsheets/d/1q61n010bwsfhh1cjwJsVdFBfRc5Enp9y7wFwu3sw7Z4/edit?usp=sharing
+agm,2023,AGM minutes,https://docs.google.com/document/d/1GE61wBqXeEGwYGtLNrAILpO1ZVfz_ynpP1dXufO4yKo/edit#heading=h.au0raltd1hdn
+agm,2024,AGM proposals and results,https://docs.google.com/spreadsheets/d/1IyPR-2wBNFr-JoTLk2HOzV8UeoHqUE9XEXwD3BMBmSA/edit?gid=1092398144#gid=1092398144
+agm,2025,AGM proposals,https://docs.google.com/spreadsheets/d/1IyPR-2wBNFr-JoTLk2HOzV8UeoHqUE9XEXwD3BMBmSA/edit?gid=904701143#gid=904701143

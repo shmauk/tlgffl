@@ -1,0 +1,48 @@
+# Franchise ids. Hand-kept: each row records the league's judgement of which
+# franchise a platform team belongs to (GLOSSARY.md: Franchise). Ids are
+# permanent, appear in URLs (/franchises/<id>/) and are never reused.
+#
+# era nfl.com: slot = NFL.com teamId, owner_user_id = its numeric ownerUserId.
+# era sleeper: slot = Sleeper roster_id; owner_user_id is left blank.
+# Two keys sharing an id means the league judged them the same franchise, such
+# as a manager moving to a new NFL.com account (ff-data-project's SAME_MANAGER).
+# The judgements follow ff-data-project (20 franchises); the build checks the
+# Sleeper rows against data/sleeper_aliases.csv.
+franchise_id,era,slot,owner_user_id,note
+1,nfl.com,1,30421,
+2,nfl.com,2,3926061,seat 2 before the manager moved NFL.com accounts for 2016
+2,nfl.com,2,13638506,
+3,nfl.com,3,3926444,seat 3 before the co-managers swapped primary in 2015
+3,nfl.com,3,9158426,
+4,nfl.com,4,3919156,
+5,nfl.com,5,3927109,
+6,nfl.com,6,3927197,
+7,nfl.com,7,3929551,
+8,nfl.com,8,3976774,
+9,nfl.com,9,3993957,
+10,nfl.com,10,4044260,
+11,nfl.com,11,5714714,
+12,nfl.com,12,5677217,
+13,nfl.com,13,8553062,
+14,nfl.com,5,10705345,
+15,nfl.com,14,1557732,
+16,nfl.com,15,10721011,
+17,nfl.com,16,10891935,
+18,nfl.com,5,29855540,
+19,nfl.com,4,34035214,
+12,sleeper,1,,
+8,sleeper,2,,
+18,sleeper,3,,
+13,sleeper,4,,
+20,sleeper,5,,
+7,sleeper,6,,
+3,sleeper,7,,
+19,sleeper,8,,
+10,sleeper,9,,
+6,sleeper,10,,
+1,sleeper,11,,
+2,sleeper,12,,
+16,sleeper,13,,
+11,sleeper,14,,
+15,sleeper,15,,
+17,sleeper,16,,

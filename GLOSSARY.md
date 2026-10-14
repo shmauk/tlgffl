@@ -11,7 +11,7 @@ A continuous run in one league slot under the same management, as the league jud
 _Avoid_: Team, roster, slot
 
 **Franchise name**:
-The name a franchise is shown by: the last team name it played under.
+The name a franchise is shown by: the latest team name it played under, on Sleeper or NFL.com. The hand-kept tables may also use the name the franchise is filed under, the last team name it played under on NFL.com, which a rename on Sleeper doesn't change.
 _Avoid_: Team name (for the franchise as a whole)
 
 **Manager**:
@@ -52,7 +52,7 @@ _Avoid_: Waiver (unqualified), bid
 A slot in a season's draft, belonging to one franchise and tradeable, so it may be used by another.
 
 **Keeper**:
-An NFL player a franchise actually keeps from one season into the next instead of releasing them into the draft, at the cost of a draft round. Being eligible to keep a player doesn't make them a keeper.
+An NFL player a franchise actually keeps from one season into the next instead of releasing them into the draft, at the cost of a draft round. Being eligible to keep a player doesn't make them a keeper. The league stopped keeping players from 2026.
 
 ### Structure
 

@@ -1,0 +1,47 @@
+---
+// The roll of honour (#24): every finished season's champion, runner-up, Shit Bowl
+// winner and Mediocre Bowl winner, newest first. The season in progress has no row.
+import { AWARDS_URL } from '../../lib/urls';
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import SeasonLink from '../../components/SeasonLink.astro';
+import FranchiseLink from '../../components/FranchiseLink.astro';
+import Crowned from '../../components/Crowned.astro';
+import Notes from '../../components/Notes.astro';
+import { rollOfHonour } from '../../lib/db';
+---
+
+<Base title="Seasons">
+  <Row label="Seasons" sub="The roll of honour">
+    <h1>Roll of honour</h1>
+    <p><a class="more" href={AWARDS_URL}>Awards →</a></p>
+  </Row>
+  <Row label="Every season">
+    <table class="t">
+      <thead>
+        <tr><th>Season</th><th>Champion</th><th>Runner-up</th><th>Shit Bowl winner</th><th>Mediocre Bowl winner</th></tr>
+      </thead>
+      <tbody>
+        {
+          rollOfHonour().map(({ season, champion, runnerUp, shitBowl, mediocreBowl }) => (
+            <tr>
+              <td><SeasonLink season={season.year} /></td>
+              {[champion, runnerUp].map((f) => (
+                <td>{f && <FranchiseLink franchise={f} teamName={f.teamName} />}</td>
+              ))}
+              <td><Crowned winners={shitBowl} /></td>
+              <td>{mediocreBowl && <Crowned winners={mediocreBowl} />}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    <Notes
+      notes={[
+        { text: 'Recalled: from memory, as no surviving game data could have recorded it.' },
+        { text: 'Disputed: the league can’t agree, so it counts for nobody until settled.' },
+        { text: 'Unknown: nobody has recorded it. The Mediocre Bowl began in 2015.' },
+      ]}
+    />
+  </Row>
+</Base>

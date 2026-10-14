@@ -1,0 +1,13 @@
+---
+// The grey notes block under a table: what each footnote marker means, with
+// the glyph in red. A note with no glyph is a plain remark.
+import type { Glyph } from './Marker.astro';
+interface Props {
+  notes: { glyph?: Glyph; text: string }[];
+}
+const { notes } = Astro.props;
+---
+
+<div class="notes">
+  {notes.map(({ glyph, text }) => <p><span class="g">{glyph ?? ''}</span>{text}</p>)}
+</div>

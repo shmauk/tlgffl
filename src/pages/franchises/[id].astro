@@ -1,0 +1,450 @@
+---
+// /franchises/<id>/ (#7, #14, #27): the franchise profile. Section 6, the award
+// tally, is #33's; 7 (records held) #32's; 10 (Sleeper era) #37's. Managers
+// are never shown. Gaps follow ADR 0001: reported season lines carry †,
+// lost bracket scores ‡, figures over scored games only *.
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import Badge from '../../components/Badge.astro';
+import Marker from '../../components/Marker.astro';
+import Notes from '../../components/Notes.astro';
+import Stats from '../../components/Stats.astro';
+import SeasonLink from '../../components/SeasonLink.astro';
+import SourceNote from '../../components/SourceNote.astro';
+import FranchiseLink from '../../components/FranchiseLink.astro';
+import GameLine from '../../components/GameLine.astro';
+import NflPlayerLink from '../../components/NflPlayerLink.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
+import { franchises, teamNames, seasonLines, seasons, recordExclusions, exclusionNote, type Franchise } from '../../lib/db';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from '../../lib/brackets';
+import { draftSeasons, franchisePicks, mostStarted } from '../../lib/drafts';
+import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
+import { headToHeadUrl, recordUrl } from '../../lib/urls';
+import { categoryOf } from '../../lib/records/catalogue';
+import { figureText, heldOver, recordsHeld } from '../../lib/records/held';
+import { siteDb } from '../../lib/records/site';
+import AwardLink from '../../components/AwardLink.astro';
+import { awards, awardWinners } from '../../lib/awards';
+
+export function getStaticPaths() {
+  return franchises().map((franchise) => ({ params: { id: String(franchise.id) }, props: { franchise } }));
+}
+
+const { franchise } = Astro.props as { franchise: Franchise };
+const id = franchise.id;
+const names = teamNames(id);
+const lines = seasonLines(id);
+const c = career(id);
+const games = franchiseGames(id);
+const rounds = bracketRounds();
+const won = crowns(id);
+const gaps = gapSeasons();
+const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
+const best = bestAndWorst(id);
+const leftOut = recordExclusions().filter((x) => x.franchise.id === id || x.opponent.id === id);
+// Career figures are over finished seasons (recordbook/profiles.py).
+const unfinished = lines.map((l) => l.season).filter((s) => seasons().some((x) => x.year === s && !x.finished));
+// Section 10, the Sleeper era (#37): most-started NFL players, the draft and keepers.
+const sleeperSeasons = seasons()
+  .filter((s) => s.era === 'sleeper' && s.year >= franchise.firstSeason && s.year <= franchise.lastSeason)
+  .map((s) => s.year);
+const started = mostStarted(id);
+const myPicks = franchisePicks(id);
+const drafts = draftSeasons().filter((d) => sleeperSeasons.includes(d.season));
+const unrecordedKeepers = drafts.filter((d) => !d.keepersRecorded).map((d) => d.season);
+const held = recordsHeld(siteDb, id);
+// Section 6, the award tally (#33): each award won, with the seasons.
+const myAwards = awardWinners({ franchiseId: id });
+const tally = awards()
+  .map((award) => ({ award, seasons: myAwards.filter((w) => w.award === award.slug).map((w) => w.season) }))
+  .filter((t) => t.seasons.length > 0);
+
+const reported = 'As NFL.com reported it';
+const lost = 'Score is lost';
+const pct = (p: number | null) => (p === null ? '–' : `${(p * 100).toFixed(1)}%`);
+const perGame = (p: number | null) => (p === null ? '–' : p.toFixed(2));
+const record = (w: number, l: number, t: number) => `${w}-${l}-${t}`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const seasonsList = (seasons: number[]) => seasons.join(', ');
+
+const roundName = (round: number, total: number) =>
+  round === total ? 'the final' : round === total - 1 ? 'the semi-finals' : `round ${round}`;
+
+// Bracket history: each season and bracket the franchise is known to have
+// played in or won, with its games.
+type Run = { season: number; bracket: BracketKey; seed: number | null; result: string; source?: string; games: typeof games };
+const runs: Run[] = [];
+const seasonsWithBrackets = [...new Set([...games.filter((g) => g.bracket).map((g) => g.season), ...won.map((w) => w.season)])].sort();
+for (const season of seasonsWithBrackets) {
+  for (const bracket of BRACKET_ORDER) {
+    const played = games.filter((g) => g.season === season && g.bracket === bracket);
+    const crown = won.find((w) => w.season === season && w.bracket === bracket);
+    if (!played.length && !crown) continue;
+    const line = lines.find((l) => l.season === season);
+    let result = '';
+    if (crown) {
+      result = crown.source === 'disputed' ? `${BRACKET_CROWNS[bracket]}?` : BRACKET_CROWNS[bracket];
+    } else if (bracket === 'playoffs') {
+      const last = played.at(-1)!;
+      const total = rounds.get(`${season}-${bracket}`) ?? last.round!;
+      result = last.round === total ? 'Runner-up' : `Out in ${roundName(last.round!, total)}`;
+    } else {
+      result = 'Played';
+    }
+    runs.push({
+      season,
+      bracket,
+      seed: bracket === 'playoffs' ? line?.seed ?? null : null,
+      result,
+      source: crown?.source,
+      games: played,
+    });
+  }
+}
+
+const opponents = headToHeads(id)
+  .map((p) => {
+    const lo = p.lo.id === id;
+    return {
+      opponent: lo ? p.hi : p.lo,
+      wins: lo ? p.loWins : p.hiWins,
+      losses: lo ? p.hiWins : p.loWins,
+      ties: p.ties,
+      pf: lo ? p.loPoints : p.hiPoints,
+      pa: lo ? p.hiPoints : p.loPoints,
+      games: p.games,
+      scored: p.scoredGames,
+      missing: p.gamesMissing,
+      url: headToHeadUrl(p.lo.id, p.hi.id),
+    };
+  })
+  .sort((a, b) => b.games - a.games || a.opponent.name.localeCompare(b.opponent.name));
+const unscored = opponents.some((o) => o.scored < o.games);
+---
+
+<Base title={franchise.name}>
+  <Row label="Franchise" sub={`${franchise.firstSeason}–${franchise.active ? '' : franchise.lastSeason}`}>
+    <h1>{franchise.name}</h1>
+    <p class="sub">
+      {franchise.active ? 'Active' : <Badge kind="departed" />}
+      {' · '}{plural(c.seasons, 'season')}, <SeasonLink season={franchise.firstSeason} />–<SeasonLink season={franchise.lastSeason} />
+    </p>
+    {franchise.active && <p>Division: {c.currentDivision ?? 'not yet known for this season'}</p>}
+    <StatsguruLink query={{ franchises: [franchise.id] }} />
+  </Row>
+
+  <Row label="Team names">
+    <table class="t">
+      <thead><tr><th>Season</th><th>Team name</th></tr></thead>
+      <tbody>
+        {[...names].reverse().map(({ season, teamName }) => (
+          <tr><td><SeasonLink season={season} /></td><td>{teamName}</td></tr>
+        ))}
+      </tbody>
+    </table>
+    {names.length < c.seasons && <Notes notes={[{ text: 'Sleeper-era team names are still to come.' }]} />}
+  </Row>
+
+  <Row label="Career" sub="Regular season">
+    <Stats
+      stats={[
+        { label: 'W-L-T', value: record(c.wins, c.losses, c.ties) },
+        { label: 'Win %', value: pct(c.winPct) },
+        { label: 'PF per game', value: perGame(c.pointsForPerGame) },
+        { label: 'PA per game', value: perGame(c.pointsAgainstPerGame) },
+        { label: 'Breakdown %', value: pct(c.breakdownPct) },
+        { label: 'Championships', value: c.championships },
+        { label: 'Shit Bowl winner titles', value: c.shitBowls },
+      ]}
+    />
+    <Notes
+      notes={[
+        ...(unfinished.length
+          ? [{ text: `Over finished seasons: ${unfinished.join(', ')} is still being played.` }]
+          : []),
+        { text: 'Win % counts a tie as half a win.' },
+        {
+          text:
+            c.breakdownPct === null
+              ? 'Breakdown needs every regular-season score, and no season of this franchise has them all yet.'
+              : `Breakdown % is over the ${plural(c.breakdownSeasons, 'season')} with every regular-season score.`,
+        },
+        ...(won.some((w) => w.source === 'disputed')
+          ? [{ text: 'A disputed title counts for nobody until it is settled.' }]
+          : []),
+      ]}
+    />
+  </Row>
+
+  <Row label="Season by season">
+    <table class="t">
+      <thead>
+        <tr>
+          <th>Season</th><th>Division</th><th class="num">W-L-T</th><th class="num">PF</th>
+          <th class="num">PA</th><th class="num">Seed</th><th class="num">Final</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[...lines].reverse().map((l) => (
+          <tr>
+            <td><SeasonLink season={l.season} /></td>
+            <td>{l.division ?? ''}</td>
+            <td class="num">{record(l.wins, l.losses, l.ties)}{l.source === 'reported' && <Marker glyph="†" title={reported} />}</td>
+            <td class="num">{l.pointsFor.toFixed(2)}</td>
+            <td class="num">{l.pointsAgainst.toFixed(2)}</td>
+            <td class="num">{l.seed ?? ''}</td>
+            <td class="num">{l.finalPlacing ?? ''}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <Notes
+      notes={[
+        ...(lines.some((l) => l.source === 'reported')
+          ? [{ glyph: '†' as const, text: `${reported}: some of the season's games have no score.` }]
+          : []),
+        ...(lines.length < c.seasons ? [{ text: 'Sleeper-era season lines are still to come.' }] : []),
+      ]}
+    />
+  </Row>
+
+  <Row label="Brackets">
+    {
+      runs.length === 0 ? (
+        <p>No bracket games or titles recorded.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Season</th><th>Bracket</th><th class="num">Seed</th><th>Result</th><th>Games</th></tr></thead>
+          <tbody>
+            {[...runs].reverse().map((r) => (
+              <tr>
+                <td><SeasonLink season={r.season} /></td>
+                <td>{BRACKET_NAMES[r.bracket]}</td>
+                <td class="num">{r.seed ?? ''}</td>
+                <td>{r.result}{r.source && r.source !== 'derived' && r.source !== 'confirmed' && <> <SourceNote source={r.source as 'recalled' | 'disputed'} /></>}</td>
+                <td>{r.games.map((g) => <p><GameLine game={g} franchiseId={id} label={`Week ${g.week}`} /></p>)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes
+      notes={[
+        ...(runs.some((r) => r.games.some((g) => g.homePoints === null))
+          ? [{ glyph: '‡' as const, text: `${lost}: the winner is known from the final placings.` }]
+          : []),
+        { text: 'NFL.com-era Shit Bowl and Mediocre Bowl games are not recorded; only their winners are.' },
+      ]}
+    />
+  </Row>
+
+  <Row label="Awards" sub="Award tally">
+    {
+      tally.length === 0 ? (
+        <p>No awards yet.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Award</th><th class="num">Won</th><th>Seasons</th></tr></thead>
+          <tbody>
+            {tally.map(({ award, seasons }) => (
+              <tr>
+                <td><AwardLink award={award} /></td>
+                <td class="num">{seasons.length}</td>
+                <td>
+                  {seasons.map((s, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <SeasonLink season={s} />
+                    </>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </Row>
+
+  <Row label="Records held" sub="Top 10 entries">
+    {
+      held.length === 0 ? (
+        <p>No top-10 entries.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Record</th><th>Over</th><th class="num">#</th><th class="num">Figure</th><th>When</th></tr></thead>
+          <tbody>
+            {held.map(({ def, rank, entry: e }) => (
+              <tr class:list={{ now: e.thisSeason }}>
+                <td><a href={recordUrl(def.slug)}>{def.name}</a> <span class="sub">{categoryOf(def).name}</span></td>
+                <td>{heldOver(def)}</td>
+                <td class="num">{rank}</td>
+                <td class="num">{figureText(def, e.value)}</td>
+                <td>
+                  {e.division ? (
+                    <><SeasonLink season={e.at!.season} /> {e.division.name}</>
+                  ) : e.at ? (
+                    <SeasonLink season={e.at.season} week={e.at.week} />
+                  ) : e.from && e.to ? (
+                    <><SeasonLink season={e.from.season} week={e.from.week} />–<SeasonLink season={e.to.season} week={e.to.week} /></>
+                  ) : e.seasons ? (
+                    e.seasons[0] === e.seasons[1] ? <SeasonLink season={e.seasons[0]} /> : <><SeasonLink season={e.seasons[0]} />–<SeasonLink season={e.seasons[1]} /></>
+                  ) : null}
+                  {e.opponent && <> v <FranchiseLink franchise={e.opponent.id === id ? e.franchise : e.opponent} /></>}
+                  {e.player && <> · <NflPlayerLink player={e.player} /></>}
+                  {e.thisSeason && <Badge kind="this-season" />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes
+      notes={[
+        { text: 'Each record over its own page’s era and games, as Over says: a career figure over all games includes bracket games, unlike the regular-season Career figures above. Level entries share a rank.' },
+      ]}
+    />
+  </Row>
+
+  <Row label="Head-to-head" sub="Every opponent, all games">
+    {
+      opponents.length === 0 ? (
+        <p>No games recorded yet.</p>
+      ) : (
+        <table class="t">
+          <thead>
+            <tr><th>Opponent</th><th class="num">Games</th><th class="num">W-L-T</th><th class="num">PF</th><th class="num">PA</th><th></th></tr>
+          </thead>
+          <tbody>
+            {opponents.map((o) => (
+              <tr>
+                <td><FranchiseLink franchise={o.opponent} /></td>
+                <td class="num">{o.games}{o.missing && <Marker glyph="†" title="Some of their games have no record" />}</td>
+                <td class="num">{record(o.wins, o.losses, o.ties)}</td>
+                <td class="num">{o.scored ? o.pf.toFixed(2) : '–'}{o.scored < o.games && <Marker glyph="‡" title={lost} />}</td>
+                <td class="num">{o.scored ? o.pa.toFixed(2) : '–'}</td>
+                <td><a class="more" href={o.url}>Games →</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes
+      notes={[
+        ...(opponents.some((o) => o.missing)
+          ? [{ glyph: '†' as const, text: `Games missing: ${seasonsList(myGaps)} ${myGaps.length === 1 ? 'has' : 'have'} regular-season weeks with no game record, so they may have met more often.` }]
+          : []),
+        ...(unscored ? [{ glyph: '‡' as const, text: `${lost} for some bracket games: they count in W-L-T but not in points.` }] : []),
+      ]}
+    />
+  </Row>
+
+  <Row label="Best and worst games" sub="Games with a score">
+    {
+      best.length === 0 ? (
+        <p>No game scores yet.</p>
+      ) : (
+        (['best', 'worst'] as const).map((m) => (
+          <table class="t">
+            <caption>{m === 'best' ? 'Highest scores' : 'Lowest scores'}</caption>
+            <thead><tr><th class="num">#</th><th class="num">Points</th><th>Game</th></tr></thead>
+            <tbody>
+              {best.filter((b) => b.measure === m).map((b) => (
+                <tr>
+                  <td class="num">{b.rank}</td>
+                  <td class="num">{b.points.toFixed(2)}{myGaps.length > 0 && <Marker glyph="*" title="Only games with a score count" />}</td>
+                  <td><GameLine game={b.game} franchiseId={id} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))
+      )
+    }
+    {myGaps.length > 0 && <Notes notes={[{ glyph: '*', text: `Only games with a score count: ${seasonsList(myGaps)} ${myGaps.length === 1 ? 'has' : 'have'} weeks with no game scores.` }]} />}
+    {leftOut.length > 0 && <Notes notes={leftOut.map((x) => ({ text: exclusionNote(x) }))} />}
+  </Row>
+
+  <Row label="Sleeper era" sub="Lineups and drafts, 2025 on">
+    {
+      sleeperSeasons.length === 0 ? (
+        <p>This franchise didn't play in the Sleeper era.</p>
+      ) : (
+        <>
+          {started.length === 0 ? (
+            <p>No lineups recorded yet.</p>
+          ) : (
+            <table class="t">
+              <caption>Most-started NFL players</caption>
+              <thead><tr><th>NFL player</th><th>Position</th><th class="num">Starts</th><th class="num">Points</th></tr></thead>
+              <tbody>
+                {started.map((s) => (
+                  <tr>
+                    <td><NflPlayerLink player={s.player} /></td>
+                    <td>{s.player.position ?? 'Unknown'}</td>
+                    <td class="num">{s.starts}</td>
+                    <td class="num">{s.points.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p><StatsguruLink query={{ franchises: [id], view: 'pos', seasons: sleeperSeasons }} label="Starter points by position in Statsguru →" /></p>
+          {drafts.map((d) => {
+            const picks = myPicks.filter((p) => p.season === d.season);
+            const kept = picks.filter((p) => p.kept);
+            return (
+              <>
+                <table class="t">
+                  <caption><SeasonLink season={d.season} /> draft</caption>
+                  <thead><tr><th class="num">Pick</th><th class="num">Round</th><th>NFL player</th><th>Position</th><th>From</th><th>Kept</th></tr></thead>
+                  <tbody>
+                    {picks.length === 0 ? (
+                      <tr><td colspan="6">No picks made.</td></tr>
+                    ) : (
+                      picks.map((p) => (
+                        <tr>
+                          <td class="num">{p.pick}</td>
+                          <td class="num">{p.round}</td>
+                          <td><NflPlayerLink player={p.player} /></td>
+                          <td>{p.player.position ?? 'Unknown'}</td>
+                          <td>{p.from && <FranchiseLink franchise={p.from} />}</td>
+                          <td>{p.kept === null ? '–' : p.kept ? 'Keeper' : ''}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+                {d.keepersRecorded && (
+                  <p>
+                    {d.season} keepers:{' '}
+                    {kept.length === 0
+                      ? 'none.'
+                      : kept.map((p, i) => (
+                          <>
+                            {i > 0 && ', '}
+                            <NflPlayerLink player={p.player} /> (round {p.round})
+                          </>
+                        ))}
+                  </p>
+                )}
+              </>
+            );
+          })}
+          <p><StatsguruLink query={{ subject: 'pick', view: 'list', franchises: [id] }} label="Draft picks in Statsguru →" /></p>
+          <Notes
+            notes={[
+              ...(unrecordedKeepers.length
+                ? [{ text: `Keepers not yet recorded for ${unrecordedKeepers.join(', ')}: kept picks show as –.` }]
+                : []),
+              { text: 'From: the franchise whose slot a traded pick was.' },
+            ]}
+          />
+        </>
+      )
+    }
+  </Row>
+</Base>

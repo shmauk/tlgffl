@@ -1,0 +1,4 @@
+# The four maintainers (#19). Every pull request requests their review.
+# During the build-up a maintainer may merge their own pull request once CI is
+# green; a second maintainer's approval becomes required at launch.
+* @shmauk @juffleberry @alistairwilliamtaylor @shahazmat

@@ -1,0 +1,227 @@
+---
+// Statsguru (#28): the query tool, the site's one island. The form is plain
+// HTML from the build; the script loads SQLite WASM and the build's database
+// only on this page (ADR 0002), runs the URL's query and renders the results.
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import { franchises, seasons, seasonFormats } from '../../lib/db';
+import { databaseFile } from '../../lib/database-file';
+import { lineupPlayers, lineupPositions } from '../../lib/nfl-players';
+import { HEADINGS, PHASE_NAMES, PICK_VIEW_NAMES, PLAYER_VIEW_NAMES, VIEW_NAMES } from '../../lib/statsguru/render';
+import { FRANCHISE_VIEWS, PHASES, PICK_VIEWS, PLAYER_VIEWS } from '../../lib/statsguru/query';
+import { draftSize } from '../../lib/drafts';
+import type { FormContext } from '../../lib/statsguru/form';
+
+const all = franchises();
+const years = seasons().reverse();
+const lastWeek = Math.max(...seasonFormats().flatMap((f) => [f.regularSeason[1], ...f.brackets.map((b) => b.lastWeek)]));
+const players = lineupPlayers();
+const positions = lineupPositions();
+const { lastRound, lastPick, firstSeason: firstDraft } = draftSize();
+const context: FormContext & { franchises: { id: number; name: string }[]; players: { id: string; name: string | null }[] } = {
+  franchises: all.map(({ id, name }) => ({ id, name })),
+  players: players.map(({ id, name }) => ({ id, name })),
+  seasons: years.map(({ year, era }) => ({ year, era })),
+  lastWeek,
+  lastRound,
+  lastPick,
+};
+const firstSleeper = years.find((s) => s.era === 'sleeper')?.year;
+const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
+---
+
+<Base title="Statsguru">
+  <div id="statsguru" data-db={databaseFile().url} data-context={JSON.stringify(context)}>
+    <Row label="Statsguru" sub="Franchise, NFL player and draft records">
+      <h1>Statsguru</h1>
+      <p class="sub"><span id="sg-summary">Every franchise, every season</span> <a href="#sg-form" id="sg-edit" hidden>Edit query</a></p>
+    </Row>
+    <div id="sg-query">
+    <Row label="Query">
+      <form id="sg-form" class="sg-form">
+        <fieldset>
+          <legend>Subject</legend>
+          <label><input type="radio" name="subject" value="franchise" checked /> Franchises</label>
+          <label><input type="radio" name="subject" value="player" /> NFL players <small>(2025 on)</small></label>
+          <label><input type="radio" name="subject" value="pick" /> Draft picks <small>(drafts from {firstDraft ?? 'the first Sleeper draft'})</small></label>
+        </fieldset>
+        <fieldset>
+          <legend>View</legend>
+          <div data-subject="franchise">
+            {FRANCHISE_VIEWS.map((v) => <label><input type="radio" name="view" value={v} checked={v === 'totals'} /> {VIEW_NAMES[v]}{v === 'pos' && <small> (2025 on)</small>}</label>)}
+            <div class="sg-field">
+              <span class="sg-name">By position</span>
+              <span>
+                group by <select name="by">
+                  <option value="pos">NFL player position (FLEX folded into RB/WR/TE)</option>
+                  <option value="slot">lineup slot (FLEX on its own)</option>
+                </select>
+              </span>
+            </div>
+          </div>
+          <div data-subject="player" hidden>
+            {PLAYER_VIEWS.map((v) => <label><input type="radio" name="pview" value={v} checked={v === 'totals'} /> {PLAYER_VIEW_NAMES[v]}</label>)}
+          </div>
+          <div data-subject="pick" hidden>
+            {PICK_VIEWS.map((v) => <label><input type="radio" name="kview" value={v} checked={v === 'list'} /> {PICK_VIEW_NAMES[v]}</label>)}
+            <div class="sg-field">
+              <span class="sg-name">Per franchise</span>
+              <span>
+                by <select name="kby">
+                  <option value="pos">NFL player position</option>
+                  <option value="round">round</option>
+                </select>
+              </span>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Filters</legend>
+          <div class="sg-field" data-subject="player pick" hidden>
+            <span class="sg-name">NFL player</span>
+            <span>
+              <select name="p" multiple size="8">
+                {players.map((p) => <option value={p.id}>{p.name ?? `Unknown NFL player (Sleeper id ${p.id})`}{p.position && ` (${p.position})`}</option>)}
+              </select>
+              <a href="#" data-clear="p">clear</a> <small>none = every NFL player</small>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="player pick" hidden>
+            <span class="sg-name">Position</span>
+            <span>
+              {positions.map((p) => <label><input type="checkbox" name="pos" value={p} /> {p}</label>)}
+              <a href="#" data-clear="pos">clear</a> <small>none = every position</small>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="player" hidden>
+            <span class="sg-name">Lineup</span>
+            <span>
+              <select name="lu">
+                <option value="">started or benched</option><option value="start">started only</option><option value="bench">benched only</option>
+              </select>
+            </span>
+          </div>
+          <div class="sg-field">
+            <span class="sg-name"><span data-subject="franchise pick">Franchise</span><span data-subject="player" hidden>Rostered by</span></span>
+            <span>
+              <select name="f" multiple size="8">
+                {all.map((f) => <option value={f.id}>{f.name}{!f.active && ' (departed)'}</option>)}
+              </select>
+              <a href="#" data-clear="f">clear</a> <small>none = every franchise</small>
+              <span data-subject="pick" hidden>
+                <select name="fby">
+                  <option value="pick">made the pick</option>
+                  <option value="slot">owned the slot</option>
+                </select>
+              </span>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="franchise player">
+            <span class="sg-name">Opposition</span>
+            <span>
+              <select name="opp" multiple size="8">
+                {all.map((f) => <option value={f.id}>{f.name}{!f.active && ' (departed)'}</option>)}
+              </select>
+              <a href="#" data-clear="opp">clear</a> <small>none = any opposition</small>
+            </span>
+          </div>
+          <div class="sg-field">
+            <span class="sg-name">Season span</span>
+            <span>
+              from <select name="from">{years.map((s) => <option value={s.year}>{s.year}</option>)}</select>
+              to <select name="to">{years.map((s) => <option value={s.year}>{s.year}</option>)}</select>
+              or era <select name="era">
+                <option value="">any</option>
+                <option value="nfl.com">NFL.com era ({years[0]?.year}–{lastNfl})</option>
+                <option value="sleeper">Sleeper era ({firstSleeper} on)</option>
+              </select>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="pick" hidden>
+            <span class="sg-name">Round span</span>
+            <span>
+              from <input name="rdFrom" type="number" min="1" max={lastRound} value="1" />
+              to <input name="rdTo" type="number" min="1" max={lastRound} value={lastRound} />
+            </span>
+          </div>
+          <div class="sg-field" data-subject="pick" hidden>
+            <span class="sg-name">Overall pick</span>
+            <span>
+              from <input name="pkFrom" type="number" min="1" max={lastPick} value="1" />
+              to <input name="pkTo" type="number" min="1" max={lastPick} value={lastPick} />
+            </span>
+          </div>
+          <div class="sg-field" data-subject="pick" hidden>
+            <span class="sg-name">Kept or drafted</span>
+            <span>
+              <select name="kd">
+                <option value="">either</option><option value="kept">keepers only</option><option value="drafted">drafted only</option>
+              </select>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="franchise player">
+            <span class="sg-name">Phase</span>
+            <span>{PHASES.map((p) => <label><input type="checkbox" name="ph" value={p} checked={p === 'R'} /> {PHASE_NAMES[p]}</label>)}</span>
+          </div>
+          <div class="sg-field" data-subject="franchise player">
+            <span class="sg-name">Week span</span>
+            <span>
+              from <input name="wkFrom" type="number" min="1" max={lastWeek} value="1" />
+              to <input name="wkTo" type="number" min="1" max={lastWeek} value={lastWeek} />
+            </span>
+          </div>
+          <div class="sg-field" data-subject="franchise">
+            <span class="sg-name">Result</span>
+            <span>
+              <select name="res">
+                <option value="">any</option><option value="W">won</option><option value="L">lost</option><option value="T">tied</option>
+              </select>
+            </span>
+          </div>
+          <div class="sg-field" data-subject="franchise">
+            <span class="sg-name">Franchises</span>
+            <span><label><input type="checkbox" name="act" /> active franchises only</label></span>
+          </div>
+          <div class="sg-field" data-subject="franchise player">
+            <span class="sg-name">Minimum</span>
+            <span><input name="min" type="number" min="0" value="0" /> games <span data-subject="franchise">played</span><span data-subject="player" hidden>rostered</span></span>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Order</legend>
+          <select name="sort">{Object.entries(HEADINGS).map(([k, label]) => <option value={k}>{label}</option>)}</select>
+          <select name="dir"><option value="desc">highest first</option><option value="asc">lowest first</option></select>
+        </fieldset>
+        <p><button type="submit">Submit query</button> <button type="button" id="sg-reset">Reset form</button></p>
+      </form>
+    </Row>
+    </div>
+    <Row label="Results">
+      <div id="sg-results" aria-live="polite"><p class="sub">Loading the record book…</p></div>
+    </Row>
+  </div>
+</Base>
+
+<script>
+  import { start } from '../../lib/statsguru/app';
+  start(document.getElementById('statsguru')!);
+</script>
+
+<style is:global>
+  .sg-form [hidden] { display: none !important; }
+  .sg-form fieldset { border: 0; border-top: 1px solid var(--hair); margin: 0; padding: 10px 0; }
+  .sg-form legend { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey); padding: 0; }
+  .sg-form label { margin-right: 16px; white-space: nowrap; }
+  .sg-field { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; margin: 6px 0; align-items: start; }
+  .sg-name { font-weight: 700; font-size: 13px; }
+  .sg-form select[multiple] { min-width: 260px; vertical-align: top; }
+  .sg-form input[type='number'] { width: 64px; }
+  .sg-form small { color: var(--grey); }
+  .sg-form button { font: inherit; font-weight: 700; padding: 6px 16px; border: 2px solid var(--fg); background: var(--bg); color: var(--fg); cursor: pointer; }
+  .sg-form button[type='submit'] { background: var(--fg); color: var(--bg); }
+  #sg-edit { margin-left: 12px; color: var(--accent); font-weight: 700; text-decoration: none; }
+  table.sg td { white-space: nowrap; }
+  @media (max-width: 720px) {
+    .sg-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  }
+</style>

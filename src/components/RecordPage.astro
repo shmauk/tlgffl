@@ -1,0 +1,198 @@
+---
+// One record page (#14, #30): its era and phase filters as links to the
+// pre-rendered variants, the top 10 (extended to anyone level with 10th),
+// the qualification footnote and markers, and the full list in Statsguru.
+// No JS (ADR 0002).
+import Base from '../layouts/Base.astro';
+import Row from './Row.astro';
+import Badge from './Badge.astro';
+import BigFigure from './BigFigure.astro';
+import Marker from './Marker.astro';
+import Notes from './Notes.astro';
+import FranchiseLink from './FranchiseLink.astro';
+import SeasonLink from './SeasonLink.astro';
+import NflPlayerLink from './NflPlayerLink.astro';
+import { figure as figureOf } from '../lib/figures';
+import { categoryOf, ERA_NAMES, PHASE_NAMES, type Era, type PhaseFilter, type Unit } from '../lib/records/catalogue';
+import type { Entry, RecordFranchise, RecordView } from '../lib/records/records';
+import { headToHeadUrl, recordUrl, statsguruUrl } from '../lib/urls';
+import { holders as holdersOf } from '../lib/records/held';
+
+interface Props {
+  view: RecordView;
+}
+const { view } = Astro.props;
+const { def, era, phase, entries } = view;
+
+const href = (e: Era, p: PhaseFilter) =>
+  recordUrl(def.slug, e === def.eras[0] && p === def.phases[0] ? undefined : { era: e, phase: p });
+// The column heading carries a rate's % sign, so the cells show the bare number.
+const format = (v: number | null | undefined, unit: Unit) => (v == null ? '–' : figureOf(unit, v).replace(/%$/, ''));
+const figure = (v: number) => format(v, def.unit);
+const SEASON_HEADINGS: Record<string, string> = {
+  wins: 'Wins', points_for: 'PF', points_against: 'PA', points_for_per_game: 'PF per game', breakdown_pct: 'Breakdown %',
+  luck: 'Luck',
+};
+const heading = def.heading ??
+  (def.kind === 'streak'
+    ? def.table === 'top_half' ? 'Weeks' : 'Games'
+    : def.kind === 'season'
+      ? SEASON_HEADINGS[def.column!]
+    : def.kind === 'tally'
+      ? 'Total'
+    : def.kind === 'run'
+      ? 'Seasons'
+    : def.kind === 'career'
+      ? { count: 'Wins', pct: 'Win %', points: 'PF per game' }[def.unit]
+      : def.statsguru?.sort?.key === 'mar' ? 'Margin' : 'Points');
+const score = (e: Entry) => `${e.score![0].toFixed(2)}–${e.score![1].toFixed(2)}`;
+const holders = (e: Entry): RecordFranchise[] => holdersOf(def, e);
+const empty =
+  def.rate || def.kind === 'rivalry' ? 'No franchise qualifies yet.' : def.table === 'ties' ? 'No game has been tied.' : 'No entries yet.';
+const phaseName = def.phases.length > 1 ? PHASE_NAMES[phase] : phase === 'regular' ? 'Regular season only' : null;
+// A record kept in one era only (the Sleeper era's) has no era filter.
+const eraName = def.eras.length > 1 ? ERA_NAMES[era] : `${ERA_NAMES[era]} only`;
+const variantName = phaseName ? `${eraName} · ${phaseName}` : eraName;
+---
+
+<Base title={`${def.name}${era === 'all' && phase === def.phases[0] ? '' : ` (${variantName})`}`}>
+  <Row label="Records" sub={categoryOf(def).name}>
+    <h1>{def.name}</h1>
+    <p class="sub">{variantName}</p>
+    {
+      def.eras.length > 1 && (
+        <p class="filters">
+          {def.eras.map((e) => <a href={href(e, phase)} aria-current={e === era ? 'page' : undefined}>{ERA_NAMES[e]}</a>)}
+        </p>
+      )
+    }
+    {
+      def.phases.length > 1 && (
+        <p class="filters">
+          {def.phases.map((p) => <a href={href(era, p)} aria-current={p === phase ? 'page' : undefined}>{PHASE_NAMES[p]}</a>)}
+        </p>
+      )
+    }
+  </Row>
+
+  <Row label={view.all ? 'Every one' : 'Top 10'} sub={view.all ? undefined : 'And anyone level with 10th'}>
+    {!view.all && entries.length > 0 && <BigFigure>{figure(entries[0].value)}</BigFigure>}
+    {
+      entries.length === 0 ? (
+        <p>{empty}</p>
+      ) : (
+        <table class="t">
+          <thead>
+            <tr>
+              {!view.all && <th class="num">#</th>}
+              <th class="num">{heading}{view.star && <Marker glyph="*" title="Only games with a score" />}</th>
+              {def.kind === 'game' && <><th>Franchise</th><th class="num">Score</th><th>Opponent</th><th>Game</th></>}
+              {def.kind === 'pair' && <><th>Game</th><th>Week</th></>}
+              {def.kind === 'career' && <><th>Franchise</th><th>Seasons</th><th class="num">GP</th><th class="num">W-L-T</th></>}
+              {def.kind === 'streak' && <><th>Franchise</th><th>From</th><th>To</th></>}
+              {def.kind === 'rivalry' && <><th>Franchise</th><th>Opponent</th><th class="num">Games</th><th class="num">W-L-T</th><th></th></>}
+              {def.kind === 'division' && <><th>Division</th><th>Season</th><th>Lineage</th><th>Franchises</th><th class="num">W-L-T</th><th class="num">PF</th></>}
+              {def.kind === 'lineup' && <><th>Franchise</th>{def.measure === 'player' && <th>NFL player</th>}<th>Opponent</th><th>Game</th></>}
+              {def.kind === 'lineup-season' && <><th>Franchise</th><th>Season</th><th class="num">GP</th></>}
+              {def.kind === 'season' && <><th>Franchise</th><th>Season</th><th class="num">W-L-T</th>{def.alongside!.map((a) => <th class="num">{a.label}</th>)}</>}
+              {def.kind === 'tally' && <><th>Franchise</th><th>Seasons</th></>}
+              {def.kind === 'run' && <><th>Franchise</th><th>From</th><th>To</th></>}
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr class:list={{ dep: holders(e).every((f) => f.departed), now: e.thisSeason }}>
+                {!view.all && <td class="num">{e.rank}</td>}
+                <td class="num fig">{figure(e.value)}{e.reported && <Marker glyph="†" title="Includes NFL.com's reported totals" />}{e.gamesMissing && <Marker glyph="†" title="May have met more often than is known" />}{e.lostScores && <Marker glyph="‡" title="Includes games whose score is lost" />}</td>
+                {def.kind === 'division' ? (
+                  <td>{e.division!.name}{e.thisSeason && <Badge kind="this-season" />}</td>
+                ) : def.kind === 'pair' ? (
+                  <td>
+                    <FranchiseLink franchise={e.franchise} />{e.franchise.departed && <Badge kind="departed" />}{' '}
+                    {score(e)}{' '}
+                    <FranchiseLink franchise={e.opponent!} />{e.opponent!.departed && <Badge kind="departed" />}
+                    {e.thisSeason && <Badge kind="this-season" />}
+                  </td>
+                ) : (
+                  <td>
+                    <FranchiseLink franchise={e.franchise} />{e.franchise.departed && <Badge kind="departed" />}
+                    {e.thisSeason && <Badge kind="this-season" />}
+                  </td>
+                )}
+                {def.kind === 'game' && (
+                  <>
+                    <td class="num">{score(e)}</td>
+                    <td><FranchiseLink franchise={e.opponent!} /></td>
+                    <td><SeasonLink season={e.at!.season} week={e.at!.week} /></td>
+                  </>
+                )}
+                {def.kind === 'pair' && <td><SeasonLink season={e.at!.season} week={e.at!.week} /></td>}
+                {def.kind === 'rivalry' && (
+                  <>
+                    <td><FranchiseLink franchise={e.opponent!} />{e.opponent!.departed && <Badge kind="departed" />}</td>
+                    <td class="num">{e.games}</td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                    <td><a class="more" href={headToHeadUrl(e.franchise.id, e.opponent!.id)}>Games →</a></td>
+                  </>
+                )}
+                {def.kind === 'division' && (
+                  <>
+                    <td><SeasonLink season={e.at!.season} /></td>
+                    <td>{e.division!.lineage}</td>
+                    <td>{e.members!.map((m, n) => <>{n > 0 && ', '}<FranchiseLink franchise={m} />{m.departed && <Badge kind="departed" />}</>)}</td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                    <td class="num">{e.score![0].toFixed(2)}</td>
+                  </>
+                )}
+                {def.kind === 'lineup' && (
+                  <>
+                    {def.measure === 'player' && <td><NflPlayerLink player={e.player!} />{e.player!.position && `, ${e.player!.position}`}</td>}
+                    <td><FranchiseLink franchise={e.opponent!} /></td>
+                    <td><SeasonLink season={e.at!.season} week={e.at!.week} /></td>
+                  </>
+                )}
+                {def.kind === 'lineup-season' && (
+                  <>
+                    <td><SeasonLink season={e.seasons![0]} /></td>
+                    <td class="num">{e.games}</td>
+                  </>
+                )}
+                {def.kind === 'career' && (
+                  <>
+                    <td><SeasonLink season={e.seasons![0]} />–<SeasonLink season={e.seasons![1]} /></td>
+                    <td class="num">{e.games}</td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                  </>
+                )}
+                {def.kind === 'season' && (
+                  <>
+                    <td><SeasonLink season={e.season!} /></td>
+                    <td class="num">{e.wlt!.join('-')}</td>
+                    {def.alongside!.map((a, n) => <td class="num">{format(e.alongside![n], a.unit)}</td>)}
+                  </>
+                )}
+                {def.kind === 'tally' && (
+                  <td>{e.list!.map((s, n) => <>{n > 0 && ', '}<SeasonLink season={s} /></>)}</td>
+                )}
+                {def.kind === 'run' && (
+                  <>
+                    <td><SeasonLink season={e.span![0]} /></td>
+                    <td><SeasonLink season={e.span![1]} />{e.ongoing && ' (ongoing)'}</td>
+                  </>
+                )}
+                {def.kind === 'streak' && (
+                  <>
+                    <td>{e.gapBefore && <Marker glyph="*" title="May have begun in weeks with no scores" />}<SeasonLink season={e.from!.season} week={e.from!.week} /></td>
+                    <td><SeasonLink season={e.to!.season} week={e.to!.week} />{e.gapAfter && <Marker glyph="*" title="May continue into weeks with no scores" />}</td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    <Notes notes={view.notes} />
+    {view.statsguru && <a class="more" href={statsguruUrl(view.statsguru)}>Full list in Statsguru</a>}
+  </Row>
+</Base>

@@ -1,0 +1,10 @@
+---
+// Every award name on the site links to its award page (#14).
+import { awardUrl } from '../lib/urls';
+interface Props {
+  award: { slug: string; name: string };
+}
+const { award } = Astro.props;
+---
+
+<a href={awardUrl(award.slug)}>{award.name}</a>

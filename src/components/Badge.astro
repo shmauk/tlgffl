@@ -1,0 +1,14 @@
+---
+// An uppercase text badge (not a pill). "This season" and clinch marks are
+// red; departed franchises and elimination marks are grey. Clinch and
+// elimination marks take their text from the slot (Playoffs, Bye, Out...).
+interface Props {
+  kind: 'this-season' | 'departed' | 'clinch' | 'eliminated';
+}
+const { kind } = Astro.props;
+const loud = kind === 'this-season' || kind === 'clinch';
+---
+
+<span class:list={['bd', loud ? 'now' : 'dep']}>
+  {kind === 'this-season' ? '● This season' : kind === 'departed' ? 'Departed' : <slot />}
+</span>

@@ -1,0 +1,41 @@
+# Who took the shitbowl, by season. Hand-maintained, because it cannot be
+# derived - every attempt to find a rule failed against the evidence:
+#
+#   * NFL's API exposes no consolation bracket detail at all. The whole response
+#     is 51 fields and none of them is a bracket.
+#   * Its `place` field does not follow consolation results. In 2019 the seed
+#     that went 2-0 was placed 9th and the seed that went 0-3 was placed 8th.
+#   * It does not even track bracket type. 2019 went to a team seeded 4th in the
+#     CHAMPIONSHIP bracket; 2024 went to one in the consolation bracket.
+#   * For 2022-24 the postseason results are gone outright, so there is nothing
+#     left to compute from even in principle.
+#
+# Names are franchise names: the name the site shows, or the one the franchise
+# is filed under, its last NFL.com team name. 2019's "Chicken Karama with rice"
+# is therefore under "Mooreccan chicken with rice", the same manager's 2020 name.
+#
+# Blank means nobody has confirmed it; blank rows render as "unknown" rather
+# than a guess. Two names separated by "|" means it is genuinely disputed - both
+# are shown with a question mark, and neither is counted towards anyone's tally,
+# because awarding half a shitbowl to two franchises would be worse than saying
+# we do not know. 2025 onwards derives itself from Sleeper's losers bracket, whose
+# placement final names the winner outright, and needs no row here.
+#
+# source:
+#   derived-confirmed  worked out from the game log, then checked by the league
+#   recalled           from memory; no surviving data could have supplied it
+#   inconclusive       two candidates and nothing to separate them
+year,franchise,second_last,source
+2012,Mikkels Manatees,,derived-confirmed
+2013,London Tanqs,,derived-confirmed
+2014,Bearnaise Dynamics,,derived-confirmed
+2015,The Dirty Birds,,derived-confirmed
+2016,Kurlewless,,derived-confirmed
+2017,AT Football Team,,derived-confirmed
+2018,Mikkels Manatees,,derived-confirmed
+2019,Mooreccan chicken with rice,,recalled
+2020,Mikkels Manatees,,derived-confirmed
+2021,London Tanqs|The Dirty Birds,,inconclusive
+2022,The Beer Barons,,recalled
+2023,The Dirty Birds,,recalled
+2024,SERPION,,recalled

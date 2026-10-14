@@ -1,0 +1,45 @@
+# Which league bracket each Sleeper bracket-week pairing belongs to. Hand-kept.
+#
+# Sleeper only has a winners and a losers bracket, and they don't match the
+# league's three (GLOSSARY.md: Playoffs, Shit Bowl, Mediocre Bowl). In 2025 the
+# commissioner overrode both (`t1_original`/`t2_original`), the 8-team losers
+# bracket mixed the Shit Bowl with the Mediocre Bowl, and the Mediocre Bowl
+# was played in slots borrowed from both. So every pairing Sleeper made in a
+# bracket week (data/formats.yaml) is listed here by its two roster ids, as
+# one of: playoffs, shit_bowl, mediocre_bowl, or filler. Filler is a pairing
+# Sleeper invented to fill its schedule; it is never a game. A bracket-week
+# pairing missing from this file fails the build, and so does a row with no
+# such pairing.
+#
+# round counts each bracket's rounds from 1. A Shit Bowl game's winner is the
+# higher scorer, as in any game; losing advances you.
+#
+# 2025 is NOT YET CONFIRMED BY A MAINTAINER. It is the reading of issue #2
+# (Sleeper API research): Playoffs = rosters 4, 5, 6, 7, 9, 11 (Sleeper's
+# winners bracket, 7 and 9 on byes); Shit Bowl = 2, 3, 8, 14, 15, 16 (Sleeper's
+# losers bracket, 3 and 14 on byes, roster 8 lost the final); Mediocre Bowl =
+# 1, 10, 12, 13, played in weeks 16-17 (winners bracket m5, losers bracket m7
+# and m12; roster 12 won it). Filler: the week-15 games between the Shit Bowl's
+# bye teams and Mediocre Bowl teams (3 v 13, 1 v 14), and Sleeper's placement
+# games (week 16: 11 v 16; week 17: 6 v 9, 11 v 13, 14 v 15). Correct any row
+# by pull request, citing the league's ruling.
+season,week,roster_a,roster_b,bracket,round
+2025,15,6,11,playoffs,1
+2025,15,4,5,playoffs,1
+2025,16,6,7,playoffs,2
+2025,16,5,9,playoffs,2
+2025,17,5,7,playoffs,3
+2025,15,2,15,shit_bowl,1
+2025,15,8,16,shit_bowl,1
+2025,16,3,15,shit_bowl,2
+2025,16,8,14,shit_bowl,2
+2025,17,3,8,shit_bowl,3
+2025,16,1,12,mediocre_bowl,1
+2025,16,10,13,mediocre_bowl,1
+2025,17,10,12,mediocre_bowl,2
+2025,15,3,13,filler,
+2025,15,1,14,filler,
+2025,16,11,16,filler,
+2025,17,6,9,filler,
+2025,17,11,13,filler,
+2025,17,14,15,filler,

@@ -1,0 +1,111 @@
+---
+import { BRACKET_NAMES } from '../../lib/brackets';
+// /head-to-head/<lo>-<hi>/ (#7, #14, #27): two franchises that have met, lower
+// id first: W-L-T, points, every game and the bracket meetings. The reversed
+// order (/head-to-head/9-5/) redirects. There is no all-franchise grid.
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import Marker from '../../components/Marker.astro';
+import Notes from '../../components/Notes.astro';
+import Stats from '../../components/Stats.astro';
+import FranchiseLink from '../../components/FranchiseLink.astro';
+import SeasonLink from '../../components/SeasonLink.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
+import { headToHeads, pairGames, gapSeasons, type HeadToHead } from '../../lib/profiles';
+import { seasonLines } from '../../lib/db';
+import { headToHeadUrl } from '../../lib/urls';
+
+export function getStaticPaths() {
+  return headToHeads().flatMap((pair) => [
+    { params: { pair: `${pair.lo.id}-${pair.hi.id}` }, props: { pair, reversed: false } },
+    { params: { pair: `${pair.hi.id}-${pair.lo.id}` }, props: { pair, reversed: true } },
+  ]);
+}
+
+const { pair, reversed } = Astro.props as { pair: HeadToHead; reversed: boolean };
+if (reversed) return Astro.redirect(headToHeadUrl(pair.lo.id, pair.hi.id), 301);
+
+const { lo, hi } = pair;
+const games = pairGames(lo.id, hi.id);
+const bracketGames = games.filter((g) => g.phase === 'bracket');
+const gaps = gapSeasons();
+const shared = new Set(seasonLines(lo.id).map((l) => l.season));
+const missing = seasonLines(hi.id)
+  .map((l) => l.season)
+  .filter((s) => shared.has(s) && gaps.has(s));
+const lost = 'Score is lost';
+const pts = (p: number | null) => (p === null ? '' : p.toFixed(2));
+const winner = (id: number | null) => (id === lo.id ? lo : id === hi.id ? hi : null);
+---
+
+<Base title={`${lo.name} v ${hi.name}`}>
+  <Row label="Head-to-head">
+    <h1><FranchiseLink franchise={lo} /> v <FranchiseLink franchise={hi} /></h1>
+    <StatsguruLink query={{ franchises: [lo.id], opponents: [hi.id] }} />
+  </Row>
+
+  <Row label="Record" sub={`${lo.name} first`}>
+    <Stats
+      stats={[
+        { label: 'Games', value: pair.games },
+        { label: `W-L-T`, value: `${pair.loWins}-${pair.hiWins}-${pair.ties}` },
+        { label: `${lo.name} points`, value: pair.loPoints.toFixed(2) },
+        { label: `${hi.name} points`, value: pair.hiPoints.toFixed(2) },
+      ]}
+    />
+    {pair.gamesMissing && <p class="sub">Known games only<Marker glyph="†" title="Games missing" /></p>}
+    <Notes
+      notes={[
+        ...(pair.gamesMissing
+          ? [{ glyph: '†' as const, text: `Games missing: both played ${missing.join(', ')}, which ${missing.length === 1 ? 'has' : 'have'} regular-season weeks with no game record, so they may have met more often.` }]
+          : []),
+        ...(pair.scoredGames < pair.games
+          ? [{ glyph: '‡' as const, text: `${lost} for ${pair.games - pair.scoredGames} of the games: they count in W-L-T but not in points.` }]
+          : []),
+        { text: 'NFL.com-era Shit Bowl and Mediocre Bowl games are not recorded.' },
+      ]}
+    />
+  </Row>
+
+  <Row label="Bracket meetings">
+    {
+      bracketGames.length === 0 ? (
+        <p>They have never met in a bracket.</p>
+      ) : (
+        <table class="t">
+          <thead><tr><th>Season</th><th>Bracket</th><th>Winner</th><th class="num">Score</th></tr></thead>
+          <tbody>
+            {bracketGames.map((g) => (
+              <tr>
+                <td><SeasonLink season={g.season} week={g.week} /></td>
+                <td>{BRACKET_NAMES[g.bracket!]}, round {g.round}</td>
+                <td>{winner(g.winnerId)?.name ?? 'Tie'}</td>
+                <td class="num">{g.homePoints === null ? <Marker glyph="‡" title={lost} /> : `${pts(Math.max(g.homePoints, g.awayPoints!))}–${pts(Math.min(g.homePoints, g.awayPoints!))}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+  </Row>
+
+  <Row label="Games">
+    <table class="t">
+      <thead><tr><th>Week</th><th>Game</th><th class="num">Score</th></tr></thead>
+      <tbody>
+        {[...games].reverse().map((g) => (
+          <tr>
+            <td><SeasonLink season={g.season} week={g.week} /></td>
+            <td>
+              {g.bracket && `${BRACKET_NAMES[g.bracket]}: `}
+              <FranchiseLink franchise={g.home} teamName={g.home.teamName} /> v <FranchiseLink franchise={g.away} teamName={g.away.teamName} />
+            </td>
+            <td class="num">
+              {g.homePoints === null ? <>{winner(g.winnerId)?.name} won<Marker glyph="‡" title={lost} /></> : `${pts(g.homePoints)}–${pts(g.awayPoints)}`}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </Row>
+</Base>

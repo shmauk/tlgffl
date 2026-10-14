@@ -1,0 +1,13 @@
+---
+// Every season on the site links to its season page (#14); a game links to its
+// week's anchor there. The link text defaults to the season (and week).
+import { seasonUrl } from '../lib/urls';
+interface Props {
+  season: number;
+  week?: number;
+}
+const { season, week } = Astro.props;
+const text = week === undefined ? String(season) : `${season} week ${week}`;
+---
+
+<a href={seasonUrl(season, week)}><slot>{text}</slot></a>

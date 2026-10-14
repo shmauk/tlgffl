@@ -1,0 +1,62 @@
+---
+// /league/ (#14): the constitution, the AGM docs by year, and each season's
+// format in brief, linking to its season page.
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import SeasonLink from '../../components/SeasonLink.astro';
+import { documents, seasonFormats } from '../../lib/db';
+import { formatSummary } from '../../lib/format';
+
+const docs = documents();
+const constitution = docs.filter((d) => d.kind === 'constitution');
+const agmYears = [...new Set(docs.filter((d) => d.kind === 'agm').map((d) => d.season!))].sort((a, b) => b - a);
+const agm = (season: number) => docs.filter((d) => d.kind === 'agm' && d.season === season);
+const formats = seasonFormats().reverse();
+---
+
+<Base title="League">
+  <Row label="League" sub="Documents and formats">
+    <h1>The league</h1>
+    <p class="sub">The league's own documents live in Google Docs.</p>
+  </Row>
+  <Row label="Constitution">
+    {constitution.map((d) => <p><a class="more" href={d.url}>{d.title} →</a></p>)}
+  </Row>
+  <Row label="AGM" sub="Proposals, minutes and results by year">
+    <table class="t">
+      <thead><tr><th>Year</th><th>Documents</th></tr></thead>
+      <tbody>
+        {
+          agmYears.map((season) => (
+            <tr>
+              <td><SeasonLink season={season} /></td>
+              <td>
+                {agm(season).map((d, i) => (
+                  <>
+                    {i > 0 && ' · '}
+                    <a href={d.url}>{d.title}</a>
+                  </>
+                ))}
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </Row>
+  <Row label="Format by season" sub="How each season was played">
+    <table class="t">
+      <thead><tr><th>Season</th><th>Format</th></tr></thead>
+      <tbody>
+        {
+          formats.map((f) => (
+            <tr>
+              <td><SeasonLink season={f.season} /></td>
+              <td>{formatSummary(f).join(' · ')}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </Row>
+</Base>

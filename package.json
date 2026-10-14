@@ -1,0 +1,23 @@
+{
+  "name": "tlgffl",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build:data": "python3 -m recordbook.build",
+    "build": "astro build",
+    "dev": "astro dev",
+    "test:site": "node --test \"site-tests/*.test.mjs\"",
+    "test:components": "vitest run"
+  },
+  "dependencies": {
+    "astro": "7.3.8",
+    "sql.js": "1.14.2"
+  },
+  "devDependencies": {
+    "@types/sql.js": "^1.4.11",
+    "vitest": "^4.1.11"
+  }
+}

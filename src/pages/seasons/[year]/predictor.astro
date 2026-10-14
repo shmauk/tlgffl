@@ -1,0 +1,51 @@
+---
+// /seasons/<year>/predictor/ (#17, #36): the playoff predictor, the site's
+// second island. It exists only for the current season while its regular
+// season is on. The build renders it with no picks (the playoff picture); in
+// the browser the URL's picks are run through the same seeding module, with
+// the clinch search in a Web Worker.
+import Base from '../../../layouts/Base.astro';
+import Row from '../../../components/Row.astro';
+import SeasonLink from '../../../components/SeasonLink.astro';
+import { predictorData, predictorSeason } from '../../../lib/predictor-db';
+import { project } from '../../../lib/predictor';
+import { renderPredictor } from '../../../lib/predictor-page';
+import { buildDate, current } from '../../../lib/current';
+import { throughWeek } from '../../../lib/updated';
+
+export function getStaticPaths() {
+  const season = predictorSeason();
+  return season === null ? [] : [{ params: { year: String(season) } }];
+}
+
+const data = predictorData(Number(Astro.params.year));
+const html = renderPredictor(data, project(data, { picks: [], spr: [] }), data.marks, 0);
+// Like every current-season view, it says how fresh it is (#35).
+const stamp = throughWeek(buildDate().iso, current()!.through);
+---
+
+<Base title={`${data.season} playoff predictor`}>
+  <Row label="Predictor" sub="What if…">
+    <h1>{data.season} playoff predictor</h1>
+    <p class="sub">{stamp}</p>
+    <p class="sub">
+      Pick the winners of the games left in the regular season and see where every franchise would land.
+      The link holds your picks, so share it. <SeasonLink season={data.season}>Back to {data.season}</SeasonLink>
+    </p>
+  </Row>
+  <div id="predictor" data-predictor={JSON.stringify(data)} set:html={html} />
+</Base>
+
+<script>
+  import { start } from '../../../lib/predictor-app';
+  start(document.getElementById('predictor')!);
+</script>
+
+<style is:global>
+  #predictor .pk { text-decoration: none; padding: 1px 6px; border: 1px solid var(--hair); white-space: nowrap; }
+  #predictor .pk[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 700; }
+  #predictor ul.games, #predictor ul.bracket { list-style: none; padding: 0; margin: 0 0 8px; }
+  #predictor ul.games li, #predictor ul.bracket li { margin: 6px 0; }
+  #predictor .seed { display: inline-block; min-width: 20px; color: var(--grey); font-weight: 700; }
+  #predictor .stale { color: var(--accent); font-weight: 700; }
+</style>

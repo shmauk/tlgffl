@@ -1,0 +1,12 @@
+# Scissors-paper-rock rulings, the last of playoffs.md's tiebreaks. Hand-kept:
+# only the league can play them, so the record book only records the result.
+#
+# One row per ruling: the season, and the franchises it orders as franchise
+# names (data/franchises.csv's, the last team name each played under), winner
+# first: "A|B" means A won. A three-way game lists all three, best first.
+#
+# The seeding module (ADR 0005) applies a ruling to franchises still level
+# after every other tiebreak, when the ruling names them all. Until one is
+# recorded, the playoff picture shows them sharing a seed ("=3"); a finished
+# season whose seeds can't be settled without one fails the build.
+season,order

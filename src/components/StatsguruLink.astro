@@ -1,0 +1,13 @@
+---
+// "Open in Statsguru": the page's own scope as a prefilled Statsguru query (#28).
+import { statsguruUrl } from '../lib/urls';
+import type { Query } from '../lib/statsguru/query';
+interface Props {
+  query: Partial<Query>;
+  /** The link's words: "Open in Statsguru" unless the page links several queries. */
+  label?: string;
+}
+const { query, label = 'Open in Statsguru' } = Astro.props;
+---
+
+<a class="more" href={statsguruUrl(query)}>{label}</a>

@@ -1,0 +1,15 @@
+# The NFL players each franchise kept into a season's draft. Hand-kept.
+#
+# A keeper (GLOSSARY.md) is an NFL player a franchise actually kept, at the
+# cost of a draft round; being eligible doesn't count. Sleeper's is_keeper is
+# always null, so keepers are recorded here, one row per keeper, after each
+# draft. franchise_id is the id in data/franchises.csv, nfl_player_id the
+# Sleeper player id, and round the draft round the keeper cost. In a Sleeper
+# season the keeper is the pick the franchise used on that NFL player in that
+# round: python -m recordbook.validate checks the pick exists.
+#
+# A season with no rows here has its keepers "not yet recorded": the site
+# says so, Statsguru can't tell its kept picks from drafted ones, and Draft
+# Dodger is unknown. 2025 is not recorded yet. A season played without
+# keepers (from 2026) says so in data/formats.yaml and has no rows here.
+season,franchise_id,nfl_player_id,round

@@ -1,0 +1,42 @@
+figure,reason
+Bearnaise Dynamics|2015|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Bearnaise Dynamics|2018|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Bearnaise Dynamics|2021|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Bearnaise Dynamics|2022|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Kurlewless|2020|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Not Enough Cooks|2020|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Not Enough Cooks|2024|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+SERPION|2019|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Standard Deviations|2012|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+Standard Deviations|2013|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Aligators|2012|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Aligators|2018|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Aligators|2019|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Aligators|2023|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Beer Barons|2017|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Beer Barons|2021|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Beer Barons|2023|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Dirty Birds|2014|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Dirty Birds|2016|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Hatters|2013|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Hatters|2017|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Hatters|2024|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Piggies|2014|playoffWins,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Puffins|2015|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Puffins|2016|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+The Puffins|2022|playoffLosses,"ff-data-project counts NFL.com's third-place game, which is platform filler, not a Playoffs game (#22)"
+AT Football Team|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+Bearnaise Dynamics|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+Kurlewless|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+Not Enough Cooks|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+The Beer Barons|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+The Puffins|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+Yorkshire Puddings|2025|teamName,ff-data-project shows the franchise name; the record book shows the team name the franchise played under on Sleeper (data/sleeper_aliases.csv) (#25)
+The Beer Barons|2025|pointsFor,"ff-data-project takes Sleeper's roster totals, which kept a 6-point return TD the league doesn't score; season lines come from games (ADR 0001, data/sleeper_adjustments.csv)"
+Bearnaise Dynamics|2025|pointsAgainst,"ff-data-project takes Sleeper's roster totals, which kept the Beer Barons' 6-point return TD the league doesn't score; season lines come from games (ADR 0001, data/sleeper_adjustments.csv)"
+Bearnaise Dynamics|2025|playoffLosses,"ff-data-project counts a third-place game in Sleeper's winners bracket that data/sleeper_brackets.csv files as filler or Mediocre Bowl, not Playoffs (#25)"
+The Dirty Birds|2025|playoffWins,"ff-data-project counts a third-place game in Sleeper's winners bracket that data/sleeper_brackets.csv files as filler or Mediocre Bowl, not Playoffs (#25)"
+Standard Deviations|2025|madePlayoffs,"ff-data-project counts the 5th-place game (a Mediocre Bowl semi-final) in Sleeper's winners bracket that data/sleeper_brackets.csv files as filler or Mediocre Bowl, not Playoffs (#25)"
+Standard Deviations|2025|playoffWins,"ff-data-project counts the 5th-place game (a Mediocre Bowl semi-final) in Sleeper's winners bracket that data/sleeper_brackets.csv files as filler or Mediocre Bowl, not Playoffs (#25)"
+The Hatters|2025|madePlayoffs,"ff-data-project counts the 5th-place game (a Mediocre Bowl semi-final) in Sleeper's winners bracket that data/sleeper_brackets.csv files as filler or Mediocre Bowl, not Playoffs (#25)"
+The Hatters|2025|playoffLosses,"ff-data-project counts the 5th-place game (a Mediocre Bowl semi-final) in Sleeper's winners bracket that data/sleeper_brackets.csv files as filler or Mediocre Bowl, not Playoffs (#25)"

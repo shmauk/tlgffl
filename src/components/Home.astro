@@ -1,0 +1,196 @@
+---
+// The home page's content (#16, #35): the current season's hub in its phase.
+// Regular season: this week's matchups, last week's results, a compact
+// playoff picture, award leaders and records set this season. The brackets:
+// the same grouped by bracket, with the brackets drawn in columns in place of
+// the playoff picture, and award winners. Off-season: a wrap-up. The week
+// being played never shows a score.
+import Row from './Row.astro';
+import FranchiseLink from './FranchiseLink.astro';
+import AwardLink from './AwardLink.astro';
+import Badge from './Badge.astro';
+import Notes from './Notes.astro';
+import SeasonLink from './SeasonLink.astro';
+import StatsguruLink from './StatsguruLink.astro';
+import BracketColumns from './BracketColumns.astro';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER } from '../lib/brackets';
+import type { HomeData, Matchup } from '../lib/home';
+import { recordUrl, seasonUrl } from '../lib/urls';
+import type { Mark } from '../lib/seeding';
+
+interface Props {
+  data: HomeData;
+}
+const { data } = Astro.props;
+const { season, phase } = data;
+const PHASE = { regular: 'Regular season', brackets: 'The brackets', 'off-season': 'Season over' } as const;
+const stamp = data.through === null ? `${data.updated}, week 1 not yet final` : `${data.updated}, through week ${data.through}`;
+const pts = (p: number) => p.toFixed(2);
+const pct = (p: number | null) => (p === null ? '' : `${(p * 100).toFixed(1)}%`);
+const ELIMINATED: Mark[] = ['OUT', 'SHIT BOWL'];
+/** Groups by bracket (regular-season games first), in the site's bracket order. */
+const grouped = <T extends Matchup>(list: T[]) =>
+  [null, ...BRACKET_ORDER]
+    .map((b) => ({ bracket: b, items: list.filter((m) => m.bracket === b) }))
+    .filter((g) => g.items.length);
+const byBracket = phase !== 'regular';
+const CROWNS = BRACKET_ORDER.map((key) => ({ key, label: BRACKET_CROWNS[key] }));
+---
+
+<Row label="This season" sub={PHASE[phase]}>
+  <h1>{season}</h1>
+  <p class="sub">{stamp}</p>
+</Row>
+
+{
+  phase !== 'off-season' && data.playing !== null && (
+    <Row label={`Week ${data.playing}`} sub="Being played: scores once final">
+      {data.thisWeek.length === 0 ? (
+        <p>No matchups yet.</p>
+      ) : (
+        grouped(data.thisWeek).map((g) => (
+          <>
+            {byBracket && <h3>{g.bracket ? BRACKET_NAMES[g.bracket] : 'Regular season'}</h3>}
+            {g.items.map((m) => (
+              <p>
+                <FranchiseLink franchise={m.home} teamName={m.home.teamName} /> v{' '}
+                <FranchiseLink franchise={m.away} teamName={m.away.teamName} />
+              </p>
+            ))}
+          </>
+        ))
+      )}
+    </Row>
+  )
+}
+
+{
+  phase !== 'off-season' && data.lastWeek && data.through !== null && (
+    <Row label={`Week ${data.through}`} sub="Results">
+      {grouped(data.lastWeek.results).map((g) => (
+        <>
+          {byBracket && <h3>{g.bracket ? BRACKET_NAMES[g.bracket] : 'Regular season'}</h3>}
+          {g.items.map((r) => (
+            <p>
+              <FranchiseLink franchise={r.home} teamName={r.home.teamName} /> {pts(r.homePoints)}–{pts(r.awayPoints)}{' '}
+              <FranchiseLink franchise={r.away} teamName={r.away.teamName} />
+            </p>
+          ))}
+        </>
+      ))}
+      {data.lastWeek.highest && (
+        <p>
+          Highest score: {pts(data.lastWeek.highest.points)}, <FranchiseLink franchise={data.lastWeek.highest.franchise} teamName={data.lastWeek.highest.franchise.teamName} />
+        </p>
+      )}
+      {data.lastWeek.lowest && (
+        <p>
+          Lowest score: {pts(data.lastWeek.lowest.points)}, <FranchiseLink franchise={data.lastWeek.lowest.franchise} teamName={data.lastWeek.lowest.franchise.teamName} />
+        </p>
+      )}
+      <p><SeasonLink season={season} week={data.through}>Every week of {season} →</SeasonLink></p>
+    </Row>
+  )
+}
+
+{
+  data.picture && (
+    <Row label="Playoff picture" sub="Seeds as they stand">
+      <table class="t">
+        <thead>
+          <tr><th class="num">Seed</th><th>Franchise</th><th class="num">W-L-T</th><th class="num">Breakdown %</th><th>Bracket</th></tr>
+        </thead>
+        <tbody>
+          {data.picture.map((l, i, all) => (
+            <tr class={i > 0 && all[i - 1].bracket !== l.bracket ? 'cut' : undefined}>
+              <td class="num">{`${l.shared ? '=' : ''}${l.seed}`}</td>
+              <td>
+                <FranchiseLink franchise={l.franchise} teamName={l.franchise.teamName} />
+                {l.marks.map((m) => <Badge kind={ELIMINATED.includes(m) ? 'eliminated' : 'clinch'}>{m}</Badge>)}
+              </td>
+              <td class="num">{`${l.wins}-${l.losses}-${l.ties}`}</td>
+              <td class="num">{pct(l.breakdown)}</td>
+              <td>{BRACKET_NAMES[l.bracket]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p><a class="more" href={seasonUrl(season)}>The playoff picture by division →</a></p>
+    </Row>
+  )
+}
+
+{
+  data.brackets.length > 0 && (
+    <Row label="Brackets" sub="Winners in bold, each bracket's winner in red">
+      {data.brackets.map((b) => (
+        <>
+          <h3>{BRACKET_NAMES[b.key]}</h3>
+          <BracketColumns columns={b.columns} names={data.names} winner={b.winner?.id ?? null} />
+        </>
+      ))}
+    </Row>
+  )
+}
+
+{
+  data.honours && (
+    <Row label="Wrap-up" sub={`How ${season} ended`}>
+      {CROWNS.map(({ key, label }) => (
+        <p>
+          {label}:{' '}
+          {data.honours![key] ? <FranchiseLink franchise={data.honours![key]!} teamName={data.honours![key]!.teamName} /> : 'Unknown'}
+        </p>
+      ))}
+      {data.next?.draft && <p>Next season: draft {data.next.draft}</p>}
+    </Row>
+  )
+}
+
+{
+  data.awards.length > 0 && (
+    <Row label={phase === 'regular' ? 'Award leaders' : 'Award winners'} sub={phase === 'regular' ? 'So far' : undefined}>
+      {data.awards.map((a) => (
+        <p>
+          <AwardLink award={a.award} />:{' '}
+          {a.franchises.map((f, i) => (
+            <>
+              {i > 0 && ' and '}
+              <FranchiseLink franchise={f} teamName={f.teamName} />
+            </>
+          ))}
+          , {a.value}
+        </p>
+      ))}
+    </Row>
+  )
+}
+
+<Row label="Records" sub={`Set in ${season}`}>
+  {
+    data.records.length === 0 ? (
+      <p>No records set this season{phase === 'off-season' ? '' : ' yet'}.</p>
+    ) : (
+      data.records.map((r) => (
+        <p>
+          <a href={recordUrl(r.record.slug)}>{r.record.name}</a>: #{r.rank},{' '}
+          {r.franchises.map((f, i) => (
+            <>
+              {i > 0 && ' and '}
+              <FranchiseLink franchise={f} />
+            </>
+          ))}
+          , {r.figure}
+          <Badge kind="this-season" />
+        </p>
+      ))
+    )
+  }
+  <Notes notes={[{ text: 'Entries this season in a record’s top ten.' }]} />
+</Row>
+
+<Row label="More">
+  <p><a class="more" href={seasonUrl(season)}>The {season} season →</a></p>
+  {data.predictor && <p><a class="more" href={data.predictor}>The playoff predictor →</a></p>}
+  <p><StatsguruLink query={{ seasons: [season], view: 'season' }} label={`${season} in Statsguru →`} /></p>
+</Row>

@@ -1,0 +1,31 @@
+---
+// /records/ (#7, #14, #30): the eight categories and their records,
+// Cricinfo-style. Categories not built yet list their records as to come.
+// Brackets links to the roll of honour rather than a copy of it.
+import Base from '../../layouts/Base.astro';
+import Row from '../../components/Row.astro';
+import { CATEGORIES } from '../../lib/records/catalogue';
+import { recordUrl } from '../../lib/urls';
+---
+
+<Base title="Records">
+  <Row label="Records">
+    <h1>Records</h1>
+    <p class="sub">Each record ranks the top 10, and anyone level with 10th. Departed franchises keep their records.</p>
+  </Row>
+  {
+    CATEGORIES.map((c) => (
+      <Row label={c.name} sub={c.sub}>
+        <ul class="recs">
+          {c.records.map((r) =>
+            r.slug || r.href ? (
+              <li><a href={r.href ?? recordUrl(r.slug!)}>{r.name}</a></li>
+            ) : (
+              <li>{r.name}<span class="sub">To come</span></li>
+            ),
+          )}
+        </ul>
+      </Row>
+    ))
+  }
+</Base>

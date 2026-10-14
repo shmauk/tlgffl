@@ -1,0 +1,149 @@
+/* The site's look: Swiss, prototype variant F (decided in #15). System
+   Helvetica, black and white with one red accent, an asymmetric label-column
+   grid. Dark mode is the same design inverted, following the OS. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #fff;
+  --fg: #000;
+  --accent: #e30613;
+  --grey: #777; /* secondary text, labels, column headers */
+  --quiet: #999; /* departed, recalled, aliases */
+  --notes: #555;
+  --hair: #ddd; /* table row rules */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111;
+    --fg: #f2f2f2;
+    --accent: #ff3b45; /* the red, lifted for contrast on near-black */
+    --grey: #9a9a9a;
+    --quiet: #777;
+    --notes: #aaa;
+    --hair: #333;
+  }
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); color: var(--fg); }
+body {
+  margin: 0;
+  font: 15px/1.45 "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+a { color: inherit; }
+table { border-collapse: collapse; }
+p { margin: 0 0 .6em; }
+
+/* ---------- header and menu ---------- */
+.top {
+  display: flex; flex-wrap: wrap; gap: 8px 26px; justify-content: space-between; align-items: baseline;
+  padding: 22px 40px; border-bottom: 2px solid var(--fg);
+}
+.logo { font-weight: 700; font-size: 18px; letter-spacing: -.02em; text-decoration: none; }
+.logo::before {
+  content: ""; display: inline-block; width: 14px; height: 14px; background: var(--accent); margin-right: 8px;
+}
+.top nav { display: flex; flex-wrap: wrap; gap: 6px 26px; }
+.top nav a {
+  text-decoration: none; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey);
+}
+.top nav a:hover { color: var(--fg); }
+.top nav a[aria-current="page"] { color: var(--fg); font-weight: 700; }
+
+main { padding: 0 40px 120px; }
+.bottom { padding: 18px 40px; border-top: 1px solid var(--grey); font-size: 12px; color: var(--grey); }
+.bottom .report { margin: 4px 0 0; }
+.bottom .report a { color: inherit; }
+
+/* ---------- the label-column grid ---------- */
+.row {
+  display: grid; grid-template-columns: 22% minmax(0, 1fr); gap: 32px;
+  border-bottom: 1px solid var(--fg); padding: 26px 0;
+}
+.lab { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; margin: 0; }
+.lab small {
+  display: block; color: var(--grey); font-weight: 400; margin-top: 6px;
+  text-transform: none; letter-spacing: 0; font-size: 13px;
+}
+.con { min-width: 0; overflow-x: auto; } /* wide tables scroll sideways */
+
+h1 { font-size: 64px; line-height: .95; letter-spacing: -.035em; margin: 0; font-weight: 700; }
+.sub { margin-top: 12px; color: var(--grey); }
+
+/* ---------- figures ---------- */
+.huge {
+  font-size: 140px; line-height: .85; font-weight: 700; letter-spacing: -.05em; color: var(--accent);
+  font-variant-numeric: lining-nums;
+}
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 18px; margin: 0; }
+.kpis div { border-left: 1px solid var(--fg); padding: 0 16px; display: flex; flex-direction: column; }
+.kpis dd { order: 1; margin: 0; font-size: 44px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; }
+.kpis dt { order: 2; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey); }
+
+/* ---------- filters (era, phase) ---------- */
+.filters { margin-top: 14px; }
+.filters a { text-decoration: none; color: var(--grey); margin-right: 18px; font-size: 13px; }
+.filters a[aria-current="page"] { color: var(--fg); border-bottom: 2px solid var(--accent); }
+
+/* ---------- tables ---------- */
+table.t { width: 100%; font-size: 14px; }
+.t th {
+  text-align: left; font-weight: 400; color: var(--grey); font-size: 11px; text-transform: uppercase;
+  letter-spacing: .08em; padding: 6px 8px 6px 0; border-bottom: 2px solid var(--fg); white-space: nowrap;
+  vertical-align: bottom;
+}
+.t th a { text-decoration: none; }
+.t th.sorted { color: var(--accent); }
+.t td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+.t a { text-decoration: none; }
+.t a:hover { text-decoration: underline; }
+.num { text-align: right; font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.t th.num { text-align: right; }
+.t tr.dep td { color: var(--quiet); }
+.t tr.cut td { border-top: 2px solid var(--fg); }
+.t tr.now td:first-child { box-shadow: inset 3px 0 var(--accent); padding-left: 8px; }
+.fr { font-weight: 700; text-decoration: none; }
+.alias { color: var(--quiet); }
+
+/* ---------- markers, badges, source notes ---------- */
+.mk { color: var(--accent); font-size: 10px; vertical-align: super; line-height: 0; margin-left: 1px; cursor: help; }
+.bd, .src { white-space: nowrap; }
+.bd { font-size: 11px; margin-left: 8px; text-transform: uppercase; letter-spacing: .06em; }
+.bd.now { color: var(--accent); font-weight: 700; }
+.bd.dep { color: var(--quiet); }
+.src { color: var(--quiet); margin-left: 6px; font-size: 12px; }
+.src.disp { color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
+.notes { font-size: 12px; color: var(--notes); margin-top: 12px; max-width: 760px; }
+.notes p { margin: 0; }
+.notes .g { color: var(--accent); display: inline-block; width: 16px; }
+.more { display: inline-block; margin-top: 12px; font-weight: 700; text-decoration: none; }
+.recs { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 32px; }
+.recs li { padding: 4px 0; break-inside: avoid; }
+.recs a { font-weight: 700; text-decoration: none; }
+.recs .sub { margin: 0 0 0 8px; font-size: 12px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+
+/* ---------- brackets as columns (#35) ---------- */
+.cols { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 24px; margin-bottom: 18px; }
+.col h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--grey); font-weight: 400; }
+.col h4 small { font-size: 11px; }
+.col .game { border-top: 2px solid var(--fg); padding: 4px 0; margin-bottom: 12px; font-size: 14px; }
+.col .game p { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+.col .fr { font-weight: 400; }
+.col .win .fr { font-weight: 700; }
+.col .crowned, .col .crowned .fr { color: var(--accent); }
+.col .seed { display: inline-block; min-width: 18px; color: var(--grey); font-variant-numeric: tabular-nums; }
+
+/* ---------- narrow screens: labels stack above their content ---------- */
+@media (max-width: 720px) {
+  .top { padding: 16px 20px; }
+  main { padding: 0 20px 80px; }
+  .bottom { padding: 16px 20px; }
+  .row { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 20px 0; }
+  h1 { font-size: 40px; }
+  .huge { font-size: 88px; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpis dd { font-size: 32px; }
+  .two { grid-template-columns: 1fr; }
+}
