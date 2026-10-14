@@ -43,6 +43,16 @@ test('no week still to be played shows a score on its season page', () => {
   }
 });
 
+test('during the regular season the season page shows award leaders and when the brackets are set', () => {
+  if (!/<small>Regular season<\/small>/.test(home)) return;
+  const page = readFileSync(join('dist', 'seasons', String(season), 'index.html'), 'utf8');
+  const last = db.prepare('select regular_season_last_week as w from season_formats where season = ?').get(season).w;
+  assert.match(row(page, 'Brackets'), new RegExp(`Brackets are set after week ${last}\\.`));
+  assert.match(page, /<h2 class="lab"[^>]*>Award leaders<small>So far/);
+  assert.match(page, /<h2 class="lab"[^>]*>Highs and lows<small>Games with a score, so far/);
+  assert.match(page, /<h2 class="lab"[^>]*>Standings<small>Playoff picture by division/);
+});
+
 test('a season in progress says so under its title, through its latest final week', () => {
   const inProgress = db
     .prepare(`select season from upcoming_games union select season from upcoming_bracket_pairings`)

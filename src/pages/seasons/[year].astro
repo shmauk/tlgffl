@@ -27,7 +27,9 @@ import {
 } from '../../lib/db';
 import { formatSummary, weekList } from '../../lib/format';
 import AwardLink from '../../components/AwardLink.astro';
-import { awards, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
+import { awards, awardLeaders, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
+import { current, inProgressWeeks } from '../../lib/home-db';
+import { BUILT_AT, updated } from '../../lib/updated';
 import PlayoffPicture from '../../components/PlayoffPicture.astro';
 import { checkSleeperSeeds, seasonPicture } from '../../lib/seeding-db';
 import { predictorSeason } from '../../lib/predictor-db';
@@ -62,6 +64,16 @@ const firstDraft = draftSize().firstSeason;
 const keepers = seasonKeepers(year);
 // A Sleeper season before its first final week has no games: say so rather than show empty results.
 const sleeperPending = !nfl && games.length === 0 ? "This season's Sleeper games are still to come." : '';
+// The current season while it is being played (#35): through its latest final week, with the
+// matchups still to come, award leaders in place of winners, and brackets set after the regular season.
+const now = current();
+const live = now && now.season === year && now.phase !== 'off-season' ? now : null;
+const liveLine = live
+  ? `In progress, ${live.through === null ? 'week 1 not yet final' : `through week ${live.through}`} · ${updated(BUILT_AT).text.replace('Updated', 'updated')}`
+  : '';
+const toCome = live ? inProgressWeeks(year) : new Map();
+const soFar = live ? ', so far' : '';
+const gridWeeks = [...new Set([...weeks, ...toCome.keys()])].sort((a, b) => a - b);
 
 const BRACKETS: { key: BracketName; name: string; crown: string }[] = [
   { key: 'playoffs', name: 'Playoffs', crown: 'Champion' },
@@ -98,8 +110,10 @@ const MEASURES = [
   { key: 'narrowest_margin', label: 'Narrowest win' },
 ] as const;
 
-// Awards (#33): each award given this season, or due but unknown.
-const seasonWinners = awardWinners({ season: year });
+// Awards (#33): each award given this season, or due but unknown. While the regular season is
+// on, the award leaders so far take the winners' place (#35).
+const leading = live?.phase === 'regular';
+const seasonWinners = leading ? awardLeaders(year) : awardWinners({ season: year });
 const seasonUnknowns = awardUnknowns().filter((u) => u.season === year);
 const awardRows = awards()
   .map((award) => ({
@@ -117,6 +131,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
 <Base title={String(year)}>
   <Row label="Season" sub={nfl ? 'Played on NFL.com' : 'Played on Sleeper'}>
     <h1>{year}</h1>
+    {live && <p class="sub">{liveLine}</p>}
     <StatsguruLink query={{ seasons: [year], view: 'season' }} />
   </Row>
 
@@ -205,20 +220,26 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
       brackets.length === 0 && <p>No brackets recorded.</p>
     }
     {
-      sleeperPending && <p>{sleeperPending}</p>
+      live?.phase === 'regular' && format && <p>Brackets are set after week {format.regularSeason[1]}.</p>
     }
     {
-      !sleeperPending && brackets.map(({ key, name, crown }) => {
+      !live && sleeperPending && <p>{sleeperPending}</p>
+    }
+    {
+      !sleeperPending && live?.phase !== 'regular' && brackets.map(({ key, name, crown }) => {
         const bracketGames = games.filter((g) => g.bracket === key);
         const rounds = Math.max(0, ...bracketGames.map((g) => g.round ?? 0));
         const crowned = winners.filter((w) => w.bracket === key);
         const disputed = crowned.some((w) => w.source === 'disputed');
+        const pending = [...toCome].flatMap(([week, list]) => list.filter((m) => m.bracket === key).map((m) => ({ week, m })));
         return (
           <>
             <h3>{name}</h3>
             <p>
               {crown}:{' '}
-              {crowned.length === 0 || crowned[0].source === 'unknown' ? (
+              {crowned.length === 0 && live ? (
+                'To be decided'
+              ) : crowned.length === 0 || crowned[0].source === 'unknown' ? (
                 'Unknown'
               ) : (
                 <>
@@ -232,7 +253,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                 </>
               )}
             </p>
-            {bracketGames.length > 0 ? (
+            {bracketGames.length > 0 || pending.length > 0 ? (
               <table class="t">
                 <thead>
                   <tr><th>Round</th><th>Week</th><th>Game</th><th class="num">Score</th></tr>
@@ -254,6 +275,14 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                           `${pts(Math.max(g.homePoints, g.awayPoints!))}–${pts(Math.min(g.homePoints, g.awayPoints!))}`
                         )}
                       </td>
+                    </tr>
+                  ))}
+                  {pending.map(({ week, m }) => (
+                    <tr>
+                      <td></td>
+                      <td><SeasonLink season={year} week={week}>{week}</SeasonLink></td>
+                      <td><FranchiseLink franchise={m.home} /> v <FranchiseLink franchise={m.away} /></td>
+                      <td class="num"></td>
                     </tr>
                   ))}
                 </tbody>
@@ -278,13 +307,13 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     />
   </Row>
 
-  <Row label="Awards" sub="Decided when the regular season ends">
+  <Row label={leading ? 'Award leaders' : 'Awards'} sub={leading ? 'So far: decided when the regular season ends' : 'Decided when the regular season ends'}>
     {
       awardRows.length === 0 ? (
         <p>No awards for this season{nfl ? '' : ' yet'}.</p>
       ) : (
         <table class="t">
-          <thead><tr><th>Award</th><th>Winner</th><th class="num">Value</th></tr></thead>
+          <thead><tr><th>Award</th><th>{leading ? 'Leader' : 'Winner'}</th><th class="num">Value</th></tr></thead>
           <tbody>
             {awardRows.map(({ award, won, unknown }) => (
               <tr>
@@ -310,7 +339,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
       notAwarded.length > 0 && awardRows.length > 0 && (
         <div class="notes">
           <p>
-            <span class="g"></span>Not awarded this season:{' '}
+            <span class="g"></span>{leading ? 'No leader yet:' : 'Not awarded this season:'}{' '}
             {notAwarded.map((a, i) => (
               <>
                 {i > 0 && ', '}
@@ -325,7 +354,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     <p><a class="more" href="/seasons/awards/">Every award →</a></p>
   </Row>
 
-  <Row label="Highs and lows" sub="Games with a score">
+  <Row label="Highs and lows" sub={`Games with a score${soFar}`}>
     {
       highs.length === 0 ? (
         <p>{sleeperPending || 'No game scores survive for this season.'}</p>
@@ -359,7 +388,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     }
   </Row>
 
-  <Row label="Breakdown" sub="Every franchise against every other, each week">
+  <Row label="Breakdown" sub={`Every franchise against every other, each week${soFar}`}>
     {
       breakdown.length === 0 ? (
         <p>
@@ -387,19 +416,26 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
 
   <Row label="Weekly results">
     {
-      weeks.length === 0 ? (
+      gridWeeks.length === 0 ? (
         <p>{sleeperPending || 'No games yet.'}</p>
       ) : (
         <table class="t">
           <thead><tr><th>Week</th><th>Games</th></tr></thead>
           <tbody>
-            {weeks.map((week) => {
+            {gridWeeks.map((week) => {
               const these = gamesIn(week);
+              const later = toCome.get(week) ?? [];
               return (
                 <tr id={`week-${week}`}>
                   <td><SeasonLink season={year} week={week}>{week}</SeasonLink></td>
                   <td>
-                    {these.length === 0 && 'No game scores'}
+                    {these.length === 0 && later.length === 0 && 'No game scores'}
+                    {later.map((m) => (
+                      <p>
+                        {m.bracket && `${bracketName(m.bracket)}: `}
+                        <FranchiseLink franchise={m.home} /> v <FranchiseLink franchise={m.away} />
+                      </p>
+                    ))}
                     {these.map((g) => (
                       <p>
                         {g.bracket && `${bracketName(g.bracket)}: `}

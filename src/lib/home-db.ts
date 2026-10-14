@@ -71,12 +71,8 @@ function bracketPairings(season: number, week: number, specs: BracketSpec[], pla
   return placePairings(rows, picture.places, played, specs);
 }
 
-/** The home page's content on the build date, or null if no season has started. */
-export function homeData(at: Date = BUILT_AT): HomeData | null {
-  const now = current(at);
-  if (!now) return null;
-  const { season, phase, through, playing } = now;
-  const names = seasonNames(season);
+/** A season's brackets as specs, its final bracket games, and all its games. */
+function bracketsOf(season: number) {
   const format = seasonFormats().find((f) => f.season === season)!;
   const specs: BracketSpec[] = BRACKET_ORDER.flatMap((key) => {
     const b = format.brackets.find((x) => x.bracket === key);
@@ -89,6 +85,39 @@ export function homeData(at: Date = BUILT_AT): HomeData | null {
       bracket: g.bracket!, week: g.week, round: g.round!, home: g.home.id, away: g.away.id,
       homePoints: g.homePoints, awayPoints: g.awayPoints, winner: g.winnerId,
     }));
+  return { specs, played, games };
+}
+
+/**
+ * The current season's weeks still to come (#35), each with its matchups and
+ * never a score: the regular-season pairings left and, once the brackets are
+ * on, the bracket pairings of the week being played. Empty for any other season.
+ */
+export function inProgressWeeks(season: number, at: Date = BUILT_AT): Map<number, Matchup[]> {
+  const now = current(at);
+  const out = new Map<number, Matchup[]>();
+  if (!now || now.season !== season || now.phase === 'off-season') return out;
+  const names = seasonNames(season);
+  const add = (week: number, m: Matchup) => out.set(week, [...(out.get(week) ?? []), m]);
+  const upcoming = open()
+    .prepare('select week, home_franchise_id as h, away_franchise_id as a from upcoming_games where season = ? order by week, rowid')
+    .all(season) as { week: number; h: number; a: number }[];
+  for (const r of upcoming) add(r.week, { bracket: null, home: names[r.h], away: names[r.a] });
+  if (now.phase === 'brackets' && now.playing !== null) {
+    const { specs, played } = bracketsOf(season);
+    for (const p of bracketPairings(season, now.playing, specs, played))
+      add(p.week, { bracket: p.bracket, home: names[p.home], away: names[p.away] });
+  }
+  return out;
+}
+
+/** The home page's content on the build date, or null if no season has started. */
+export function homeData(at: Date = BUILT_AT): HomeData | null {
+  const now = current(at);
+  if (!now) return null;
+  const { season, phase, through, playing } = now;
+  const names = seasonNames(season);
+  const { specs, played, games } = bracketsOf(season);
 
   let thisWeek: Matchup[] = [];
   let placed: ReturnType<typeof placePairings> = [];
