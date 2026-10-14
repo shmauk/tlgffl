@@ -30,6 +30,9 @@ export const nflPlayerUrl = (id: string) => statsguruUrl({ subject: 'player', pl
 export const nflPlayerName = (player: { id: string; name: string | null }) =>
   player.name ?? `Unknown NFL player (Sleeper id ${player.id})`;
 
+/** Where a reader reports a mistake (#19, #39): the repo's new-issue page, with its templates. */
+export const NEW_ISSUE_URL = 'https://github.com/shmauk/tlgffl/issues/new/choose';
+
 /** The menu, after the site name (which links home). */
 export const MENU = [
   { href: '/records/', label: 'Records' },

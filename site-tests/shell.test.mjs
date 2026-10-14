@@ -49,6 +49,17 @@ test('every page carries the build\'s "updated <date>" stamp, the same on every 
   assert.equal(stamps.size, 1);
 });
 
+test('every page’s footer says how to report a mistake, linking a new issue (#19, #39)', () => {
+  for (const page of pages) {
+    const footer = decode(readFileSync(page, 'utf8')).match(/<footer[\s\S]*?<\/footer>/)?.[0] ?? '';
+    assert.match(
+      footer.replace(/\s+/g, ' '),
+      /Spot a mistake\? Tell a maintainer in the league chat or <a href="https:\/\/github\.com\/shmauk\/tlgffl\/issues\/new\/choose"[^>]*>open an issue<\/a>\./,
+      page,
+    );
+  }
+});
+
 test("the menu marks the section a page belongs to", () => {
   const current = (path) => read(path).match(/<a href="([^"]*)" aria-current="page"/)?.[1];
   assert.equal(current('franchises/index.html'), '/franchises/');

@@ -1,9 +1,10 @@
 ---
 // The site shell (#14, #21): the site name linking home, then the menu, on
 // every page. The menu marks the section the page belongs to. The footer
-// carries the build's "updated <date>" stamp (#26).
+// carries the build's "updated <date>" stamp (#26) and how to report a
+// mistake (#19, #39).
 import '../styles/swiss.css';
-import { HOME_URL, MENU } from '../lib/urls';
+import { HOME_URL, MENU, NEW_ISSUE_URL } from '../lib/urls';
 import { buildDate } from '../lib/current';
 
 interface Props {
@@ -34,6 +35,7 @@ const stamp = buildDate();
     </main>
     <footer class="bottom">
       <time class="updated" datetime={stamp.iso}>{stamp.text}</time>
+      <p class="report">Spot a mistake? Tell a maintainer in the league chat or <a href={NEW_ISSUE_URL}>open an issue</a>.</p>
     </footer>
   </body>
 </html>
