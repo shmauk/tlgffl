@@ -10,5 +10,6 @@
 #
 # A season with no rows here has its keepers "not yet recorded": the site
 # says so, Statsguru can't tell its kept picks from drafted ones, and Draft
-# Dodger is unknown. 2025 and 2026 are not recorded yet.
+# Dodger is unknown. 2025 is not recorded yet. A season played without
+# keepers (from 2026) says so in data/formats.yaml and has no rows here.
 season,franchise_id,nfl_player_id,round

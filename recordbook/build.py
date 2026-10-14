@@ -564,6 +564,8 @@ def build(data, out, today=None):
     highs_lows = [(season, measure, i + 1, fid, value)
                   for season, measure, i, fid, value in gamelog.highs_and_lows(games)]
     keepers = read_keepers(read_optional_csv(data / "keepers.csv"))
+    # A season played without keepers has them all recorded: there are none.
+    keepers |= {y: set() for y, f in formats.items() if not f.keepers}
     lineages = divisionlib.read_lineages(read_optional_csv(data / "division_lineages.csv"))
     try:
         lineage_rows = divisionlib.lineage_rows(lineages, season_lines, formats)
@@ -712,7 +714,8 @@ def read_keepers(rows):
 
 def kept(keepers, pick):
     """1 if a draft pick was a keeper, 0 if drafted, None while its season's
-    keepers aren't recorded (a season with no keeper rows)."""
+    keepers aren't recorded (a season with no keeper rows that formats.yaml
+    doesn't say was played without keepers)."""
     season, *_, fid, pid = pick
     return None if season not in keepers else int((fid, pid) in keepers[season])
 

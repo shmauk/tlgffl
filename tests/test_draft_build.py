@@ -4,7 +4,7 @@ was a keeper once the season's keepers are recorded."""
 import pytest
 
 from recordbook.build import BuildError
-from tests.archive import write_keepers, write_sleeper_draft
+from tests.archive import fmt, write_formats, write_keepers, write_sleeper_draft
 from tests.test_sleeper_build import built, query, sleeper  # noqa: F401  (the fixture)
 
 # Rosters 1-6 are franchises 11-16. Slot 1 is roster 2's, slot 2 roster 1's.
@@ -47,6 +47,13 @@ def test_picks_are_kept_or_drafted_once_the_seasons_keepers_are_recorded(drafted
     db = built(drafted, tmp_path)
     assert picks(db, "kept = 1") == [(10, 2, 3, 13, 13, "q3", 1)]
     assert query(db, "select count(*) from draft_picks where kept = 0") == [(11,)]
+
+
+def test_a_season_played_without_keepers_has_every_pick_drafted(drafted, tmp_path):
+    f = fmt(6, 2, (2, [3]), shit_bowl=(2, [3]), divisions=2, realignment=2025)
+    write_formats(drafted, {2025: f | {"keepers": False}})
+    db = built(drafted, tmp_path)
+    assert query(db, "select count(*) from draft_picks where kept = 0") == [(12,)]
 
 
 def test_a_draft_without_its_slot_map_fails_the_build(drafted, tmp_path):

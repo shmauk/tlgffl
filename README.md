@@ -121,7 +121,8 @@ the build. `data/sleeper_adjustments.csv` explains, to the point, any gap betwee
 season totals and the games (ADR 0001, Sleeper era); an unexplained or stale gap fails the build.
 `data/keepers.csv` records each season's keepers, since Sleeper's `is_keeper` is always null: the
 validation checks each one is the franchise's pick of that NFL player in the round it cost. A season
-with no rows shows "keepers not yet recorded" rather than failing. Each draft pick records the
+with no rows shows "keepers not yet recorded" rather than failing, unless `data/formats.yaml` says
+it was played without keepers (`keepers: false`, from 2026). Each draft pick records the
 franchise whose slot it was (the draft's `slot_to_roster_id`) and the franchise that made it, and a
 pick made by a franchise that didn't own it according to the traded picks fails the build.
 

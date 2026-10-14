@@ -44,6 +44,8 @@ class Format:
     regular_season: tuple
     brackets: dict = field(default_factory=dict)
     tiebreaks: str | None = None
+    # False from the season the league stopped keeping players (2026).
+    keepers: bool = True
 
     @property
     def regular_season_weeks(self):
@@ -79,5 +81,6 @@ def load(path, team_counts):
             brackets[name] = Bracket(name, b["size"], tuple(b["weeks"]), b.get("series"),
                                      b.get("seeding"))
         out[season] = Format(season, f["teams"], f["divisions"], f.get("realignment"),
-                             tuple(f["regular_season_weeks"]), brackets, f.get("tiebreaks"))
+                             tuple(f["regular_season_weeks"]), brackets, f.get("tiebreaks"),
+                             f.get("keepers", True))
     return out

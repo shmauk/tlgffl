@@ -149,7 +149,8 @@ SCHEMAS = {
         {"season": whole_number, "roster_id": whole_number, "week": whole_number,
          "points": number, "reason": required}),
     # Keepers (#37): Sleeper's is_keeper is always null, so they are kept by
-    # hand. A season with no rows shows "keepers not yet recorded".
+    # hand. A season with no rows shows "keepers not yet recorded", unless
+    # data/formats.yaml says it was played without keepers.
     "keepers.csv": Table(
         {"season": whole_number, "franchise_id": whole_number, "nfl_player_id": required,
          "round": whole_number},
@@ -222,12 +223,17 @@ def check_keepers(data):
                                    for p in json.loads(f.read_text(encoding="utf-8")) if p.get("player_id")}
     roster_franchise = {int(slot): fid for (era, slot, _), fid in buildlib.franchise_keys(data).items()
                         if era == "sleeper"}
+    formats_path = data / "formats.yaml"
+    formats = (yaml.safe_load(formats_path.read_text(encoding="utf-8")) if formats_path.exists() else None) or {}
+    keeperless = {y for y, f in formats.items() if isinstance(f, dict) and f.get("keepers") is False}
     known = None
     problems = []
     for line, row in read_rows(path)[1]:
         where = f"data/keepers.csv line {line}"
         season, fid, pid, rnd = int(row["season"]), int(row["franchise_id"]), row["nfl_player_id"].strip(), int(row["round"])
-        if fid not in franchises:
+        if season in keeperless:
+            problems.append(f"{where}: data/formats.yaml says {season} was played without keepers")
+        elif fid not in franchises:
             problems.append(f"{where}: franchise_id {fid} is not a franchise id in data/franchises.csv")
         elif season in drafts:
             taken = {roster_franchise.get(r): n for (r, p), n in drafts[season].items() if p == pid}
@@ -337,6 +343,8 @@ def check_formats(data):
             problems.append(f"{where}: must be a mapping of {', '.join(FORMAT_FIELDS)} and brackets")
             continue
         problems += [f"{where}: no {f}" for f in FORMAT_FIELDS if f not in entry]
+        if not isinstance(entry.get("keepers", True), bool):
+            problems.append(f"{where}: keepers must be true or false")
         for name, bracket in (entry.get("brackets") or {}).items():
             problems += [f"{where} {name}: no {f}" for f in BRACKET_FIELDS
                          if f not in (bracket or {})]

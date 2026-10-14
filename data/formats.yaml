@@ -10,6 +10,8 @@
 #   tiebreaks             how level franchises are separated for seeding
 #   brackets              each bracket's size, the weeks it plays (one per
 #                         round), how it is seeded and, for a series, how it is won
+#   keepers               false for a season played without keepers (the league
+#                         stopped keeping players from 2026); true if left out
 #
 # NFL.com-era (2012-2024) seeds are as NFL.com reported them: it applied its
 # own tiebreaks, and nobody recalculates them. From 2025 the written rules
@@ -144,6 +146,7 @@ x-nfl-6-from-15: &nfl-6-from-15
   realignment: 2025
   regular_season_weeks: [1, 14]
   tiebreaks: *rules-tiebreaks
+  keepers: false
   brackets:
     playoffs: {size: 7, weeks: [15, 16, 17], seeding: "Division winners take seeds 1-4 and 3 wildcards 5-7. Only seed 1 byes: 2 v 7, 3 v 6 and 4 v 5, then re-seeded so seed 1 meets the lowest seed left"}
     shit_bowl: {size: 7, weeks: [15, 16, 17], seeding: "The mirror image: the 4 division losers and the 3 worst wildcards, the worst on a bye; losing advances"}

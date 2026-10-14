@@ -183,6 +183,17 @@ def test_a_keepers_file_with_no_rows_is_valid(archive):
     assert validate(archive) == []
 
 
+def test_a_season_played_without_keepers_can_have_none_recorded(archive):
+    formats = {2012: fmt(2, 3, (1, [4])), 2013: fmt(2, 3, (1, [4])),
+               2025: fmt(3, 14, (2, [15])) | {"keepers": False}}
+    write_formats(drafted(archive), formats)
+    write_keepers(archive, [(2025, 3, "f", 2)])
+    assert validate(archive) == [
+        "data/keepers.csv line 2: data/formats.yaml says 2025 was played without keepers"]
+    write_formats(archive, formats | {2025: formats[2025] | {"keepers": "no"}})
+    assert validate(archive) == ["data/formats.yaml 2025: keepers must be true or false"]
+
+
 def test_a_keeper_must_name_a_franchise_its_pick_and_its_round(archive):
     write_keepers(drafted(archive), [(2025, 9, "a", 1), ("twenty", 3, "f", 2), (2025, 3, "f", 2),
                                      (2025, 3, "f", 2)])

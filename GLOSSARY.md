@@ -52,7 +52,7 @@ _Avoid_: Waiver (unqualified), bid
 A slot in a season's draft, belonging to one franchise and tradeable, so it may be used by another.
 
 **Keeper**:
-An NFL player a franchise actually keeps from one season into the next instead of releasing them into the draft, at the cost of a draft round. Being eligible to keep a player doesn't make them a keeper.
+An NFL player a franchise actually keeps from one season into the next instead of releasing them into the draft, at the cost of a draft round. Being eligible to keep a player doesn't make them a keeper. The league stopped keeping players from 2026.
 
 ### Structure
 

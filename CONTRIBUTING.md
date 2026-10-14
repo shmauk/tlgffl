@@ -55,7 +55,9 @@ scissors-paper-rock results. Sleeper has no way to find a new season's league wi
 user id, which the record book never uses, so the league id is a one-line edit once a year; the
 fetch checks it is the right season and follows the previous season's league. The build fails if the current season has no format, or if a roster
 has no alias. Keepers that haven't been recorded don't fail the build. The site shows a "keepers
-not yet recorded" note instead, so a late entry never blocks the daily refresh.
+not yet recorded" note instead, so a late entry never blocks the daily refresh. The league
+stopped keeping players from 2026: a season played without keepers has `keepers: false` in
+`formats.yaml` and no rows in `keepers.csv`.
 
 Never commit real names, screenshots, pasted chat text or raw sheets that carry them. The privacy
 check catches forbidden fields, but it can't catch a name typed into a value.
