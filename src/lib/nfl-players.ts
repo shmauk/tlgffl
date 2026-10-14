@@ -1,6 +1,6 @@
 // NFL players for Statsguru's form (#29, #37): the ones in a lineup or a draft,
 // the only ones a query can return, and the positions Sleeper gives them.
-import { open } from './db';
+import { open } from './database';
 import { positionRank } from './statsguru/query';
 
 export interface NflPlayer {
@@ -13,13 +13,10 @@ export interface NflPlayer {
 /** Every NFL player in a lineup or drafted, A-Z by name, those with no name last. */
 export function lineupPlayers(): NflPlayer[] {
   return open()
-    .prepare(
-      `select p.id, p.name, p.position from nfl_players p
+    .all(`select p.id, p.name, p.position from nfl_players p
        where exists (select 1 from lineups l where l.nfl_player_id = p.id)
           or exists (select 1 from draft_picks d where d.nfl_player_id = p.id)
-       order by p.name is null, lower(p.name), p.id`,
-    )
-    .all()
+       order by p.name is null, lower(p.name), p.id`)
     .map((r: any) => ({ id: r.id, name: r.name ?? null, position: r.position ?? null }));
 }
 

@@ -2,12 +2,12 @@
 // first). Expected holders come from plain SQL, not from the code under test.
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import type { Db } from '../statsguru/engine';
+import { open } from '../database';
 import { RECORDS } from './catalogue';
 import { recordsHeld } from './held';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
-const db: Db = { all: (sql, params = []) => sqlite.prepare(sql).all(...params) as Record<string, any>[] };
+const db = open();
 const all = (sql: string) => sqlite.prepare(sql).all() as any[];
 const ids = all('select id from franchises').map((r) => r.id as number);
 const held = (id: number, slug: string) => recordsHeld(db, id).filter((h) => h.def.slug === slug).map((h) => h.rank);

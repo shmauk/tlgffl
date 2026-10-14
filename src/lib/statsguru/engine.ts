@@ -7,14 +7,10 @@
 import { playerRows, positionRows, type PerformanceRow, type PlayerRow, type PositionRow } from './lineups';
 import { groupRank, pickRows, type PickGroupRow, type PickPlayerRow, type PickRow } from './picks';
 import { positionRank, sortOf, viewOf, type Phase, type Query, type Result } from './query';
+import type { Db } from '../database';
 
 export type { NflPlayer, PerformanceRow, PlayerRow, PositionRow } from './lineups';
 export type { PickGroupRow, PickPlayerRow, PickRow } from './picks';
-
-/** The one thing the engine needs from a database: rows for a query. */
-export interface Db {
-  all(sql: string, params?: (number | string | null)[]): Record<string, any>[];
-}
 
 export interface Named {
   id: number;

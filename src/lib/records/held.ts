@@ -3,7 +3,7 @@
 // record counts once, over its own page's era and phase (its first ones);
 // entries listed unranked (all ties) aren't top-10 entries.
 import { figure } from '../figures';
-import type { Db } from '../statsguru/engine';
+import type { Db } from '../database';
 import { ERA_NAMES, RECORDS, type RecordDef } from './catalogue';
 import { recordView, type Entry, type RecordFranchise } from './records';
 

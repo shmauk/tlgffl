@@ -1,6 +1,6 @@
 // The engine's Db over a sql.js database, as Statsguru opens it in the browser.
 import type { Database } from 'sql.js';
-import type { Db } from './engine';
+import type { Db } from '../database';
 
 export function sqlJsDb(database: Database): Db {
   return {

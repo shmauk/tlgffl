@@ -2,7 +2,8 @@
 // view and the NFL-player subject. Lineups only exist from 2025 (the Sleeper
 // era, ¶), and only for weeks a franchise played a game, so every figure here
 // adds up those weeks' NFL player points and nothing else.
-import type { Db, Named } from './engine';
+import type { Named } from './engine';
+import type { Db } from '../database';
 import { draftPicks } from './picks';
 import type { Phase, Query, Result } from './query';
 

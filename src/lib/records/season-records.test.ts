@@ -3,13 +3,14 @@
 // tables, not from the code under test, and never pin live-season figures.
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import { runQuery, type Db, type GroupRow } from '../statsguru/engine';
+import { runQuery, type GroupRow } from '../statsguru/engine';
+import { open } from '../database';
 import { DEFAULT_QUERY, decodeQuery, encodeQuery } from '../statsguru/query';
 import { CATEGORIES, RECORDS, recordDef, variants } from './catalogue';
 import { recordView } from './records';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
-const db: Db = { all: (sql, params = []) => sqlite.prepare(sql).all(...params) as Record<string, any>[] };
+const db = open();
 const one = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql).get(...params) as any;
 const view = (slug: string, era?: string) => {
   const def = recordDef(slug)!;

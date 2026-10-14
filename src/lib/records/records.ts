@@ -5,7 +5,8 @@
 // it only filters, ranks and notes.
 import { BRACKET_NAMES, type BracketKey } from '../brackets';
 import { weekList } from '../format';
-import { runQuery, type Db, type GameRow, type GroupRow } from '../statsguru/engine';
+import { runQuery, type GameRow, type GroupRow } from '../statsguru/engine';
+import type { Db } from '../database';
 import { DEFAULT_QUERY, type Phase, type Query } from '../statsguru/query';
 import type { Glyph } from '../../components/Marker.astro';
 import type { Era, PhaseFilter, RecordDef } from './catalogue';

@@ -1,6 +1,7 @@
 // Awards (#33): reads of the tables recordbook/awards.py writes. Like db.ts,
 // nothing here derives a figure; it only groups and formats them.
-import { open, type SeasonFranchise } from './db';
+import { type SeasonFranchise } from './db';
+import { open } from './database';
 import { figure } from './figures';
 
 export type AwardUnit = 'points' | 'count' | 'share' | 'dollars';
@@ -30,39 +31,33 @@ export interface AwardUnknown {
 /** The nine awards, in the order the site lists them. */
 export function awards(): Award[] {
   return open()
-    .prepare('select slug, name, definition, unit, lowest_wins as lowestWins from awards order by position')
-    .all()
+    .all('select slug, name, definition, unit, lowest_wins as lowestWins from awards order by position')
     .map((r: any) => ({ ...r, lowestWins: Boolean(r.lowestWins) }));
 }
 
 /** Every award's winners (rank 1, so co-winners too), by award, season and name. */
 export function awardWinners(where: { award?: string; season?: number; franchiseId?: number } = {}): AwardResult[] {
   return open()
-    .prepare(
-      `select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
+    .all(`select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
        from award_results r join franchises f on f.id = r.franchise_id
        left join team_names t on t.franchise_id = f.id and t.season = r.season
        join awards a on a.slug = r.award
        where r.rank = 1 and (?1 is null or r.award = ?1) and (?2 is null or r.season = ?2)
          and (?3 is null or r.franchise_id = ?3)
-       order by a.position, r.season, f.name`,
-    )
-    .all(where.award ?? null, where.season ?? null, where.franchiseId ?? null)
+       order by a.position, r.season, f.name`, [where.award ?? null, where.season ?? null, where.franchiseId ?? null])
     .map(({ id, name, teamName, ...r }: any) => ({ ...r, franchise: { id, name, teamName } }));
 }
 
 /** Seasons an award is due for but can't be decided from the data yet. */
 export function awardUnknowns(): AwardUnknown[] {
   return open()
-    .prepare('select award, season, reason from award_unknowns order by award, season')
-    .all() as unknown as AwardUnknown[];
+    .all('select award, season, reason from award_unknowns order by award, season') as unknown as AwardUnknown[];
 }
 
 /** The seasons an award was given in, oldest first. */
 export function awardSeasons(slug: string): number[] {
   return open()
-    .prepare('select distinct season from award_results where award = ? order by season')
-    .all(slug)
+    .all('select distinct season from award_results where award = ? order by season', [slug])
     .map((r: any) => r.season);
 }
 
@@ -83,14 +78,11 @@ export function seasonRuns(seasons: number[]): string {
 /** A regular season still being played: each award's leaders so far (rank 1, so level leaders too). */
 export function awardLeaders(season: number): AwardResult[] {
   return open()
-    .prepare(
-      `select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
+    .all(`select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
        from award_leaders r join franchises f on f.id = r.franchise_id
        left join team_names t on t.franchise_id = f.id and t.season = r.season
        join awards a on a.slug = r.award
        where r.rank = 1 and r.season = ?
-       order by a.position, f.name`,
-    )
-    .all(season)
+       order by a.position, f.name`, [season])
     .map(({ id, name, teamName, ...r }: any) => ({ ...r, franchise: { id, name, teamName } }));
 }
