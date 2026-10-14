@@ -1,6 +1,7 @@
 // Franchise profiles and head-to-head pages (#27): reads of the tables
 // recordbook/profiles.py writes. Like db.ts, nothing here derives a figure.
-import { open, type BracketName, type Game, type SeasonFranchise } from './db';
+import type { BracketKey } from './brackets';
+import { open, type Game, type SeasonFranchise } from './db';
 
 export interface Career {
   seasons: number;
@@ -148,7 +149,7 @@ export function bestAndWorst(franchiseId: number): BestWorst[] {
 
 export interface Crown {
   season: number;
-  bracket: BracketName;
+  bracket: BracketKey;
   source: 'derived' | 'confirmed' | 'recalled' | 'disputed';
 }
 

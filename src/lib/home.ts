@@ -4,7 +4,8 @@
 import type { SeasonFranchise } from './db';
 import type { Column } from './bracket-columns';
 import type { Phase } from './current';
-import type { BracketKey, Mark } from './seeding';
+import type { BracketKey } from './brackets';
+import type { Mark } from './seeding';
 
 /** A pairing of the week being played: never a score. */
 export interface Matchup {
@@ -91,10 +92,3 @@ export interface HomeData {
   /** The playoff predictor's URL (#36), while it exists for this season. */
   predictor: string | null;
 }
-
-export const BRACKET_NAMES: Record<BracketKey, string> = {
-  playoffs: 'Playoffs',
-  shit_bowl: 'Shit Bowl',
-  mediocre_bowl: 'Mediocre Bowl',
-};
-export const BRACKET_ORDER: BracketKey[] = ['playoffs', 'mediocre_bowl', 'shit_bowl'];

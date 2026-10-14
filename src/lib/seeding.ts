@@ -17,8 +17,9 @@
 // head-to-head). The Shit Bowl uses the same steps the other way round: it
 // picks the worst club first, and the worse value wins each step.
 
+import { BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from './brackets';
+
 export type FranchiseId = number;
-export type BracketKey = 'playoffs' | 'mediocre_bowl' | 'shit_bowl';
 
 export interface SeedingInput {
   franchises: { id: FranchiseId; division: string }[];
@@ -253,6 +254,7 @@ function seed(input: SeedingInput, t: Table, resolve: Resolve, prune = false): S
     p.level = [...(level.get(p.franchise) ?? [])].sort((a, b) => a - b);
     p.shared = p.shared && places.some((q) => q !== p && q.bracket === p.bracket && q.seed === p.seed);
   }
+  // The picture's order: down the table, so the Mediocre Bowl sits between the other two.
   const order: BracketKey[] = ['playoffs', 'mediocre_bowl', 'shit_bowl'];
   places.sort((a, b) =>
     order.indexOf(a.bracket) - order.indexOf(b.bracket) ||
@@ -316,11 +318,6 @@ export interface BracketGame {
   winner: FranchiseId | null;
 }
 
-const BRACKET_NAMES: Record<BracketKey, string> = {
-  playoffs: 'Playoffs',
-  mediocre_bowl: 'Mediocre Bowl',
-  shit_bowl: 'Shit Bowl',
-};
 
 /**
  * Where a finished season's brackets, as played, disagree with its computed
@@ -349,7 +346,7 @@ export function checkSeeds(
   const pair = (a: FranchiseId, b: FranchiseId) => [a, b].sort((x, y) => x - y).join(' v ');
   const show = (pairs: string[]) =>
     pairs.map((p) => p.split(' v ').map((f) => name(Number(f))).join(' v ')).join(', ') || 'none';
-  for (const bracket of Object.keys(BRACKET_NAMES) as BracketKey[]) {
+  for (const bracket of BRACKET_ORDER) {
     const title = BRACKET_NAMES[bracket];
     const seeded = picture.filter((p) => p.bracket === bracket).sort((a, b) => a.seed - b.seed).map((p) => p.franchise);
     const games = played.filter((g) => g.bracket === bracket);

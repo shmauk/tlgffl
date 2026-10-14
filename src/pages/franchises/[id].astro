@@ -15,7 +15,8 @@ import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
-import { franchises, teamNames, seasonLines, seasons, type Franchise, type BracketName } from '../../lib/db';
+import { franchises, teamNames, seasonLines, seasons, type Franchise } from '../../lib/db';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from '../../lib/brackets';
 import { draftSeasons, franchisePicks, mostStarted } from '../../lib/drafts';
 import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
 import { headToHeadUrl, recordUrl } from '../../lib/urls';
@@ -63,28 +64,23 @@ const record = (w: number, l: number, t: number) => `${w}-${l}-${t}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const seasonsList = (seasons: number[]) => seasons.join(', ');
 
-const BRACKETS: Record<BracketName, { name: string; crown: string }> = {
-  playoffs: { name: 'Playoffs', crown: 'Champion' },
-  shit_bowl: { name: 'Shit Bowl', crown: 'Shit Bowl winner' },
-  mediocre_bowl: { name: 'Mediocre Bowl', crown: 'Mediocre Bowl winner' },
-};
 const roundName = (round: number, total: number) =>
   round === total ? 'the final' : round === total - 1 ? 'the semi-finals' : `round ${round}`;
 
 // Bracket history: each season and bracket the franchise is known to have
 // played in or won, with its games.
-type Run = { season: number; bracket: BracketName; seed: number | null; result: string; source?: string; games: typeof games };
+type Run = { season: number; bracket: BracketKey; seed: number | null; result: string; source?: string; games: typeof games };
 const runs: Run[] = [];
 const seasonsWithBrackets = [...new Set([...games.filter((g) => g.bracket).map((g) => g.season), ...won.map((w) => w.season)])].sort();
 for (const season of seasonsWithBrackets) {
-  for (const bracket of Object.keys(BRACKETS) as BracketName[]) {
+  for (const bracket of BRACKET_ORDER) {
     const played = games.filter((g) => g.season === season && g.bracket === bracket);
     const crown = won.find((w) => w.season === season && w.bracket === bracket);
     if (!played.length && !crown) continue;
     const line = lines.find((l) => l.season === season);
     let result = '';
     if (crown) {
-      result = crown.source === 'disputed' ? `${BRACKETS[bracket].crown}?` : BRACKETS[bracket].crown;
+      result = crown.source === 'disputed' ? `${BRACKET_CROWNS[bracket]}?` : BRACKET_CROWNS[bracket];
     } else if (bracket === 'playoffs') {
       const last = played.at(-1)!;
       const total = rounds.get(`${season}-${bracket}`) ?? last.round!;
@@ -217,7 +213,7 @@ const unscored = opponents.some((o) => o.scored < o.games);
             {[...runs].reverse().map((r) => (
               <tr>
                 <td><SeasonLink season={r.season} /></td>
-                <td>{BRACKETS[r.bracket].name}</td>
+                <td>{BRACKET_NAMES[r.bracket]}</td>
                 <td class="num">{r.seed ?? ''}</td>
                 <td>{r.result}{r.source && r.source !== 'derived' && r.source !== 'confirmed' && <> <SourceNote source={r.source as 'recalled' | 'disputed'} /></>}</td>
                 <td>{r.games.map((g) => <p><GameLine game={g} franchiseId={id} label={`Week ${g.week}`} /></p>)}</td>

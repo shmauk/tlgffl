@@ -1,12 +1,9 @@
 // A season's format (#11) in a few short lines, for /league/ and season pages.
+import { BRACKET_NAMES, byBracket, type BracketKey } from './brackets';
 import type { SeasonFormat } from './db';
 
-const BRACKETS = {
-  playoffs: { name: 'Playoffs', from: 'top' },
-  shit_bowl: { name: 'Shit Bowl', from: 'bottom' },
-  mediocre_bowl: { name: 'Mediocre Bowl', from: 'middle' },
-} as const;
-const ORDER = Object.keys(BRACKETS);
+/** Where in the table each bracket's franchises come from. */
+const FROM: Record<BracketKey, string> = { playoffs: 'top', shit_bowl: 'bottom', mediocre_bowl: 'middle' };
 
 const weeks = (first: number, last: number) => (first === last ? `week ${first}` : `weeks ${first}–${last}`);
 
@@ -24,13 +21,12 @@ export function weekList(list: number[]): string {
 }
 
 export function formatSummary(f: SeasonFormat): string[] {
-  const brackets = [...f.brackets].sort((a, b) => ORDER.indexOf(a.bracket) - ORDER.indexOf(b.bracket));
+  const brackets = [...f.brackets].sort(byBracket((b) => b.bracket));
   return [
     `${f.teams} teams in ${f.divisions === 1 ? 'one division' : `${f.divisions} divisions`}`,
     `Regular season ${weeks(...f.regularSeason)}`,
     ...brackets.map(({ bracket, size, firstWeek, lastWeek, series }) => {
-      const { name, from } = BRACKETS[bracket];
-      return [`${name}: ${from} ${size}`, series, weeks(firstWeek, lastWeek)].filter(Boolean).join(', ');
+      return [`${BRACKET_NAMES[bracket]}: ${FROM[bracket]} ${size}`, series, weeks(firstWeek, lastWeek)].filter(Boolean).join(', ');
     }),
   ];
 }

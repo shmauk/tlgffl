@@ -1,4 +1,5 @@
 ---
+import { BRACKET_NAMES } from '../lib/brackets';
 // The playoff picture (#16, #34): a Sleeper season's standings by division,
 // sorted by seed as it stands, with a cut-off line wherever the bracket
 // changes. Franchises level after every tiebreak but scissors-paper-rock share
@@ -24,7 +25,6 @@ interface Props {
 }
 const { standings, picture } = Astro.props;
 
-const NAMES = { playoffs: 'Playoffs', mediocre_bowl: 'Mediocre Bowl', shit_bowl: 'Shit Bowl' } as const;
 const ELIMINATED: Mark[] = ['OUT', 'SHIT BOWL'];
 const order = new Map(picture.places.map((p, i) => [p.franchise, i]));
 const placeOf = new Map(picture.places.map((p) => [p.franchise, p]));
@@ -64,7 +64,7 @@ const marked = Object.values(picture.marks).some((m) => m.length);
               <td class="num">{pts(s.pointsFor)}</td>
               <td class="num">{pts(s.pointsAgainst)}</td>
               <td class="num">{`${p.level.length ? '=' : ''}${p.seed}`}</td>
-              <td>{NAMES[p.bracket]}</td>
+              <td>{BRACKET_NAMES[p.bracket]}</td>
             </tr>
           );
         })}

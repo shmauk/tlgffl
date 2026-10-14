@@ -6,13 +6,14 @@ import { bracketWinners, open, seasonFormats, seasonGames, seasonStandings, type
 import { awardLeaders, awardValue, awards, awardWinners } from './awards';
 import { bracketColumns, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
 import { buildDate, current } from './current';
-import { BRACKET_ORDER, type HomeData, type Matchup, type Result } from './home';
+import { BRACKET_ORDER, type BracketKey } from './brackets';
+import type { HomeData, Matchup, Result } from './home';
 import { predictorSeason } from './predictor-db';
 import { siteDb } from './records/site';
 import { figureText, holders, recordsThisSeason } from './records/held';
 import { seasonPicture } from './seeding-db';
 import { predictorUrl } from './urls';
-import { placeOpeningPairings, type BracketKey, type UpcomingPairing } from './seeding';
+import { placeOpeningPairings, type UpcomingPairing } from './seeding';
 
 const ukDate = (ms: number) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric' }).format(

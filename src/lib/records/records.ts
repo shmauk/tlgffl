@@ -3,6 +3,7 @@
 // so a record and its "full list in Statsguru" can't disagree (ADR 0002). The
 // rest read what recordbook/records.py wrote. Nothing here derives a figure:
 // it only filters, ranks and notes.
+import { BRACKET_NAMES, type BracketKey } from '../brackets';
 import { weekList } from '../format';
 import { runQuery, type Db, type GameRow, type GroupRow } from '../statsguru/engine';
 import { DEFAULT_QUERY, type Phase, type Query } from '../statsguru/query';
@@ -354,10 +355,9 @@ function bracketEntries(
     }));
 }
 
-const BRACKET_OF: Record<string, string> = {
+const BRACKET_OF: Record<string, BracketKey> = {
   championships: 'playoffs', shit_bowl_titles: 'shit_bowl', mediocre_bowl_titles: 'mediocre_bowl',
 };
-const BRACKET_NAME: Record<string, string> = { playoffs: 'Playoffs', shit_bowl: 'Shit Bowl', mediocre_bowl: 'Mediocre Bowl' };
 
 function bracketNotes(db: Db, def: RecordDef, seasons: number[], current: number | null, phase: string | null): RecordView['notes'] {
   const notes: RecordView['notes'] = [];
@@ -377,6 +377,6 @@ function bracketNotes(db: Db, def: RecordDef, seasons: number[], current: number
     notes.push({ text: `${season} is disputed between ${names.join(' and ')}, so it counts for nobody.` });
   const unknown = winners.filter((r) => r.source === 'unknown').map((r) => r.season);
   if (unknown.length)
-    notes.push({ text: `The ${BRACKET_NAME[bracket]} winner is unknown for ${seasonSpan(unknown)}, so those seasons count for nobody.` });
+    notes.push({ text: `The ${BRACKET_NAMES[bracket]} winner is unknown for ${seasonSpan(unknown)}, so those seasons count for nobody.` });
   return notes;
 }

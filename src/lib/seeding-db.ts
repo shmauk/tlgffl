@@ -2,13 +2,13 @@
 // picture, clinch marks and the seed check for Sleeper-era seasons. Python
 // writes every input (games, divisions, upcoming games, the format and the
 // scissors-paper-rock rulings); only the seeding module derives seeds.
+import type { BracketKey } from './brackets';
 import { open, seasonFormats } from './db';
 import {
   checkSeeds,
   clinchMarks,
   playoffPicture,
   type BracketGame,
-  type BracketKey,
   type Mark,
   type Place,
   type SeedingInput,

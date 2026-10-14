@@ -11,6 +11,7 @@ can be rebuilt from the platform: their winners are recorded by hand.
 """
 import math
 
+from recordbook.formats import BRACKET_NAMES
 from recordbook.games import Game, playoffs_rounds
 
 
@@ -85,8 +86,8 @@ def playoffs_games(season, seeds, placings, weeks, logged):
 SOURCES = {"derived-confirmed": "confirmed", "confirmed": "confirmed", "derived": "derived",
            "recalled": "recalled", "inconclusive": "disputed", "disputed": "disputed"}
 
-HAND_KEPT = {"shit_bowl": ("shitbowl.csv", "Shit Bowl"),
-             "mediocre_bowl": ("mediocre_bowl.csv", "Mediocre Bowl")}
+HAND_KEPT = {"shit_bowl": ("shitbowl.csv", BRACKET_NAMES["shit_bowl"]),
+             "mediocre_bowl": ("mediocre_bowl.csv", BRACKET_NAMES["mediocre_bowl"])}
 
 
 def champions(games):

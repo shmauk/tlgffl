@@ -8,7 +8,10 @@ from dataclasses import dataclass, field
 
 import yaml
 
+# The league's three brackets (GLOSSARY.md), in the glossary's order, with
+# their names. The site's src/lib/brackets.ts keeps the same keys, order and names.
 BRACKETS = ("playoffs", "shit_bowl", "mediocre_bowl")
+BRACKET_NAMES = {"playoffs": "Playoffs", "shit_bowl": "Shit Bowl", "mediocre_bowl": "Mediocre Bowl"}
 
 
 class FormatError(Exception):

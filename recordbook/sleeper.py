@@ -8,6 +8,7 @@ flag: a week is final once the league is complete or Sleeper has scored it
 import json
 from collections import defaultdict
 
+from recordbook.formats import BRACKET_NAMES
 from recordbook.games import Game, breakdown, regular_season_results, win_pct
 
 
@@ -64,8 +65,7 @@ def pairings(rows):
     return out
 
 
-TITLES = {"playoffs": "the Playoffs", "shit_bowl": "the Shit Bowl",
-          "mediocre_bowl": "the Mediocre Bowl"}
+TITLES = {key: f"the {name}" for key, name in BRACKET_NAMES.items()}
 ASSIGNMENTS = "data/sleeper_brackets.csv"
 
 

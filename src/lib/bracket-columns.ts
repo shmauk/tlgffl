@@ -4,7 +4,8 @@
 // bracket; pairings still to play come from Sleeper, already placed by the
 // build (recordbook/sleeper.py) or, in a bracket's opening week, by the
 // seeding module. This only lays them out. Pure.
-import type { BracketKey, FranchiseId, Place, UpcomingPairing } from './seeding';
+import type { BracketKey } from './brackets';
+import type { FranchiseId, Place, UpcomingPairing } from './seeding';
 
 export interface BracketSpec {
   bracket: BracketKey;

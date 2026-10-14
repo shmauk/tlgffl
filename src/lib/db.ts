@@ -1,6 +1,7 @@
 // The site's only way into the league database. Pages read it at build time
 // and never derive figures of their own (ADR 0004).
 import { DatabaseSync } from 'node:sqlite';
+import type { BracketKey } from './brackets';
 
 export const DB_PATH = process.env.TLGFFL_DB ?? 'build/league.sqlite';
 
@@ -69,7 +70,6 @@ export function seasons(): Season[] {
     .all() as unknown as Season[];
 }
 
-export type BracketName = 'playoffs' | 'shit_bowl' | 'mediocre_bowl';
 
 export interface SeasonFormat {
   season: number;
@@ -80,7 +80,7 @@ export interface SeasonFormat {
   realignment?: number;
   tiebreaks?: string | null;
   brackets: {
-    bracket: BracketName;
+    bracket: BracketKey;
     size: number;
     firstWeek: number;
     lastWeek: number;
@@ -181,7 +181,7 @@ export interface Game {
   id: number;
   week: number;
   phase: 'regular' | 'bracket';
-  bracket: BracketName | null;
+  bracket: BracketKey | null;
   round: number | null;
   home: SeasonFranchise;
   homePoints: number | null;
@@ -224,7 +224,7 @@ export function seasonGames(season: number): Game[] {
 }
 
 export interface BracketWinner {
-  bracket: BracketName;
+  bracket: BracketKey;
   /** Null when nobody recorded it. */
   franchise: SeasonFranchise | null;
   source: 'derived' | 'confirmed' | 'recalled' | 'disputed' | 'unknown';

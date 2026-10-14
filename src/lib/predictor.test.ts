@@ -102,15 +102,15 @@ describe('the projection', () => {
     expect(open.groups).toEqual([{ members: [4, 6], order: null }]);
     expect(open.brackets).toEqual([
       { bracket: 'playoffs', byes: [{ seed: 1, franchises: [1] }], pairs: [[{ seed: 2, franchises: [7] }, { seed: 3, franchises: [5] }]] },
-      { bracket: 'mediocre_bowl', byes: [], pairs: [[{ seed: 4, franchises: [3] }, { seed: 5, franchises: [4, 6] }]] },
       { bracket: 'shit_bowl', byes: [{ seed: 1, franchises: [8] }], pairs: [[{ seed: 2, franchises: [2] }, { seed: 3, franchises: [4, 6] }]] },
+      { bracket: 'mediocre_bowl', byes: [], pairs: [[{ seed: 4, franchises: [3] }, { seed: 5, franchises: [4, 6] }]] },
     ]);
 
     // 4 wins the scissors-paper-rock, so 6 is the worse and goes to the Shit Bowl.
     const ordered = project(data, decodeScenario('?spr=4.6', data).scenario);
     expect(ordered.groups).toEqual([{ members: [4, 6], order: [4, 6] }]);
-    expect(ordered.brackets[1].pairs[0][1]).toEqual({ seed: 5, franchises: [4] });
-    expect(ordered.brackets[2].pairs[0][1]).toEqual({ seed: 3, franchises: [6] });
+    expect(ordered.brackets[2].pairs[0][1]).toEqual({ seed: 5, franchises: [4] });
+    expect(ordered.brackets[1].pairs[0][1]).toEqual({ seed: 3, franchises: [6] });
     expect(ordered.scenario.spr).toEqual([[4, 6]]);
   });
 

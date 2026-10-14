@@ -13,7 +13,8 @@ import Notes from './Notes.astro';
 import SeasonLink from './SeasonLink.astro';
 import StatsguruLink from './StatsguruLink.astro';
 import BracketColumns from './BracketColumns.astro';
-import { BRACKET_NAMES, BRACKET_ORDER, type HomeData, type Matchup } from '../lib/home';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER } from '../lib/brackets';
+import type { HomeData, Matchup } from '../lib/home';
 import { recordUrl, seasonUrl } from '../lib/urls';
 import type { Mark } from '../lib/seeding';
 
@@ -33,11 +34,7 @@ const grouped = <T extends Matchup>(list: T[]) =>
     .map((b) => ({ bracket: b, items: list.filter((m) => m.bracket === b) }))
     .filter((g) => g.items.length);
 const byBracket = phase !== 'regular';
-const CROWNS = [
-  { key: 'playoffs', label: 'Champion' },
-  { key: 'shit_bowl', label: 'Shit Bowl winner' },
-  { key: 'mediocre_bowl', label: 'Mediocre Bowl winner' },
-] as const;
+const CROWNS = BRACKET_ORDER.map((key) => ({ key, label: BRACKET_CROWNS[key] }));
 ---
 
 <Row label="This season" sub={PHASE[phase]}>

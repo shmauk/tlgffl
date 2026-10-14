@@ -23,9 +23,9 @@ import {
   seasonDocuments,
   type Season,
   type Game,
-  type BracketName,
 } from '../../lib/db';
 import { formatSummary, weekList } from '../../lib/format';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from '../../lib/brackets';
 import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardLeaders, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
 import { inProgressWeeks } from '../../lib/home-db';
@@ -75,13 +75,10 @@ const toCome = live ? inProgressWeeks(year) : new Map();
 const soFar = live ? ', so far' : '';
 const gridWeeks = [...new Set([...weeks, ...toCome.keys()])].sort((a, b) => a - b);
 
-const BRACKETS: { key: BracketName; name: string; crown: string }[] = [
-  { key: 'playoffs', name: 'Playoffs', crown: 'Champion' },
-  { key: 'shit_bowl', name: 'Shit Bowl', crown: 'Shit Bowl winner' },
-  { key: 'mediocre_bowl', name: 'Mediocre Bowl', crown: 'Mediocre Bowl winner' },
-];
-const bracketName = (key: BracketName | null) => BRACKETS.find((b) => b.key === key)?.name ?? '';
-const brackets = BRACKETS.filter((b) => format?.brackets.some((f) => f.bracket === b.key));
+const bracketName = (key: BracketKey | null) => (key ? BRACKET_NAMES[key] : '');
+const brackets = BRACKET_ORDER.filter((key) => format?.brackets.some((f) => f.bracket === key)).map((key) => ({
+  key, name: BRACKET_NAMES[key], crown: BRACKET_CROWNS[key],
+}));
 
 const divisions = [...new Set(standings.map((s) => s.division ?? ''))];
 const reported = standings.some((s) => s.source === 'reported');
@@ -197,7 +194,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                       <td class="num">{pts(s.pointsFor)}</td>
                       <td class="num">{pts(s.pointsAgainst)}</td>
                       <td class="num">{s.bracket === 'championship' ? s.seed : ''}</td>
-                      <td>{s.bracket === 'championship' ? 'Playoffs' : bracketName(s.bracket as BracketName | null)}</td>
+                      <td>{s.bracket === 'championship' ? 'Playoffs' : bracketName(s.bracket as BracketKey | null)}</td>
                       <td class="num">{s.finalPlacing ?? ''}</td>
                     </tr>
                   ))}

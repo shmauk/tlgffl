@@ -6,7 +6,8 @@
 // picks the winners 3 and 12 in week 9 and 5 in week 10, and orders the
 // level franchises 7 and 3 by scissors-paper-rock, 7 first.
 import { predictorUrl } from './urls';
-import { byes, playoffPicture, type BracketKey, type FranchiseId, type Mark, type Place, type SeedingInput } from './seeding';
+import { BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from './brackets';
+import { byes, playoffPicture, type FranchiseId, type Mark, type Place, type SeedingInput } from './seeding';
 
 export interface RemainingGame {
   week: number;
@@ -117,7 +118,6 @@ export interface Projection {
   brackets: FirstRound[];
 }
 
-const BRACKETS: BracketKey[] = ['playoffs', 'mediocre_bowl', 'shit_bowl'];
 const sameSet = (a: FranchiseId[], b: FranchiseId[]) => a.length === b.length && a.every((f) => b.includes(f));
 
 /** Each level group of a picture, as sorted ids. */
@@ -160,7 +160,7 @@ export function project(data: PredictorData, scenario: Scenario): Projection {
     seed: p.seed,
     franchises: p.level.length ? [p.franchise, ...p.level].sort((a, b) => a - b) : [p.franchise],
   });
-  const brackets = BRACKETS.filter((b) => base.brackets[b] > 0).map((bracket): FirstRound => {
+  const brackets = BRACKET_ORDER.filter((b) => base.brackets[b] > 0).map((bracket): FirstRound => {
     const slots = places
       .filter((p) => p.bracket === bracket)
       .sort((a, b) => a.seed - b.seed || a.franchise - b.franchise)
@@ -200,7 +200,6 @@ export function encodeScenario(scenario: Scenario): string {
 
 // ---------- the page ----------
 
-const NAMES: Record<BracketKey, string> = { playoffs: 'Playoffs', mediocre_bowl: 'Mediocre Bowl', shit_bowl: 'Shit Bowl' };
 const ELIMINATED: Mark[] = ['OUT', 'SHIT BOWL'];
 /** Level groups this size or smaller can be ordered on the page (every order is a link). */
 const ORDERABLE = 4;
@@ -264,7 +263,7 @@ export function renderPredictor(
           .map((m) => `<span class="bd ${ELIMINATED.includes(m) ? 'dep' : 'now'}">${m}</span>`)
           .join('');
         const [w, l, t] = p.records[id];
-        return `<tr${cut ? ' class="cut"' : ''}><td>${link(id)}${badges}</td><td class="num">${w}-${l}-${t}</td><td class="num">${x.level.length ? '=' : ''}${x.seed}</td><td>${NAMES[x.bracket]}</td></tr>`;
+        return `<tr${cut ? ' class="cut"' : ''}><td>${link(id)}${badges}</td><td class="num">${w}-${l}-${t}</td><td class="num">${x.level.length ? '=' : ''}${x.seed}</td><td>${BRACKET_NAMES[x.bracket]}</td></tr>`;
       })
       .join('');
     return `<table class="t">${divisions.length > 1 ? `<caption>${esc(d)}</caption>` : ''}<thead><tr><th>Franchise</th><th class="num">W-L-T</th><th class="num">Seed</th><th>Bracket</th></tr></thead><tbody>${body}</tbody></table>`;
@@ -312,7 +311,7 @@ export function renderPredictor(
       ...b.byes.map((s) => `<li>${slot(s)}: bye</li>`),
       ...b.pairs.map(([x, y]) => `<li>${slot(x)} v ${slot(y)}</li>`),
     ];
-    return `<h3>${NAMES[b.bracket]}</h3><ul class="bracket">${items.join('')}</ul>`;
+    return `<h3>${BRACKET_NAMES[b.bracket]}</h3><ul class="bracket">${items.join('')}</ul>`;
   });
   parts.push(
     row(

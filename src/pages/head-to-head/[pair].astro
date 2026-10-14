@@ -1,4 +1,5 @@
 ---
+import { BRACKET_NAMES } from '../../lib/brackets';
 // /head-to-head/<lo>-<hi>/ (#7, #14, #27): two franchises that have met, lower
 // id first: W-L-T, points, every game and the bracket meetings. The reversed
 // order (/head-to-head/9-5/) redirects. There is no all-franchise grid.
@@ -33,7 +34,6 @@ const missing = seasonLines(hi.id)
   .map((l) => l.season)
   .filter((s) => shared.has(s) && gaps.has(s));
 const lost = 'Score is lost';
-const BRACKETS = { playoffs: 'Playoffs', shit_bowl: 'Shit Bowl', mediocre_bowl: 'Mediocre Bowl' } as const;
 const pts = (p: number | null) => (p === null ? '' : p.toFixed(2));
 const winner = (id: number | null) => (id === lo.id ? lo : id === hi.id ? hi : null);
 ---
@@ -78,7 +78,7 @@ const winner = (id: number | null) => (id === lo.id ? lo : id === hi.id ? hi : n
             {bracketGames.map((g) => (
               <tr>
                 <td><SeasonLink season={g.season} week={g.week} /></td>
-                <td>{BRACKETS[g.bracket!]}, round {g.round}</td>
+                <td>{BRACKET_NAMES[g.bracket!]}, round {g.round}</td>
                 <td>{winner(g.winnerId)?.name ?? 'Tie'}</td>
                 <td class="num">{g.homePoints === null ? <Marker glyph="‡" title={lost} /> : `${pts(Math.max(g.homePoints, g.awayPoints!))}–${pts(Math.min(g.homePoints, g.awayPoints!))}`}</td>
               </tr>
@@ -97,7 +97,7 @@ const winner = (id: number | null) => (id === lo.id ? lo : id === hi.id ? hi : n
           <tr>
             <td><SeasonLink season={g.season} week={g.week} /></td>
             <td>
-              {g.bracket && `${BRACKETS[g.bracket]}: `}
+              {g.bracket && `${BRACKET_NAMES[g.bracket]}: `}
               <FranchiseLink franchise={g.home} teamName={g.home.teamName} /> v <FranchiseLink franchise={g.away} teamName={g.away.teamName} />
             </td>
             <td class="num">
