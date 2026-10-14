@@ -2,7 +2,7 @@
 // page shows. Which season is current, and its phase, the Python build decided
 // (src/lib/current.ts). Build time only. Only final games have scores; the week being played comes from
 // the pairings Sleeper has made, which never carry one.
-import { bracketWinners, seasonFormats, seasonGames, seasonStandings, type SeasonFranchise } from './db';
+import { bracketWinners, seasonFormats, seasonFranchise, seasonGames, seasonStandings, type SeasonFranchise } from './db';
 import { open } from './database';
 import { awardLeaders, awardValue, awards, awardWinners } from './awards';
 import { bracketColumns, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
@@ -23,10 +23,15 @@ const ukDate = (ms: number) =>
 
 /** Every franchise of the season by id, with the team name it played under. */
 function seasonNames(season: number): Record<number, SeasonFranchise> {
-  const rows = open()
-    .all(`select f.id, f.name, t.team_name as teamName from team_names t join franchises f on f.id = t.franchise_id
-       where t.season = ?`, [season]) as unknown as SeasonFranchise[];
-  return Object.fromEntries(rows.map((r) => [r.id, r]));
+  const db = open();
+  const franchise = seasonFranchise(db);
+  const ids = db.all(
+    `select franchise_id as id from season_lines where season = ?1
+     union select home_franchise_id from upcoming_games where season = ?1
+     union select away_franchise_id from upcoming_games where season = ?1`,
+    [season],
+  );
+  return Object.fromEntries(ids.map((r) => [r.id, franchise(season, r.id)]));
 }
 
 /**
