@@ -522,6 +522,7 @@ def build(data, out, today=None):
     if problems:
         raise BuildError("Sleeper's roster totals and the games disagree (ADR 0001, Sleeper era):\n  "
                          + "\n  ".join(problems))
+    check_team_names(team_names, games, season_lines)
 
     all_ids = sorted(set(keys.values()))
     franchises = []
@@ -808,6 +809,18 @@ def franchise_lookup(names):
                              f"{out[shown]}'s filed name: a hand-kept table naming it can't tell them apart")
         out[shown] = fid
     return out
+
+
+def check_team_names(team_names, games, season_lines):
+    """Every franchise with a game or a season line in a season has a team
+    name for it (ADR 0004), so the site can always show it as that season's
+    team. A placeholder name (GLOSSARY.md) counts."""
+    needed = {(fid, g.season) for g in games for fid in (g.home, g.away)}
+    needed |= {(fid, season) for fid, season, *_ in season_lines}
+    missing = sorted(k for k in needed if not team_names.get(k))
+    if missing:
+        raise BuildError("every franchise needs a team name for each season it plays:\n  " + "\n  ".join(
+            f"franchise {fid} has a game or a season line in {season} but no team name" for fid, season in missing))
 
 
 def check_one_game_a_week(games):
