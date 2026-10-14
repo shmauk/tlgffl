@@ -3,12 +3,13 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import { runQuery, type Db, type GroupRow, type PerformanceRow, type PickGroupRow, type PickPlayerRow, type PickRow, type PlayerRow, type PositionRow } from './engine';
+import { runQuery, type GroupRow, type PerformanceRow, type PickGroupRow, type PickPlayerRow, type PickRow, type PlayerRow, type PositionRow } from './engine';
+import { open } from '../database';
 import { sqlJsDb } from './sqljs';
 import { DEFAULT_QUERY, type Query } from './query';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
-const db: Db = { all: (sql, params = []) => sqlite.prepare(sql).all(...params) as Record<string, any>[] };
+const db = open();
 const run = (patch: Partial<Query>) => runQuery(db, { ...DEFAULT_QUERY, ...patch });
 const groups = (patch: Partial<Query>) => run(patch).rows as GroupRow[];
 

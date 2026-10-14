@@ -2,7 +2,7 @@
 // and the season page (#37): reads of draft_picks, lineups and nfl_players.
 // A season's keepers are recorded once data/keepers.csv has rows for it;
 // until then its picks have kept = null and the pages say so.
-import { open } from './db';
+import { open } from './database';
 import type { NflPlayer } from './nfl-players';
 
 export interface DraftSeason {
@@ -14,14 +14,13 @@ export interface DraftSeason {
 /** Every season with a draft, oldest first. */
 export function draftSeasons(): DraftSeason[] {
   return open()
-    .prepare(`select season, max(kept is not null) as recorded from draft_picks group by season order by season`)
-    .all()
+    .all(`select season, max(kept is not null) as recorded from draft_picks group by season order by season`)
     .map((r: any) => ({ season: r.season, keepersRecorded: !!r.recorded }));
 }
 
 /** The largest round and overall pick any draft has, and the first draft's season. */
 export function draftSize(): { lastRound: number; lastPick: number; firstSeason: number | null } {
-  const r = open().prepare('select max(round) as rd, max(pick_no) as pk, min(season) as s from draft_picks').get() as any;
+  const r = open().all('select max(round) as rd, max(pick_no) as pk, min(season) as s from draft_picks')[0] as any;
   return { lastRound: r?.rd ?? 1, lastPick: r?.pk ?? 1, firstSeason: r?.s ?? null };
 }
 
@@ -54,14 +53,13 @@ const toPick = (r: any): FranchisePick & { franchise: { id: number; name: string
 
 /** The picks a franchise made, by season and pick. */
 export function franchisePicks(franchiseId: number): FranchisePick[] {
-  return open().prepare(`${PICKS} where d.franchise_id = ? order by d.season, d.pick_no`).all(franchiseId).map(toPick);
+  return open().all(`${PICKS} where d.franchise_id = ? order by d.season, d.pick_no`, [franchiseId]).map(toPick);
 }
 
 /** A season's keepers, by franchise name. */
 export function seasonKeepers(season: number) {
   return open()
-    .prepare(`${PICKS} where d.season = ? and d.kept = 1 order by f.name collate nocase`)
-    .all(season)
+    .all(`${PICKS} where d.season = ? and d.kept = 1 order by f.name collate nocase`, [season])
     .map(toPick);
 }
 
@@ -74,15 +72,12 @@ export interface Started {
 /** The NFL players a franchise started most often in its games, then by points. */
 export function mostStarted(franchiseId: number, limit = 10): Started[] {
   return open()
-    .prepare(
-      `select l.nfl_player_id as pid, p.name, p.position, count(*) as starts, round(sum(coalesce(l.points, 0)), 2) as points
+    .all(`select l.nfl_player_id as pid, p.name, p.position, count(*) as starts, round(sum(coalesce(l.points, 0)), 2) as points
        from lineups l
        join games g on g.season = l.season and g.week = l.week and g.status = 'final'
                    and l.franchise_id in (g.home_franchise_id, g.away_franchise_id)
        left join nfl_players p on p.id = l.nfl_player_id
        where l.franchise_id = ? and l.starter = 1 and l.nfl_player_id is not null
-       group by l.nfl_player_id order by starts desc, points desc, l.nfl_player_id limit ?`,
-    )
-    .all(franchiseId, limit)
+       group by l.nfl_player_id order by starts desc, points desc, l.nfl_player_id limit ?`, [franchiseId, limit])
     .map((r: any) => ({ player: { id: r.pid, name: r.name ?? null, position: r.position ?? null }, starts: r.starts, points: r.points }));
 }

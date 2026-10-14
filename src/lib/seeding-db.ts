@@ -3,7 +3,8 @@
 // writes every input (games, divisions, upcoming games, the format and the
 // scissors-paper-rock rulings); only the seeding module derives seeds.
 import type { BracketKey } from './brackets';
-import { open, seasonFormats } from './db';
+import { seasonFormats } from './db';
+import { open } from './database';
 import {
   checkSeeds,
   clinchMarks,
@@ -17,28 +18,20 @@ import {
 /** The seeding module's input for a Sleeper season with games, or null. */
 export function seedingInput(season: number): SeedingInput | null {
   const db = open();
-  const era = db.prepare('select era from seasons where year = ?').get(season) as { era: string } | undefined;
+  const era = db.all('select era from seasons where year = ?', [season])[0] as { era: string } | undefined;
   const format = seasonFormats().find((f) => f.season === season);
   if (era?.era !== 'sleeper' || !format) return null;
   const lines = db
-    .prepare(
-      `select franchise_id as id, division, breakdown_wins as w, breakdown_losses as l, breakdown_ties as t
-       from season_lines where season = ?`,
-    )
-    .all(season) as { id: number; division: string | null; w: number | null; l: number | null; t: number | null }[];
+    .all(`select franchise_id as id, division, breakdown_wins as w, breakdown_losses as l, breakdown_ties as t
+       from season_lines where season = ?`, [season]) as { id: number; division: string | null; w: number | null; l: number | null; t: number | null }[];
   if (!lines.length) return null;
   const played = db
-    .prepare(
-      `select home_franchise_id as home, away_franchise_id as away, winner_franchise_id as winner
-       from games where season = ? and phase = 'regular'`,
-    )
-    .all(season) as SeedingInput['played'];
+    .all(`select home_franchise_id as home, away_franchise_id as away, winner_franchise_id as winner
+       from games where season = ? and phase = 'regular'`, [season]) as SeedingInput['played'];
   const remaining = db
-    .prepare('select home_franchise_id as home, away_franchise_id as away from upcoming_games where season = ?')
-    .all(season) as SeedingInput['remaining'];
+    .all('select home_franchise_id as home, away_franchise_id as away from upcoming_games where season = ?', [season]) as SeedingInput['remaining'];
   const rulings = db
-    .prepare('select ruling, franchise_id as f from scissors_paper_rock where season = ? order by ruling, position')
-    .all(season) as { ruling: number; f: number }[];
+    .all('select ruling, franchise_id as f from scissors_paper_rock where season = ? order by ruling, position', [season]) as { ruling: number; f: number }[];
   const size = (b: BracketKey) => format.brackets.find((x) => x.bracket === b)?.size ?? 0;
   return {
     franchises: lines.map((l) => ({ id: l.id, division: l.division ?? '' })),
@@ -69,8 +62,7 @@ export function seasonPicture(season: number): SeasonPicture | null {
   if (!input) return null;
   const format = seasonFormats().find((f) => f.season === season)!;
   const weeks = open()
-    .prepare(`select count(distinct week) as n from games where season = ? and phase = 'regular'`)
-    .get(season) as { n: number };
+    .all(`select count(distinct week) as n from games where season = ? and phase = 'regular'`, [season])[0] as { n: number };
   const length = format.regularSeason[1] - format.regularSeason[0] + 1;
   const inProgress = input.remaining.length > 0 || weeks.n < length;
   return { places: playoffPicture(input), marks: inProgress ? clinchMarks(input) : {}, inProgress };
@@ -79,11 +71,8 @@ export function seasonPicture(season: number): SeasonPicture | null {
 /** A season's bracket games, as the seed check reads them. */
 export function bracketGames(season: number): BracketGame[] {
   return open()
-    .prepare(
-      `select bracket, round, home_franchise_id as home, away_franchise_id as away, winner_franchise_id as winner
-       from games where season = ? and phase = 'bracket'`,
-    )
-    .all(season) as unknown as BracketGame[];
+    .all(`select bracket, round, home_franchise_id as home, away_franchise_id as away, winner_franchise_id as winner
+       from games where season = ? and phase = 'bracket'`, [season]) as unknown as BracketGame[];
 }
 
 /**
@@ -95,14 +84,14 @@ export function seedProblems(season: number, played: BracketGame[] = bracketGame
   const picture = seasonPicture(season);
   if (!picture || picture.inProgress || !played.length) return [];
   const names = new Map(
-    (open().prepare('select id, name from franchises').all() as { id: number; name: string }[]).map((f) => [f.id, f.name]),
+    (open().all('select id, name from franchises') as { id: number; name: string }[]).map((f) => [f.id, f.name]),
   );
   return checkSeeds(picture.places, played, { name: (f) => names.get(f) ?? String(f) }).map((p) => `${season} ${p}`);
 }
 
 /** Fails the build if any finished Sleeper season's seeds disagree with its brackets (ADR 0005). */
 export function checkSleeperSeeds(): void {
-  const years = open().prepare(`select year from seasons where era = 'sleeper'`).all() as { year: number }[];
+  const years = open().all(`select year from seasons where era = 'sleeper'`) as { year: number }[];
   const problems = years.flatMap(({ year }) => seedProblems(year));
   if (problems.length)
     throw new Error(`computed seeds disagree with the brackets played (ADR 0005):\n  ${problems.join('\n  ')}`);

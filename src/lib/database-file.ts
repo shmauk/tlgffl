@@ -2,7 +2,7 @@
 // hash of them.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { DB_PATH } from './db';
+import { DB_PATH } from './database';
 import { dataFileUrl } from './urls';
 
 let file: { name: string; url: string; bytes: Uint8Array } | undefined;

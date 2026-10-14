@@ -3,7 +3,8 @@
 // database, which (with SQLite WASM) is fetched once, only on this page.
 import initSqlJs from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
-import { runQuery, type Db } from './engine';
+import type { Db } from '../database';
+import { runQuery } from './engine';
 import { formValues, queryFromForm, type Fields, type FormContext } from './form';
 import { DEFAULT_QUERY, decodeQuery, encodeQuery } from './query';
 import { renderResults, summary, type Context } from './render';

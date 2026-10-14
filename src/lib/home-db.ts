@@ -2,7 +2,8 @@
 // page shows. Which season is current, and its phase, the Python build decided
 // (src/lib/current.ts). Build time only. Only final games have scores; the week being played comes from
 // the pairings Sleeper has made, which never carry one.
-import { bracketWinners, open, seasonFormats, seasonGames, seasonStandings, type SeasonFranchise } from './db';
+import { bracketWinners, seasonFormats, seasonGames, seasonStandings, type SeasonFranchise } from './db';
+import { open } from './database';
 import { awardLeaders, awardValue, awards, awardWinners } from './awards';
 import { bracketColumns, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
 import { buildDate, current } from './current';
@@ -23,11 +24,8 @@ const ukDate = (ms: number) =>
 /** Every franchise of the season by id, with the team name it played under. */
 function seasonNames(season: number): Record<number, SeasonFranchise> {
   const rows = open()
-    .prepare(
-      `select f.id, f.name, t.team_name as teamName from team_names t join franchises f on f.id = t.franchise_id
-       where t.season = ?`,
-    )
-    .all(season) as unknown as SeasonFranchise[];
+    .all(`select f.id, f.name, t.team_name as teamName from team_names t join franchises f on f.id = t.franchise_id
+       where t.season = ?`, [season]) as unknown as SeasonFranchise[];
   return Object.fromEntries(rows.map((r) => [r.id, r]));
 }
 
@@ -40,11 +38,8 @@ function bracketPairings(season: number, week: number, specs: BracketSpec[]): Pa
   const picture = seasonPicture(season);
   if (!picture) return [];
   const rows = open()
-    .prepare(
-      `select week, home_franchise_id as home, away_franchise_id as away, bracket, round
-       from upcoming_bracket_pairings where season = ? and week = ? order by rowid`,
-    )
-    .all(season, week) as unknown as UpcomingPairing[];
+    .all(`select week, home_franchise_id as home, away_franchise_id as away, bracket, round
+       from upcoming_bracket_pairings where season = ? and week = ? order by rowid`, [season, week]) as unknown as UpcomingPairing[];
   return placeOpeningPairings(rows, picture.places, specs);
 }
 
@@ -77,8 +72,7 @@ export function inProgressWeeks(season: number): Map<number, Matchup[]> {
   const names = seasonNames(season);
   const add = (week: number, m: Matchup) => out.set(week, [...(out.get(week) ?? []), m]);
   const upcoming = open()
-    .prepare('select week, home_franchise_id as h, away_franchise_id as a from upcoming_games where season = ? order by week, rowid')
-    .all(season) as { week: number; h: number; a: number }[];
+    .all('select week, home_franchise_id as h, away_franchise_id as a from upcoming_games where season = ? order by week, rowid', [season]) as { week: number; h: number; a: number }[];
   for (const r of upcoming) add(r.week, { bracket: null, home: names[r.h], away: names[r.a] });
   if (now.phase === 'brackets' && now.playing !== null) {
     const { specs } = bracketsOf(season);
@@ -101,8 +95,7 @@ export function homeData(): HomeData | null {
   if (playing !== null && phase === 'regular') {
     thisWeek = (
       open()
-        .prepare('select home_franchise_id as h, away_franchise_id as a from upcoming_games where season = ? and week = ? order by rowid')
-        .all(season, playing) as { h: number; a: number }[]
+        .all('select home_franchise_id as h, away_franchise_id as a from upcoming_games where season = ? and week = ? order by rowid', [season, playing]) as { h: number; a: number }[]
     ).map((r) => ({ bracket: null, home: names[r.h], away: names[r.a] }));
   } else if (playing !== null && phase === 'brackets') {
     placed = bracketPairings(season, playing, specs);

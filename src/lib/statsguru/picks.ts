@@ -3,7 +3,8 @@
 // are only known from 2025 until the NFL.com-era boards are converted (#18).
 // A keeper is a pick recorded in data/keepers.csv; until a season's keepers
 // are recorded its picks can't be told apart, and count as drafted.
-import type { Db, Named } from './engine';
+import type { Named } from './engine';
+import type { Db } from '../database';
 import type { NflPlayer } from './lineups';
 import { positionRank, type Query } from './query';
 

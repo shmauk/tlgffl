@@ -2,7 +2,7 @@
 // tables recordbook/divisions.py and recordbook/lineup_records.py write. Head-
 // to-head records are saved Statsguru queries, so they live in records.ts.
 // Nothing here derives a figure: it only reads and filters.
-import type { Db } from '../statsguru/engine';
+import type { Db } from '../database';
 import type { RecordDef } from './catalogue';
 import type { Entry, RecordFranchise } from './records';
 
