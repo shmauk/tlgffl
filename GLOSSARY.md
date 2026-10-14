@@ -27,8 +27,11 @@ A franchise playing in the current season. Departed franchises keep every record
 _Avoid_: Current team
 
 **Team name**:
-The name a franchise played under in a given season. It changes most years and never identifies anything.
+The name a franchise played under in a given season. Every franchise has one for each season it plays, even if it's only a placeholder name. It changes most years and never identifies anything.
 _Avoid_: Franchise
+
+**Placeholder name**:
+A name a platform shows when a franchise has no real team name, such as "pending". It counts as that season's team name but never becomes a franchise name.
 
 **NFL player**:
 A real-world NFL athlete rostered, drafted, kept or traded by franchises. Known from 2017 for drafts, 2021 for keepers, and the Sleeper era for everything else.

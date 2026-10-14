@@ -239,6 +239,15 @@ def test_a_roster_missing_from_the_aliases_fails_the_build(sleeper, tmp_path):
         build(sleeper, tmp_path / "league.sqlite")
 
 
+def test_a_franchise_with_a_game_but_no_team_name_for_its_season_fails_the_build(sleeper, tmp_path):
+    # Roster 6 plays its games but has dropped out of the rosters snapshot, so
+    # nothing gives it a 2025 team name (ADR 0004: the build guarantees one).
+    rosters = sleeper / "sleeper" / "2025-rosters.json"
+    rosters.write_text(json.dumps([r for r in json.loads(rosters.read_text()) if r["roster_id"] != 6]))
+    with pytest.raises(BuildError, match=r"franchise 16 has a game or a season line in 2025 but no team name"):
+        build(sleeper, tmp_path / "league.sqlite")
+
+
 def write_team_names(data, year, week, names):
     (data / "sleeper" / f"{year}-team_names-{week:02d}.json").write_text(
         json.dumps([{"roster_id": r, "team_name": n} for r, n in names.items()]))
