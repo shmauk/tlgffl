@@ -146,6 +146,25 @@ def upcoming(year, league, weeks, fmt, franchise_of):
             for a, _pa, b, _pb in pairings(weeks[week])]
 
 
+def upcoming_brackets(year, league, weeks, fmt, franchise_of, assigned):
+    """upcoming_bracket_pairings rows (season, week, home, away, bracket,
+    round): the pairings Sleeper has made in bracket weeks not yet final, with
+    their bracket and round from the hand-kept assignment when it already has
+    a row (filler is left out), else None for the site to place by seed. They
+    are never games, and their scores are never kept."""
+    bracket_weeks = {w for b in fmt.brackets.values() for w in b.weeks}
+    final = final_weeks(league, weeks)
+    rows = []
+    for week in sorted(weeks):
+        if week not in bracket_weeks or week in final:
+            continue
+        for a, _pa, b, _pb in pairings(weeks[week]):
+            bracket, rnd = assigned.get((week, frozenset((a, b))), (None, None))
+            if bracket != "filler":
+                rows.append((year, week, franchise_of(a), franchise_of(b), bracket, rnd))
+    return rows
+
+
 def calendar(sleeper_dir, year):
     """The season_calendar row (season, draft start, week 1 date): the draft's
     start time in ms (the earliest of drafts[].start_time, None until set) and

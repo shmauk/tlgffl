@@ -25,3 +25,21 @@ def test_a_seasons_calendar_has_its_draft_start_and_week_1_date(sleeper, tmp_pat
 def test_a_season_with_no_draft_time_or_state_has_an_empty_calendar(sleeper, tmp_path):  # noqa: F811
     db = built(sleeper, tmp_path)
     assert query(db, "select season, draft_start, week1_date from season_calendar") == [(2025, None, None)]
+
+
+def test_bracket_week_pairings_not_yet_final_carry_their_assignment_and_filler_is_left_out(sleeper, tmp_path):  # noqa: F811
+    # The regular season (weeks 1-2) is final; week 3, a bracket week, is being played. Only
+    # the Playoffs pairing has a row so far: the other is written with no bracket, for the
+    # site to place.
+    write_sleeper_league(sleeper, 2025, WEEKS, DIVISIONS, status="in_season", last_scored_leg=2, totals=TOTALS)
+    write_sleeper_brackets(sleeper, [BRACKETS[0], BRACKETS[2]])
+    db = built(sleeper, tmp_path)
+    assert query(db, "select season, week, home_franchise_id, away_franchise_id, bracket, round "
+                     "from upcoming_bracket_pairings order by home_franchise_id") == [
+        (2025, 3, 11, 16, "playoffs", 1), (2025, 3, 12, 13, None, None)]
+    assert query(db, "select count(*) from games where week = 3") == [(0,)]
+
+
+def test_a_finished_season_has_no_bracket_pairings_to_come(sleeper, tmp_path):  # noqa: F811
+    db = built(sleeper, tmp_path)
+    assert query(db, "select count(*) from upcoming_bracket_pairings") == [(0,)]

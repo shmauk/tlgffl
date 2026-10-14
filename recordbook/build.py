@@ -265,6 +265,17 @@ create table upcoming_games (
     home_franchise_id integer not null references franchises(id),
     away_franchise_id integer not null references franchises(id)
 );
+-- Sleeper era only. Pairings Sleeper has made in bracket weeks not yet final,
+-- with their bracket and round where data/sleeper_brackets.csv already has a
+-- row (null: not yet assigned; filler is left out). Never games, never scores.
+create table upcoming_bracket_pairings (
+    season integer not null references seasons(year),
+    week integer not null,
+    home_franchise_id integer not null references franchises(id),
+    away_franchise_id integer not null references franchises(id),
+    bracket text check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
+    round integer
+);
 -- Sleeper era only. When each season's draft starts (ms since the epoch, null
 -- until Sleeper has a date) and its week 1 (the NFL season's start date, null
 -- if no state snapshot saw it). The site picks the current season with them.
@@ -496,8 +507,11 @@ def build(data, out):
     picks = []
     upcoming = []
     calendar = []
+    upcoming_brackets = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
         calendar.append(sleeperlib.calendar(data / "sleeper", year))
+        upcoming_brackets += sleeperlib.upcoming_brackets(
+            year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], of, assigned.get(year, {}))
         of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
         upcoming += sleeperlib.upcoming(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
                                         formats[year], of)
@@ -554,6 +568,7 @@ def build(data, out):
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
         con.executemany("insert into upcoming_games values (?, ?, ?, ?)", upcoming)
         con.executemany("insert into season_calendar values (?, ?, ?)", calendar)
+        con.executemany("insert into upcoming_bracket_pairings values (?, ?, ?, ?, ?, ?)", upcoming_brackets)
         con.executemany("insert into scissors_paper_rock values (?, ?, ?, ?)", rulings)
         con.executemany("insert into nfl_players values (?, ?, ?, ?)",
                         sleeperlib.nfl_players(data / "sleeper", lineups))
