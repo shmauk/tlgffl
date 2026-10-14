@@ -62,6 +62,11 @@ export interface RecordDef {
   heading?: string;
   /** Season records (#31): the record_seasons column ranked, and the figures shown alongside. */
   column?: string;
+  /**
+   * A season record Statsguru can list (#30): its per-season view, sorted on
+   * this key. The record still reads record_seasons; this is only its full list.
+   */
+  seasonSort?: 'w' | 'pf' | 'pa' | 'apf';
   alongside?: Alongside[];
   /** Bracket records (#31): the record_tallies or record_runs record. */
   record?: string;
@@ -116,12 +121,16 @@ const lineup = (slug: string, name: string, measure: 'player' | 'bench', qualifi
 const SEASON_LINES = 'Every season line, NFL.com’s reported ones filling the seasons with games missing (ADR 0001).';
 const BREAKDOWN = 'Every fully covered season line: Breakdown needs every score of every regular-season week.';
 const GP: Alongside = { label: 'GP', column: 'games', unit: 'count' };
+// Statsguru's per-season view has these; Breakdown and luck it hasn't.
+const SEASON_SORT: Record<string, RecordDef['seasonSort']> = {
+  wins: 'w', points_for: 'pf', points_against: 'pa', points_for_per_game: 'apf',
+};
 const season = (
   slug: string, name: string, dir: 'asc' | 'desc', column: string, unit: Unit, alongside: Alongside[],
   qualification = SEASON_LINES, category = 'seasons',
 ): RecordDef => ({
   slug, name, category, kind: 'season', unit, dir, eras: ERAS, phases: ['regular'], qualification, figure: none, column,
-  alongside,
+  alongside, seasonSort: SEASON_SORT[column],
 });
 const PF_GAME: Alongside = { label: 'PF per game', column: 'points_for_per_game', unit: 'points' };
 const PA_GAME: Alongside = { label: 'PA per game', column: 'points_against_per_game', unit: 'points' };

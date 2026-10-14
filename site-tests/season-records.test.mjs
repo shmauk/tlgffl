@@ -29,6 +29,12 @@ test('season records are pre-rendered for each era, regular season only', () => 
   }
 });
 
+test('season records Statsguru can list link their full list per season; Breakdown and luck records don’t', () => {
+  const link = (slug) => read(`records/${slug}`).match(/<a class="more" href="([^"]*)">Full list in Statsguru/)?.[1];
+  for (const slug of SEASONS) assert.equal(Boolean(link(slug)), !/breakdown|luck/.test(slug), slug);
+  assert.match(link('fewest-wins'), /^\/statsguru\/\?(s=[\d,-]+&)?view=season&sort=w\.asc$/);
+});
+
 test('bracket records are pre-rendered for each era with no phase filter; Shit Bowl appearances only for Sleeper', () => {
   for (const slug of BRACKETS) {
     for (const era of ERAS.slice(1)) assert.ok(existsSync(join(DIST, 'records', slug, era, 'all', 'index.html')), slug);

@@ -3,7 +3,8 @@
 // tables, not from the code under test, and never pin live-season figures.
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
-import type { Db } from '../statsguru/engine';
+import { runQuery, type Db, type GroupRow } from '../statsguru/engine';
+import { DEFAULT_QUERY, decodeQuery, encodeQuery } from '../statsguru/query';
 import { CATEGORIES, RECORDS, recordDef, variants } from './catalogue';
 import { recordView } from './records';
 
@@ -38,6 +39,34 @@ describe('the catalogue', () => {
       expect(variants(recordDef(slug)!).length, slug).toBe(3);
     }
   });
+});
+
+describe('the full list in Statsguru', () => {
+  // Statsguru's per-season view has wins, points for, points against and points per game, but no
+  // Breakdown or luck: those records have no full list there.
+  const LINKED = SEASONS.filter((s) => !s.includes('breakdown'));
+  const FIGURE: Record<string, string> = { wins: 'w', points_for: 'pf', points_against: 'pa', points_for_per_game: 'apf' };
+
+  test('season-line records Statsguru can express link it; Breakdown and luck records don’t', () => {
+    for (const slug of LINKED) expect(view(slug).statsguru, slug).not.toBeNull();
+    for (const slug of [...SEASONS.filter((s) => !LINKED.includes(s)), 'luckiest-season', 'unluckiest-season'])
+      expect(view(slug).statsguru, slug).toBeNull();
+  });
+
+  for (const slug of LINKED)
+    for (const era of ['all', 'nfl-com', 'sleeper'])
+      test(`${slug} ${era}: the link’s rows give the record’s figures, the season in progress left out`, () => {
+        const v = view(slug, era);
+        const q = decodeQuery(encodeQuery({ ...DEFAULT_QUERY, ...v.statsguru! }));
+        expect(q.view).toBe('season');
+        expect(q.phases).toEqual(['R']);
+        const rows = runQuery(db, q).rows.filter((r) => r.kind === 'group') as GroupRow[];
+        const key = FIGURE[v.def.column!];
+        const figures = rows.map((r) => (r as any)[key]);
+        expect(v.entries.map((e) => e.value)).toEqual(figures.slice(0, v.entries.length));
+        const regular = one('select phase from current_season')?.phase === 'regular';
+        if (regular) expect(rows.some((r) => r.season === current), slug).toBe(false);
+      });
 });
 
 describe('seasons', () => {

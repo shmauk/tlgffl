@@ -226,6 +226,15 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
   } else if (def.kind === 'season') {
     entries = seasonEntries(db, def, inEra, franchise, c.current);
     notes.push(...seasonNotes(db, def, seasons, c.current));
+    if (def.seasonSort) {
+      // The full list: Statsguru's per-season view over the same seasons, so the season
+      // in progress is left out while its regular season is on, as the record leaves it out.
+      const listed = seasons.filter((s) => !(s === c.current && c.phase === 'regular'));
+      statsguru = {
+        view: 'season', phases: ['R'], sort: { key: def.seasonSort, dir: def.dir },
+        seasons: era === 'all' && listed.length === seasons.length ? [] : listed,
+      };
+    }
   } else if (def.kind === 'tally' || def.kind === 'run') {
     entries = bracketEntries(db, def, DB_ERA[era], franchise, c.current);
     notes.push(...bracketNotes(db, def, seasons, c.current, c.phase));
