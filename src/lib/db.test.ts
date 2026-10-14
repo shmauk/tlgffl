@@ -1,9 +1,12 @@
 // A franchise as a season shows it (SeasonFranchise), over a database small
-// enough to read off the test.
+// enough to read off the test, and over a scenario's (tests/scenarios.py).
+import { copyFileSync, mkdtempSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, test } from 'vitest';
-import type { Db } from './database';
-import { seasonFranchise } from './db';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, inject, test } from 'vitest';
+import { open, type Db } from './database';
+import { seasonFranchise, seasonGames } from './db';
 
 const sqlite = new DatabaseSync(':memory:');
 sqlite.exec(`
@@ -25,4 +28,21 @@ describe('a franchise in a season', () => {
   test('with no team name for the season, goes by its franchise name', () => {
     expect(resolve(2023, 2)).toEqual({ id: 2, name: 'Kurlewless', teamName: 'Kurlewless' });
   });
+});
+
+test('a franchise with no team name for a season still has its games shown, by its franchise name', () => {
+  // The build never writes such a database (ADR 0004), so take a scenario's and remove one.
+  const path = join(mkdtempSync(join(tmpdir(), 'tlgffl-')), 'league.sqlite');
+  copyFileSync(inject('scenarios').regular, path);
+  const edit = new DatabaseSync(path);
+  edit.exec(`delete from team_names where franchise_id = 6 and season = 2025;
+             update franchises set name = 'Sixers' where id = 6`);
+  edit.close();
+  const games = seasonGames(open(path), 2025).filter((g) => g.away.id === 6 || g.home.id === 6);
+  // Franchise 6 played weeks 1-3: v 1, v 4 and v 2, away each time.
+  expect(games.map((g) => [g.week, g.home.id, g.away])).toEqual([
+    [1, 1, { id: 6, name: 'Sixers', teamName: 'Sixers' }],
+    [2, 4, { id: 6, name: 'Sixers', teamName: 'Sixers' }],
+    [3, 2, { id: 6, name: 'Sixers', teamName: 'Sixers' }],
+  ]);
 });
