@@ -2,7 +2,7 @@
 // Run after `npm run build`: npm run test:site
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -30,18 +30,31 @@ test('every franchise has a page at /franchises/<id>/', () => {
   }
 });
 
-test('static pages ship no client-side JS: only Statsguru, the one island, has any', () => {
+test('static pages ship no client-side JS: only the islands, Statsguru and the current season’s predictor, have any', () => {
   const walk = (dir) => readdirSync(dir).flatMap((n) => {
     const p = join(dir, n);
     return statSync(p).isDirectory() ? walk(p) : [p];
   });
   const files = walk(DIST);
-  const statsguru = join(DIST, 'statsguru', 'index.html');
-  for (const f of files.filter((f) => f.endsWith('.html') && f !== statsguru)) {
+  // The predictor is an island only for the current season, while its regular season is on (#36).
+  const current = db.prepare('select year from seasons order by year desc limit 1').get().year;
+  const islands = [join(DIST, 'statsguru', 'index.html'), join(DIST, 'seasons', String(current), 'predictor', 'index.html')]
+    .filter((f) => existsSync(f));
+  for (const f of files.filter((f) => f.endsWith('.html') && !islands.includes(f))) {
     assert.doesNotMatch(readFileSync(f, 'utf8'), /<script/i, f);
   }
-  const island = readFileSync(statsguru, 'utf8');
+  // Every script belongs to an island: one it loads, a chunk those import, or a worker they start.
+  const reached = new Set();
+  const queue = islands.flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/<script[^>]*src="([^"]+)"/g)].map((m) => m[1]));
+  while (queue.length) {
+    const src = queue.pop();
+    if (reached.has(src) || !src.startsWith('/')) continue;
+    reached.add(src);
+    const js = readFileSync(join(DIST, src), 'utf8');
+    for (const m of js.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|new URL\(\s*)[`"']([^`"']+\.js)[`"']/g))
+      queue.push(new URL(m[1], `http://x${src}`).pathname);
+  }
   for (const js of files.filter((f) => /\.m?js$/.test(f))) {
-    assert.ok(island.includes(js.slice(DIST.length)), `${js} belongs to Statsguru`);
+    assert.ok(reached.has(js.slice(DIST.length)), `${js} belongs to an island`);
   }
 });
