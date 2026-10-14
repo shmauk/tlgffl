@@ -34,12 +34,16 @@ LEAGUE = "1078038"
 PLACEHOLDER_NAMES = {"pending", "[name redacted]"}
 
 SCHEMA = """
+-- name is the latest team name the franchise played under, Sleeper's
+-- included. filed_name is the name the hand-kept tables and the golden test
+-- know it by (franchise_name in build.py), which a rename doesn't change.
 create table franchises (
     id integer primary key,
     name text not null,
     active integer not null,
     first_season integer,
-    last_season integer
+    last_season integer,
+    filed_name text not null
 );
 create table seasons (
     year integer primary key,
@@ -162,8 +166,17 @@ create table documents (
 -- NFL.com era's other winners come from hand-kept tables. A disputed outcome
 -- has one row per candidate and counts for nobody; an unknown one has a single
 -- row with no franchise.
+-- Games the league leaves out of the records, from the hand-kept
+-- data/record_exclusions.csv: the game, the franchise it is about and why. It
+-- still counts for the standings and season totals, but not for the
+-- single-game records, best and worst games, or a season's highs and lows.
+create table record_exclusions (
+    game_id integer primary key references games(id),
+    franchise_id integer not null references franchises(id),
+    reason text not null
+);
 -- Each season's highest and lowest score and biggest and narrowest winning
--- margin, over its games with a score. Every game level on a measure gets a
+-- margin, over its games with a score that aren't left out of the records. Every game level on a measure gets a
 -- row. franchise_id is the scorer for a score, the winner for a margin.
 create table season_highs_lows (
     season integer not null references seasons(year),
@@ -520,15 +533,18 @@ def build(data, out, today=None):
         franchises.append((fid, franchise_name(fid, nfl_names, sleeper_ids, aliases),
                            None, min(played[fid]), max(played[fid])))
     check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
+    # The site shows a franchise by its latest team name (#25); the hand-kept
+    # tables may name it either way.
+    shown = {fid: latest_name(fid, team_names) or name for fid, name, *_ in franchises}
+    by_name = franchise_lookup({fid: (name, shown[fid]) for fid, name, *_ in franchises})
     format_rows, bracket_rows = season_format_rows(formats)
     hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
     try:
         winners = bracketlib.winner_rows([g for g in games if g.season in nfl], formats, nfl, hand_kept,
-                                         {name: fid for fid, name, *_ in franchises})
+                                         by_name)
     except bracketlib.BracketError as e:
         raise BuildError(str(e)) from e
-    rulings = scissors_paper_rock(read_optional_csv(data / "scissors_paper_rock.csv"),
-                                  {name: fid for fid, name, *_ in franchises})
+    rulings = scissors_paper_rock(read_optional_csv(data / "scissors_paper_rock.csv"), by_name)
     lineups = []
     moves = defaultdict(list)
     picks = []
@@ -561,8 +577,10 @@ def build(data, out, today=None):
     documents = [(r["kind"], int(r["season"]) if r["season"] else None, r["title"], r["url"])
                  for r in read_optional_csv(data / "documents.csv")]
     games.sort(key=lambda g: (g.season, g.week, g.phase != "regular", g.home))
+    exclusions = record_exclusions(read_optional_csv(data / "record_exclusions.csv"), games, by_name)
+    excluded = {gid for gid, _, _ in exclusions}
     highs_lows = [(season, measure, i + 1, fid, value)
-                  for season, measure, i, fid, value in gamelog.highs_and_lows(games)]
+                  for season, measure, i, fid, value in gamelog.highs_and_lows(games, {i - 1 for i in excluded})]
     keepers = read_keepers(read_optional_csv(data / "keepers.csv"))
     # A season played without keepers has them all recorded: there are none.
     keepers |= {y: set() for y, f in formats.items() if not f.keepers}
@@ -588,7 +606,9 @@ def build(data, out, today=None):
         con.executescript(SCHEMA)
         con.executemany("insert into seasons values (?, ?, ?, ?)",
                         [(year, era, count, int(year in done)) for year, era, count in sorted(seasons)])
-        con.executemany("insert into franchises values (?, ?, ?, ?, ?)", franchises)
+        con.executemany("insert into franchises values (?, ?, ?, ?, ?, ?)",
+                        [(fid, shown[fid], active, first, last, name)
+                         for fid, name, active, first, last in franchises])
         con.executemany("insert into team_names values (?, ?, ?)",
                         [(f, y, n) for (f, y), n in sorted(team_names.items())])
         con.executemany(f"insert into reported_season_lines values ({', '.join('?' * 11)})",
@@ -620,7 +640,8 @@ def build(data, out, today=None):
             if rows:
                 con.executemany(f"insert into {table} values ({', '.join('?' * len(rows[0]))})", rows)
         season = current.season if current else None
-        write_profiles(con, franchises, played, season_lines, winners, season, games, coverage)
+        con.executemany("insert into record_exclusions values (?, ?, ?)", exclusions)
+        write_profiles(con, franchises, played, season_lines, winners, season, done, games, coverage, excluded)
         write_records(con, games, seasons, formats, played, season, done)
         write_division_records(con, lineage_rows, lineages, season_lines, done)
         write_lineup_records(con, lineups, games, lineup_records.player_names(data / "sleeper"), done)
@@ -637,15 +658,15 @@ def build(data, out, today=None):
         con.close()
 
 
-def write_profiles(con, franchises, played, season_lines, winners, current, games, coverage):
+def write_profiles(con, franchises, played, season_lines, winners, current, done, games, coverage, excluded):
     """The franchise profile and head-to-head tables (#27)."""
     con.executescript(profiles.SCHEMA)
     con.executemany(f"insert into franchise_careers values ({', '.join('?' * 18)})",
-                    profiles.career_rows(franchises, played, season_lines, winners, current))
+                    profiles.career_rows(franchises, played, season_lines, winners, current, done))
     con.executemany(f"insert into head_to_head values ({', '.join('?' * 11)})",
                     profiles.head_to_head_rows(games, coverage, played))
     con.executemany("insert into franchise_best_worst values (?, ?, ?, ?, ?)",
-                    profiles.best_worst_rows(profiles.game_scores(games)))
+                    profiles.best_worst_rows([s for s in profiles.game_scores(games) if s[0] not in excluded]))
 
 
 def write_records(con, games, seasons, formats, played, current, done):
@@ -731,13 +752,13 @@ def season_format_rows(formats):
 
 
 def franchise_name(fid, team_names, sleeper_ids, aliases):
-    """The last real NFL.com-era team name the franchise played under.
+    """The name the hand-kept tables file the franchise under: the last real
+    NFL.com-era team name it played under.
 
-    Sleeper-era team names are recorded per season but don't rename
-    franchises yet: the hand-kept tables and the golden test name franchises
-    as ff-data-project does, so a franchise that has only played on Sleeper
-    takes the name ff-data-project gave its roster. (Whether Sleeper names
-    should rename franchises is a maintainer's call; see #25.)
+    The hand-kept tables and the golden test name franchises as
+    ff-data-project does, so a franchise that has only played on Sleeper
+    takes the name ff-data-project gave its roster. The site shows
+    latest_name instead (#25).
     """
     real = [n for (f, y), n in sorted(team_names.items(), key=lambda kv: kv[0][1])
             if f == fid and n not in PLACEHOLDER_NAMES]
@@ -747,6 +768,46 @@ def franchise_name(fid, team_names, sleeper_ids, aliases):
     if roster in aliases:
         return aliases[roster]["franchise"]
     raise BuildError(f"franchise {fid} has no team name that could be its franchise name")
+
+
+def latest_name(fid, team_names):
+    """The franchise's latest real team name in either era, or None."""
+    real = [n for (f, y), n in sorted(team_names.items(), key=lambda kv: kv[0][1])
+            if f == fid and n not in PLACEHOLDER_NAMES]
+    return real[-1] if real else None
+
+
+def record_exclusions(rows, games, by_name):
+    """record_exclusions rows (game id, franchise, reason) from the hand-kept
+    rows (season, week, franchise, reason), game ids being the stored games'
+    1-based positions. Each must name a game with a score the franchise played."""
+    out = []
+    for r in rows:
+        season, week, name = int(r["season"]), int(r["week"]), r["franchise"].strip()
+        fid = by_name.get(name)
+        if fid is None:
+            raise BuildError(f"data/record_exclusions.csv: {name!r} is not a franchise name")
+        found = [i for i, g in enumerate(games, start=1) if (g.season, g.week) == (season, week)
+                 and fid in (g.home, g.away) and g.home_points is not None]
+        if not found:
+            raise BuildError(f"data/record_exclusions.csv: {name} played no game with a score "
+                             f"in {season} week {week}")
+        out.append((found[0], fid, r["reason"].strip()))
+    return out
+
+
+def franchise_lookup(names):
+    """{name: franchise} from {franchise: (filed name, name on the site)}, so
+    a hand-kept table can use either. A name that is two franchises' fails."""
+    out = {}
+    for fid, (filed, shown) in sorted(names.items()):
+        out[filed] = fid
+    for fid, (filed, shown) in sorted(names.items()):
+        if out.get(shown, fid) != fid:
+            raise BuildError(f"{shown!r} is franchise {fid}'s name on the site and franchise "
+                             f"{out[shown]}'s filed name: a hand-kept table naming it can't tell them apart")
+        out[shown] = fid
+    return out
 
 
 def check_one_game_a_week(games):

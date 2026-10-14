@@ -186,3 +186,17 @@ test('each Records held entry says which era and games it is over, so it can’t
     .flatMap((h) => h.match(/<tr[^>]*>\s*<td><a href="\/records\/career-win-pct\/">[\s\S]*?<\/tr>/g) ?? []);
   for (const row of winPct) assert.match(row, /<td>All eras, all games<\/td>/);
 });
+
+test("best and worst games say which of the franchise's games is left out of the records, and why", () => {
+  const rows = db.prepare(`select g.home_franchise_id as h, g.away_franchise_id as a, e.reason
+                           from record_exclusions e join games g on g.id = e.game_id`).all();
+  for (const x of rows)
+    for (const id of [x.h, x.a]) assert.ok(section(profile(id), 'Best and worst games').includes(x.reason), String(id));
+});
+
+test('career figures say when they leave out the season in progress', () => {
+  const unfinished = db.prepare('select year from seasons where not finished').all().map((r) => r.year);
+  const playing = db.prepare('select distinct franchise_id as id, season from season_lines where season in (select year from seasons where not finished)').all();
+  for (const p of playing) assert.match(section(profile(p.id), 'Career'), new RegExp(`Over finished seasons: ${p.season} is still being played`));
+  if (!unfinished.length) assert.equal(playing.length, 0);
+});

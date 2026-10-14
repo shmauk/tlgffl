@@ -35,7 +35,8 @@ test('one row per finished season from 2012, newest first, each linking to its s
   assert.deepEqual(heads, COLUMNS);
 });
 
-const franchiseId = new Map(db.prepare('select id, name from franchises').all().map((f) => [f.name, f.id]));
+// ff-data-project names franchises by the names they are filed under.
+const franchiseId = new Map(db.prepare('select id, filed_name from franchises').all().map((f) => [f.filed_name, f.id]));
 const finals = JSON.parse(readFileSync('golden/league_records.json', 'utf8')).meta.finals.filter(
   (f) => f.platform === 'NFL.com',
 );

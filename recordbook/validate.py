@@ -160,6 +160,11 @@ SCHEMAS = {
     "division_lineages.csv": Table(
         {"season": whole_number, "division": required, "lineage": required},
         key=lambda row: f"{row['season']} {row['division']}"),
+    # Games left out of the records, each with the league's reason; the build
+    # checks the franchise played a game with a score that week.
+    "record_exclusions.csv": Table(
+        {"season": whole_number, "week": whole_number, "franchise": required, "reason": required},
+        key=lambda row: f"{row['season']} week {row['week']} {row['franchise']}", franchises=("franchise",)),
     "documents.csv": Table(
         {"kind": one_of("constitution", "agm"), "season": optional(whole_number),
          "title": required, "url": web_link},
@@ -361,8 +366,10 @@ def check_formats(data):
 
 
 def franchise_names(data):
-    """Every franchise's name, as the build gives it: the last real team name
-    it played under, or its Sleeper alias if it has only played on Sleeper."""
+    """Every name a hand-kept table may give a franchise, as the build gives
+    them: its filed name (the last real NFL.com-era team name it played under,
+    or its Sleeper alias if it has only played on Sleeper) and its name on the
+    site (its latest team name in either era)."""
     keys = buildlib.franchise_keys(data)
     team_names = {}
     for year, league in buildlib.nfl_seasons(data).items():
@@ -372,12 +379,21 @@ def franchise_names(data):
     aliases_path = data / "sleeper_aliases.csv"
     aliases = ({int(r["roster_id"]): r for r in buildlib.read_csv(aliases_path)}
                if aliases_path.exists() else {})
+    all_names = dict(team_names)
+    for year, (_league, rosters) in buildlib.sleeper_seasons(data).items():
+        snapshot = sleeperlib.team_names(data / "sleeper", year)
+        for r in rosters:
+            rid, fid = r["roster_id"], keys.get(("sleeper", str(r["roster_id"]), ""))
+            if fid is not None and (rid in snapshot or rid in aliases):
+                all_names[(fid, year)] = snapshot.get(rid) or aliases[rid]["sleeper_name"]
     names = set()
     for fid in set(keys.values()):
         try:
             names.add(buildlib.franchise_name(fid, team_names, sleeper_ids, aliases))
         except buildlib.BuildError:
             pass
+        if shown := buildlib.latest_name(fid, all_names):
+            names.add(shown)
     return names
 
 
@@ -389,7 +405,8 @@ def check_franchise_names(name, table, path, names):
                 if franchise and franchise not in names:
                     problems.append(
                         f"data/{name} line {line}: {column} {franchise!r} is not a franchise name "
-                        "(a franchise goes by the last team name it played under: "
+                        "(a franchise goes by its name on the site or the last NFL.com team name it "
+                        "played under: "
                         f"{', '.join(sorted(names))})")
     return problems
 

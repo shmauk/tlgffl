@@ -10,9 +10,9 @@
 #   * For 2022-24 the postseason results are gone outright, so there is nothing
 #     left to compute from even in principle.
 #
-# Names must match data/franchises.csv, which files each franchise under its
-# most recent team name. 2019's "Chicken Karama with rice" is therefore under
-# "Mooreccan chicken with rice", the same manager's 2020 name.
+# Names are franchise names: the name the site shows, or the one the franchise
+# is filed under, its last NFL.com team name. 2019's "Chicken Karama with rice"
+# is therefore under "Mooreccan chicken with rice", the same manager's 2020 name.
 #
 # Blank means nobody has confirmed it; blank rows render as "unknown" rather
 # than a guess. Two names separated by "|" means it is genuinely disputed - both

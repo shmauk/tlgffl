@@ -337,3 +337,35 @@ export function seasonWeeks(season: number): number[] {
     .all(season, season)
     .map((r: any) => r.week);
 }
+
+/** A game the league leaves out of the records (data/record_exclusions.csv). */
+export interface RecordExclusion {
+  gameId: number;
+  season: number;
+  week: number;
+  franchise: { id: number; name: string };
+  opponent: { id: number; name: string };
+  reason: string;
+}
+
+/** Every game left out of the records, oldest first. */
+export function recordExclusions(): RecordExclusion[] {
+  return open()
+    .prepare(
+      `select e.game_id as gameId, g.season, g.week, e.reason, f.id as fid, f.name as fname, o.id as oid, o.name as oname
+       from record_exclusions e
+       join games g on g.id = e.game_id
+       join franchises f on f.id = e.franchise_id
+       join franchises o on o.id = case when g.home_franchise_id = e.franchise_id then g.away_franchise_id else g.home_franchise_id end
+       order by g.season, g.week, g.id`,
+    )
+    .all()
+    .map((r: any) => ({
+      gameId: r.gameId, season: r.season, week: r.week, reason: r.reason,
+      franchise: { id: r.fid, name: r.fname }, opponent: { id: r.oid, name: r.oname },
+    }));
+}
+
+/** The note where a game is left out: whose game, and why. */
+export const exclusionNote = (x: RecordExclusion) =>
+  `${x.franchise.name}’s ${x.season} week ${x.week} game v ${x.opponent.name} is left out: ${x.reason}`;

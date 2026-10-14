@@ -165,6 +165,18 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
   let entries: Entry[] = [];
   let statsguru: Partial<Query> | null = null;
   const gameBased = def.kind === 'game' || def.kind === 'pair';
+  // Games the league leaves out of the records (data/record_exclusions.csv).
+  const excluded = gameBased
+    ? db
+        .all(
+          `select e.game_id as id, g.season, g.week, g.home_franchise_id as h, g.away_franchise_id as a,
+                  e.franchise_id as f, e.reason
+           from record_exclusions e join games g on g.id = e.game_id where ${SQL_PHASE[phase]} order by g.season, g.week`,
+        )
+        .filter((x) => inEra(x.season))
+    : [];
+  const isExcluded = (season: number, week: number, f: number) =>
+    excluded.some((x) => x.season === season && x.week === week && (x.h === f || x.a === f));
 
   const seen = new Set<string>();
   if (def.statsguru) {
@@ -184,6 +196,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
           gamesMissing: phase !== 'playoffs' && era !== 'sleeper' && c.gamesMissing.has(key),
         });
       } else if (def.kind === 'game') {
+        if (isExcluded(r.season!, r.week, r.franchise.id)) continue;
         entries.push({
           rank: null, value, franchise: franchise(r.franchise.id), opponent: franchise(r.opponent!.id),
           score: [r.pf!, r.pa!], at: { season: r.season!, week: r.week }, thisSeason: r.season === c.current,
@@ -214,7 +227,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
        order by g.season ${ties ? 'desc' : ''}, g.week ${ties ? 'desc' : ''}, g.id`,
     );
     entries = rows
-      .filter((r) => inEra(r.season))
+      .filter((r) => inEra(r.season) && !isExcluded(r.season, r.week, r.h))
       .map((r) => {
         const homeFirst = r.w === null || r.w === r.h;
         return {
@@ -268,6 +281,10 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
   const lost = c.lostScores.filter(inEra);
   if (gameBased && phase !== 'regular' && lost.length)
     notes.push({ glyph: '‡', text: `Bracket games whose score is lost are left out (${and(lost.map(String))}).` });
+  for (const x of excluded) {
+    const opponent = x.f === x.h ? x.a : x.h;
+    notes.push({ text: `${c.franchises.get(x.f)!.name}’s ${x.season} week ${x.week} game v ${c.franchises.get(opponent)!.name} is left out: ${x.reason}` });
+  }
   if (entries.some((e) => e.reported))
     notes.push({ glyph: '†', text: 'Includes the season totals NFL.com reported for weeks with no game scores.' });
   if (entries.some((e) => e.gamesMissing))

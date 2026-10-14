@@ -33,9 +33,12 @@ Most data comes from NFL.com and Sleeper and is never edited by hand. The hand-k
 | `division_lineages.csv` | Which division lineage each season's division belongs to. Every division needs a row once its season has games, and a lineage stays within one realignment |
 | `emoji.csv` | Each franchise's badge |
 | `documents.csv` | Links to the constitution and AGM documents |
+| `record_exclusions.csv` | Games the league leaves out of the records, each with its reason |
 
-Each file's header comment explains its columns. Franchises are always named by their
-**franchise name**, the last team name they played under.
+Each file's header comment explains its columns. Franchises are named by their
+**franchise name**, the latest team name they played under, as the site shows it. The name a
+franchise is filed under (its last NFL.com team name) works too, so a rename on Sleeper never
+breaks an existing row.
 
 1. Edit the file on GitHub (the pencil icon) and choose **Create a new branch and start a pull
    request**. Editing in a clone works too.

@@ -21,6 +21,8 @@ import {
   gapWeeks,
   seasonWeeks,
   seasonDocuments,
+  recordExclusions,
+  exclusionNote,
   type Season,
   type Game,
 } from '../../lib/db';
@@ -50,6 +52,7 @@ const standings = seasonStandings(year);
 const games = seasonGames(year);
 const winners = bracketWinners(year);
 const highs = highsAndLows(year);
+const leftOut = recordExclusions().filter((x) => x.season === year);
 const regularGaps = gapWeeks(year, 'regular');
 const weeks = seasonWeeks(year);
 const docs = seasonDocuments(year);
@@ -380,6 +383,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
             </tbody>
           </table>
           {regularGaps.length > 0 && <Notes notes={[{ glyph: '*', text: `Only games with a score count: ${noScores}.` }]} />}
+          {leftOut.length > 0 && <Notes notes={leftOut.map((x) => ({ text: exclusionNote(x) }))} />}
         </>
       )
     }

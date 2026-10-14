@@ -78,7 +78,7 @@ test('bracket games whose score is lost carry ‡, with a note', () => {
 test('the champion and the Shit Bowl winner are named, with the Shit Bowl source', () => {
   const html = section(page(2016), 'Brackets');
   assert.match(html, /Champion[\s\S]*?href="\/franchises\/\d+\/"/);
-  assert.match(html, /Shit Bowl winner[\s\S]*?Kurlewless/);
+  assert.match(html, /Shit Bowl winner[\s\S]*?Kurlewis/);
   assert.match(section(page(2019), 'Brackets'), /Shit Bowl winner[\s\S]*?recalled/);
 });
 
@@ -167,4 +167,11 @@ test('each season with a draft links its board and lists keepers or says they ar
       assert.ok(html.includes(`p=${k.id}"`), `${season} keeper ${k.id}`);
   }
   for (const year of NFL_SEASONS) assert.match(section(page(year), 'Draft'), /drafts from 2025/, String(year));
+});
+
+// Games left out of the records (data/record_exclusions.csv) are left out of the season's highs and lows.
+test("a season's highs and lows say which game is left out of the records, and why", () => {
+  for (const x of db.prepare('select g.season, e.reason from record_exclusions e join games g on g.id = e.game_id').all()) {
+    assert.ok(section(page(x.season), 'Highs and lows').includes(x.reason), String(x.season));
+  }
 });

@@ -32,6 +32,17 @@ def test_career_rates_count_a_tie_as_half_a_win(data, tmp_path):
                                  pytest.approx(4.5 / 9))
 
 
+def test_career_figures_leave_out_the_season_in_progress():
+    # Season line: franchise, season, source, W, L, T, PF, PA, division, seed,
+    # bracket, placing, Breakdown W, L, T, luck.
+    lines = [(1, 2025, "sleeper", 9, 5, 0, 1400.0, 1300.0, "A", 2, None, 3, 120, 70, 6, None),
+             (1, 2026, "sleeper", 3, 3, 0, 700.0, 650.0, "B", None, None, None, 50, 40, 0, None)]
+    [row] = profiles.career_rows([(1, "Ant", 1, 2025, 2026)], {1: {2025, 2026}}, lines, [], 2026, {2025})
+    # Both seasons played and the current division, but only 2025's figures.
+    assert row[:8] == (1, 2, "B", 9, 5, 0, 1400.0, 1300.0)
+    assert row[11:15] == (120, 70, 6, 1)
+
+
 def test_head_to_head_sums_every_game_two_franchises_played_lower_id_first(data, tmp_path):
     db = built(data, tmp_path)
     assert query(db, "select lo_franchise_id, hi_franchise_id, games, lo_wins, hi_wins, ties, "

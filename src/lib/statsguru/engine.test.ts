@@ -203,9 +203,12 @@ describe('the by-position view (2025 on)', () => {
     expect(at(rows, 'WR')).toMatchObject({ st: 28, spts: 302.2, bpts: 40.2 });
   });
 
-  test("an NFL player is counted at Sleeper's position for them, whatever slot they started in", () => {
+  test('a starter counts at the slot they started in; a FLEX start at their position, if FLEX can hold it', () => {
     const rows = positions({ franchises: [ALIGATORS] });
-    expect(at(rows, 'DB')).toMatchObject({ st: 5, spts: 24, bpts: 25.8, best: 7.9 });
+    // Hunter (DB) started 3 times at WR, counted there, and twice at FLEX,
+    // which can't hold a DB, so those count at FLEX. His bench points stay at DB.
+    expect(at(rows, 'DB')).toMatchObject({ st: 0, spts: 0, bpts: 25.8, best: null });
+    expect(at(rows, 'FLEX')).toMatchObject({ st: 2, spts: 11.4, bpts: null, best: 7.9 });
   });
 
   test('the league rank is against every franchise at that position, by points per game', () => {

@@ -64,7 +64,7 @@ def bracket_figures(con, name, fid, s):
 def crown_figures(con, meta):
     """Each season's champion, runner-up and Shit Bowl winner, as
     "<season>|<field>" figures (a disputed Shit Bowl has no winner)."""
-    names = dict(con.execute("select id, name from franchises"))
+    names = dict(con.execute("select id, filed_name from franchises"))
     found = []
     for f in meta.get("finals", []):
         season = int(f["year"])
@@ -110,7 +110,7 @@ def compare(db_path, golden_path, allow_path):
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         ours = {name: (fid, bool(active)) for fid, name, active
-                in con.execute("select id, name, active from franchises")}
+                in con.execute("select id, filed_name, active from franchises")}
         found = []
         for name in sorted(set(golden) | set(ours)):
             found.append((f"{name}|exists", name in ours, name in golden))

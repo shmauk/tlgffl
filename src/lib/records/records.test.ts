@@ -16,6 +16,13 @@ const view = (slug: string, era = 'all', phase?: string) =>
   recordView(db, recordDef(slug)!, era as any, (phase ?? recordDef(slug)!.phases[0]) as any);
 const values = (slug: string, era?: string, phase?: string) => view(slug, era, phase).entries.map((e) => e.value);
 const current = one('select season as y from current_season').y;
+// The games the league leaves out of the records: the SQL below leaves them out too.
+const KEPT = 'id not in (select game_id from record_exclusions)';
+const left = sqlite
+  .prepare('select g.season, g.week, g.home_franchise_id as h, g.away_franchise_id as a from record_exclusions e join games g on g.id = e.game_id')
+  .all() as any[];
+const leftOut = (r: { season?: number | null; week?: number; franchise: { id: number } }) =>
+  left.some((x) => x.season === r.season && x.week === r.week && [x.h, x.a].includes(r.franchise.id));
 
 describe('the catalogue', () => {
   test('has the eight categories, all built', () => {
@@ -64,13 +71,13 @@ describe('scoring', () => {
 
   test('biggest and narrowest margins', () => {
     const m = one(`select max(abs(home_points - away_points)) as hi, min(abs(home_points - away_points)) as lo
-                   from games where home_points is not null and home_points <> away_points`);
+                   from games where home_points is not null and home_points <> away_points and ${KEPT}`);
     expect(values('biggest-margin')[0]).toBeCloseTo(m.hi, 2);
     expect(values('narrowest-margin')[0]).toBeCloseTo(m.lo, 2);
   });
 
   test('combined scores, and the Playoffs leave out games whose score is lost', () => {
-    const m = one(`select max(home_points + away_points) as hi, min(home_points + away_points) as lo from games`);
+    const m = one(`select max(home_points + away_points) as hi, min(home_points + away_points) as lo from games where ${KEPT}`);
     expect(values('highest-combined-score')[0]).toBeCloseTo(m.hi, 2);
     expect(values('lowest-combined-score')[0]).toBeCloseTo(m.lo, 2);
     const playoffs = view('highest-combined-score', 'all', 'playoffs');
@@ -107,6 +114,20 @@ describe('scoring', () => {
   test('era filters keep to their seasons', () => {
     for (const e of view('highest-score', 'nfl-com').entries) expect(e.at!.season).toBeLessThanOrEqual(2024);
     for (const e of view('highest-score', 'sleeper').entries) expect(e.at!.season).toBeGreaterThanOrEqual(2025);
+  });
+  test('a game left out of the records is in no game-based record, and each says why', () => {
+    const x = one(`select g.season, g.week, g.home_franchise_id as h, g.away_franchise_id as a, e.reason
+                   from record_exclusions e join games g on g.id = e.game_id`);
+    for (const slug of ['lowest-score', 'biggest-margin', 'lowest-combined-score']) {
+      const v = view(slug);
+      expect(
+        v.entries.some((e) => e.at?.season === x.season && e.at?.week === x.week && [x.h, x.a].includes(e.franchise.id)),
+        slug,
+      ).toBe(false);
+      expect(v.notes.some((n) => n.text.includes(x.reason)), slug).toBe(true);
+    }
+    // Outside its era the note doesn't apply.
+    expect(view('lowest-score', 'sleeper').notes.some((n) => n.text.includes(x.reason))).toBe(false);
   });
 });
 
@@ -159,6 +180,8 @@ describe('Statsguru gives the same figures', () => {
         const figures = rows
           .filter((r) => r.kind === 'game' || r.kind === 'group')
           .filter((r) => v.entries.some((e) => e.franchise.id === r.franchise.id))
+          // Statsguru lists every game; the records leave some out, each with a note.
+          .filter((r) => r.kind !== 'game' || !leftOut(r as any))
           .map((r) => def.figure(r as any))
           .filter((x) => x !== null);
         expect(v.entries.map((e) => e.value)).toEqual(figures.slice(0, v.entries.length));

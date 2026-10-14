@@ -4,7 +4,8 @@
 #
 # Blank means nobody has recorded it; the site shows it as unknown rather than
 # a guess. Fill a row in only on the league's word, naming the franchise as
-# data/franchises.csv's franchise name (the last team name it played under).
+# its franchise name as the site shows it, or the name it is filed under (its
+# last NFL.com team name).
 # "A|B" means genuinely disputed: both are shown and neither counts.
 #
 # source:

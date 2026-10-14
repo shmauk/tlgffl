@@ -77,7 +77,15 @@ def test_a_shit_bowl_winner_must_be_a_franchise_name(archive):
               comments=["Who took the Shit Bowl."])
     assert validate(archive) == [
         "data/shitbowl.csv line 4: franchise 'Alpha One' is not a franchise name "
-        "(a franchise goes by the last team name it played under: Alpha Two, Bravo, Charlie, Delta)"]
+        "(a franchise goes by its name on the site or the last NFL.com team name it played under: "
+        "Alpha Sleeper, Alpha Two, Bravo, Charlie, Charlie Sleeper, Delta)"]
+
+
+def test_a_franchise_can_be_named_as_the_site_shows_it_or_as_it_is_filed(archive):
+    write_csv(archive / "shitbowl.csv", ["year", "franchise", "second_last", "source"],
+              [(2012, "Alpha Sleeper", "", "recalled"), (2013, "Alpha Two", "", "recalled")],
+              comments=["Who took the Shit Bowl."])
+    assert validate(archive) == []
 
 
 def test_bracket_winner_tables_check_their_source_and_season(archive):

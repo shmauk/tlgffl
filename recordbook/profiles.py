@@ -66,12 +66,14 @@ create table franchise_best_worst (
 TOP = 5
 
 
-def career_rows(franchises, played, season_lines, winners, current):
+def career_rows(franchises, played, season_lines, winners, current, done):
     """franchise_careers rows.
 
     franchises are (id, name, active, first, last) rows, played maps a
     franchise to the seasons it played, season_lines and winners are the
-    season_lines and bracket_winners rows, and current is the current season.
+    season_lines and bracket_winners rows, current is the current season and
+    done the seasons that are over. The figures leave out a season in
+    progress; its seasons played and current division don't.
     """
     lines = defaultdict(list)
     for row in season_lines:
@@ -88,11 +90,13 @@ def career_rows(franchises, played, season_lines, winners, current):
         division = None
         for (_f, season, _source, lw, ll, lt, lpf, lpa, ldiv, _seed, _bracket, _placing,
              bdw, bdl, bdt, _luck) in lines[fid]:
+            if season == current:
+                division = ldiv
+            if season not in done:
+                continue
             w, l, t, pf, pa = w + lw, l + ll, t + lt, pf + lpf, pa + lpa
             if bdw is not None:
                 bw, bl, bt, covered = bw + bdw, bl + bdl, bt + bdt, covered + 1
-            if season == current:
-                division = ldiv
         games = w + l + t
         rows.append((
             fid, len(played[fid]), division, w, l, t, round(pf, 2), round(pa, 2),

@@ -15,10 +15,17 @@ def query(db, sql, *args):
         con.close()
 
 
-def test_franchise_name_is_the_last_team_name_it_played_under(archive, tmp_path):
+def test_franchise_name_is_the_last_team_name_it_played_under_in_either_era(archive, tmp_path):
     db = tmp_path / "league.sqlite"
     build(archive, db)
     assert query(db, "select id, name from franchises order by id") == [
+        (1, "Alpha Sleeper"), (2, "Bravo"), (3, "Charlie Sleeper"), (4, "Delta")]
+
+
+def test_the_hand_kept_tables_file_a_franchise_under_its_last_nfl_com_name(archive, tmp_path):
+    db = tmp_path / "league.sqlite"
+    build(archive, db)
+    assert query(db, "select id, filed_name from franchises order by id") == [
         (1, "Alpha Two"), (2, "Bravo"), (3, "Charlie"), (4, "Delta")]
 
 
@@ -29,7 +36,7 @@ def test_placeholder_team_names_never_become_a_franchise_name(archive, tmp_path)
     ])
     db = tmp_path / "league.sqlite"
     build(archive, db)
-    assert query(db, "select id, name from franchises where id in (1, 3) order by id") == [
+    assert query(db, "select id, filed_name from franchises where id in (1, 3) order by id") == [
         (1, "Alpha Two"), (3, "Charlie")]
     # ...but they are still what the franchise played under that season.
     assert query(db, "select franchise_id, team_name from team_names where season = 2014 "
@@ -175,3 +182,11 @@ def test_league_documents_come_from_the_hand_kept_table(archive, tmp_path):
         ("constitution", None, "Constitution", "https://docs.google.com/document/d/c/edit"),
         ("agm", 2022, "AGM minutes 2022", "https://docs.google.com/document/d/m22/edit"),
     ]
+
+
+def test_a_hand_kept_table_can_name_a_franchise_as_the_site_shows_it_or_as_it_is_filed():
+    from recordbook.build import franchise_lookup
+    assert franchise_lookup({1: ("Kurlewless", "Kurlewis"), 2: ("Bravo", "Bravo")}) == {
+        "Kurlewless": 1, "Kurlewis": 1, "Bravo": 2}
+    with pytest.raises(BuildError, match="'Bravo' is franchise 1's name on the site and franchise 2's filed name"):
+        franchise_lookup({1: ("Alpha", "Bravo"), 2: ("Bravo", "Charlie")})

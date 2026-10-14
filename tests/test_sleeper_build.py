@@ -258,8 +258,14 @@ def test_without_snapshots_a_sleeper_team_name_is_the_one_recorded_in_the_aliase
     # 2025's names were never snapshotted; ff-data-project recorded them.
     db = built(sleeper, tmp_path)
     assert query(db, "select team_name from team_names where franchise_id = 11") == [("Sleeper 1",)]
-    # The franchise name stays the one the aliases give it.
-    assert query(db, "select name from franchises where id = 11") == [("Team 1",)]
+    # The franchise is named for it; the hand-kept tables still file it under the aliases' name.
+    assert query(db, "select name, filed_name from franchises where id = 11") == [("Sleeper 1", "Team 1")]
+
+
+def test_a_franchise_takes_its_latest_sleeper_team_name(sleeper, tmp_path):
+    write_team_names(sleeper, 2025, 1, {**{r: f"Week 1 {r}" for r in DIVISIONS}, 1: "Renamed"})
+    db = built(sleeper, tmp_path)
+    assert query(db, "select name, filed_name from franchises where id = 11") == [("Renamed", "Team 1")]
 
 
 def test_a_lineup_holds_starters_by_slot_and_the_bench_with_each_nfl_players_points(sleeper, tmp_path):

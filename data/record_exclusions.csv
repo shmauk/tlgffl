@@ -1,0 +1,11 @@
+# Games left out of the records. Hand-kept: each row is the league's judgement
+# that a real result shouldn't stand as a record, such as a game tanked on
+# purpose. The game still counts for the standings and the season's totals,
+# but not for the single-game and combined-score records, a franchise's best
+# and worst games, or the season's highs and lows. Each place it is left out
+# says so, with the reason.
+#
+# franchise is the franchise the exclusion is about (a franchise name, as in
+# shitbowl.csv); the build checks it played a game with a score that week.
+season,week,franchise,reason
+2022,1,Bearnaise Dynamics,It was tanked on purpose for a better waiver position.

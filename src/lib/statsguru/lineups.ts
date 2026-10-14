@@ -124,6 +124,16 @@ function inScope(q: Query, scope: Scope, e: Entry) {
   );
 }
 
+// The NFL player positions a FLEX slot can hold.
+const FLEX_HOLDS = ['RB', 'WR', 'TE'];
+
+/** Where a starter counts by position: the slot they started in, so a two-way
+ * NFL player counts as what they played; a FLEX start at their position, or
+ * at FLEX if theirs isn't one it holds (Sleeper keeps only one position), and
+ * a start in a slot the league doesn't name at their position. */
+const positionStarted = (slot: string | null, position: string | null) =>
+  slot === null ? position : slot !== 'FLEX' ? slot : FLEX_HOLDS.includes(position ?? '') ? position : 'FLEX';
+
 /** The by-position view: each franchise's starter points per position or lineup slot. */
 export function positionRows(db: Db, q: Query, scope: Scope): PositionRow[] {
   const rows = entries(db).filter(
@@ -143,7 +153,7 @@ export function positionRows(db: Db, q: Query, scope: Scope): PositionRow[] {
     if (!e.player) continue;
     const pts = e.points ?? 0;
     if (e.starter) {
-      const a = at(e.f, q.grouping === 'slot' ? e.slot : e.player.position);
+      const a = at(e.f, q.grouping === 'slot' ? e.slot : positionStarted(e.slot, e.player.position));
       a.st++;
       a.spts += pts;
       if (e.points != null) a.best = Math.max(a.best ?? -Infinity, e.points);

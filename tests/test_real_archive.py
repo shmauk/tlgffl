@@ -56,7 +56,7 @@ def test_redacted_and_pending_names_stay_team_names_only(db):
                       ).fetchone() == (0,)
     assert db.execute("select f.name from team_names t join franchises f on f.id = t.franchise_id "
                       "where t.season = 2019 and t.team_name = '[name redacted]'").fetchall() == [
-        ("Bearnaise Dynamics",)]
+        ("Burnaise Dynamics",)]
 
 
 def test_every_season_has_a_format(db):
@@ -108,13 +108,13 @@ def test_playoffs_games_follow_the_bracket_and_drop_placement_pairings(db):
                         "where bracket = 'playoffs' group by season").fetchall()
     assert counts == [*[(y, 3, 3) for y in (2012, 2013, 2014)], *[(y, 5, 5) for y in range(2015, 2021)],
                       (2021, 5, 4), *[(y, 5, 0) for y in (2022, 2023, 2024)], (2025, 5, 5)]
-    # 2022's final: SERPION beat Kurlewless, score lost.
+    # 2022's final: SERPION beat Kurlewis (Kurlewless then), score lost.
     assert db.execute(
         "select f.name, a.name, w.name, g.home_points from games g "
         "join franchises f on f.id = g.home_franchise_id join franchises a on a.id = g.away_franchise_id "
         "join franchises w on w.id = g.winner_franchise_id "
         "where g.season = 2022 and g.bracket = 'playoffs' and g.round = 3").fetchall() == [
-        ("SERPION", "Kurlewless", "SERPION", None)]
+        ("SERPION", "Kurlewis", "SERPION", None)]
     # 2015: seed 6 beat seed 1 in the semis and met seed 2 in the final; the
     # 1 v 4 third-place pairing that week is filler.
     final = db.execute(
@@ -134,7 +134,7 @@ def test_2025s_roster_totals_agree_with_the_games_but_for_one_explained_gap(db):
     assert [(r["roster_id"], r["week"], float(r["points"])) for r in entries] == [("11", "9", 6.0)]
     assert db.execute("select l.wins, l.losses, l.points_for from season_lines l "
                       "join franchises f on f.id = l.franchise_id "
-                      "where l.season = 2025 and f.name = 'The Beer Barons'").fetchall() == [(9, 5, 1385.04)]
+                      "where l.season = 2025 and f.name = 'Beer Barons'").fetchall() == [(9, 5, 1385.04)]
 
 
 def test_2025s_lineups_add_up_to_each_games_score(db):
@@ -176,7 +176,7 @@ def test_2025s_games_follow_the_hand_kept_bracket_assignment(db):
                       "join franchises f on f.id = w.franchise_id where w.season = 2025 "
                       "order by w.bracket").fetchall() == [
         ("mediocre_bowl", "Standard Deviations", "derived"), ("playoffs", "Seamen", "derived"),
-        ("shit_bowl", "Yorkshire Puddings", "derived")]
+        ("shit_bowl", "The Yorkshire Puddings", "derived")]
 
 
 def test_every_nfl_com_season_crowns_a_champion_and_a_shit_bowl_winner(db):
@@ -187,7 +187,7 @@ def test_every_nfl_com_season_crowns_a_champion_and_a_shit_bowl_winner(db):
                           (bracket,)).fetchall()
     champions = crowned("playoffs")
     assert [s for s, *_ in champions] == list(range(2012, 2025))
-    assert champions[-1] == (2024, "Kurlewless", "derived")
+    assert champions[-1] == (2024, "Kurlewis", "derived")
     shit_bowl = dict((s, (n, src)) for s, n, src in crowned("shit_bowl"))
     assert shit_bowl[2012] == ("Mikkels Manatees", "confirmed")
     assert shit_bowl[2021] == ("London Tanqs|The Dirty Birds", "disputed")

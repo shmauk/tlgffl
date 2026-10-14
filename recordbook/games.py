@@ -134,9 +134,10 @@ def breakdown(games, seasons):
     return {k: tuple(v) for k, v in out.items()}
 
 
-def highs_and_lows(games):
+def highs_and_lows(games, excluded=frozenset()):
     """Each season's highest and lowest score, biggest margin and narrowest
-    margin (wins only, so ties are left out), over its games with a score.
+    margin (wins only, so ties are left out), over its games with a score
+    whose index isn't in excluded (left out of the records).
 
     games is indexed as stored; returns (season, measure, game index,
     franchise, value) rows, every game level on the measure included. The
@@ -144,7 +145,7 @@ def highs_and_lows(games):
     """
     candidates = defaultdict(list)   # (season, measure) -> [(value, index, franchise)]
     for i, g in enumerate(games):
-        if g.home_points is None:
+        if g.home_points is None or i in excluded:
             continue
         for fid, pts in ((g.home, g.home_points), (g.away, g.away_points)):
             candidates[(g.season, "highest_score")].append((-pts, i, fid))

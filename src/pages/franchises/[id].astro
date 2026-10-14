@@ -15,7 +15,7 @@ import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
-import { franchises, teamNames, seasonLines, seasons, type Franchise } from '../../lib/db';
+import { franchises, teamNames, seasonLines, seasons, recordExclusions, exclusionNote, type Franchise } from '../../lib/db';
 import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from '../../lib/brackets';
 import { draftSeasons, franchisePicks, mostStarted } from '../../lib/drafts';
 import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
@@ -41,6 +41,9 @@ const won = crowns(id);
 const gaps = gapSeasons();
 const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
 const best = bestAndWorst(id);
+const leftOut = recordExclusions().filter((x) => x.franchise.id === id || x.opponent.id === id);
+// Career figures are over finished seasons (recordbook/profiles.py).
+const unfinished = lines.map((l) => l.season).filter((s) => seasons().some((x) => x.year === s && !x.finished));
 // Section 10, the Sleeper era (#37): most-started NFL players, the draft and keepers.
 const sleeperSeasons = seasons()
   .filter((s) => s.era === 'sleeper' && s.year >= franchise.firstSeason && s.year <= franchise.lastSeason)
@@ -156,6 +159,9 @@ const unscored = opponents.some((o) => o.scored < o.games);
     />
     <Notes
       notes={[
+        ...(unfinished.length
+          ? [{ text: `Over finished seasons: ${unfinished.join(', ')} is still being played.` }]
+          : []),
         { text: 'Win % counts a tie as half a win.' },
         {
           text:
@@ -359,6 +365,7 @@ const unscored = opponents.some((o) => o.scored < o.games);
       )
     }
     {myGaps.length > 0 && <Notes notes={[{ glyph: '*', text: `Only games with a score count: ${seasonsList(myGaps)} ${myGaps.length === 1 ? 'has' : 'have'} weeks with no game scores.` }]} />}
+    {leftOut.length > 0 && <Notes notes={leftOut.map((x) => ({ text: exclusionNote(x) }))} />}
   </Row>
 
   <Row label="Sleeper era" sub="Lineups and drafts, 2025 on">
