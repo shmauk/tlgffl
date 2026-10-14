@@ -1,7 +1,7 @@
 // Franchise profiles and head-to-head pages (#27): reads of the tables
 // recordbook/profiles.py writes. Like db.ts, nothing here derives a figure.
 import type { BracketKey } from './brackets';
-import { type Game, type SeasonFranchise } from './db';
+import { GAME_COLUMNS, seasonFranchise, toGame, type Game } from './db';
 import { open } from './database';
 
 export interface Career {
@@ -28,48 +28,33 @@ export function career(franchiseId: number): Career {
        from franchise_careers where franchise_id = ?`, [franchiseId])[0] as unknown as Career;
 }
 
-const GAMES = `select g.id, g.season, g.week, g.phase, g.bracket, g.round, g.home_points as homePoints,
-    g.away_points as awayPoints, g.winner_franchise_id as winnerId,
-    h.id as homeId, h.name as homeName, coalesce(ht.team_name, h.name) as homeTeam,
-    a.id as awayId, a.name as awayName, coalesce(at.team_name, a.name) as awayTeam
-  from games g
-  join franchises h on h.id = g.home_franchise_id
-  left join team_names ht on ht.franchise_id = h.id and ht.season = g.season
-  join franchises a on a.id = g.away_franchise_id
-  left join team_names at on at.franchise_id = a.id and at.season = g.season`;
-
 export interface DatedGame extends Game {
   season: number;
 }
 
-const side = (r: any, p: string): SeasonFranchise => ({ id: r[`${p}Id`], name: r[`${p}Name`], teamName: r[`${p}Team`] });
-const toGame = (r: any): DatedGame => ({
-  id: r.id,
-  season: r.season,
-  week: r.week,
-  phase: r.phase,
-  bracket: r.bracket,
-  round: r.round,
-  home: side(r, 'home'),
-  homePoints: r.homePoints,
-  away: side(r, 'away'),
-  awayPoints: r.awayPoints,
-  winnerId: r.winnerId,
-});
-
 /** A franchise's games, oldest first. */
 export function franchiseGames(franchiseId: number): DatedGame[] {
-  return open()
-    .all(`${GAMES} where ? in (g.home_franchise_id, g.away_franchise_id) order by g.season, g.week`, [franchiseId])
-    .map(toGame);
+  const db = open();
+  return db
+    .all(
+      `select ${GAME_COLUMNS} from games g where ? in (g.home_franchise_id, g.away_franchise_id)
+       order by g.season, g.week`,
+      [franchiseId],
+    )
+    .map(toGame(seasonFranchise(db)));
 }
 
 /** Every game two franchises played against each other, oldest first. */
 export function pairGames(lo: number, hi: number): DatedGame[] {
-  return open()
-    .all(`${GAMES} where (g.home_franchise_id = ? and g.away_franchise_id = ?)
-                   or (g.home_franchise_id = ? and g.away_franchise_id = ?) order by g.season, g.week`, [lo, hi, hi, lo])
-    .map(toGame);
+  const db = open();
+  return db
+    .all(
+      `select ${GAME_COLUMNS} from games g
+       where (g.home_franchise_id = ? and g.away_franchise_id = ?)
+          or (g.home_franchise_id = ? and g.away_franchise_id = ?) order by g.season, g.week`,
+      [lo, hi, hi, lo],
+    )
+    .map(toGame(seasonFranchise(db)));
 }
 
 /** Rounds in each season's bracket, keyed `${season}-${bracket}`. */

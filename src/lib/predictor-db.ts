@@ -2,7 +2,7 @@
 // time and shipped to the browser as JSON: the seeding module's input with
 // each remaining game's week, the franchise names and the real clinch marks.
 import { current } from './current';
-import { seasonFormats, seasons } from './db';
+import { seasonFormats, seasonFranchise, seasons } from './db';
 import { open } from './database';
 import type { PredictorData } from './predictor';
 import { seasonPicture, seedingInput } from './seeding-db';
@@ -26,15 +26,14 @@ export function predictorData(season: number): PredictorData {
   const remaining = db
     .all(`select week, home_franchise_id as home, away_franchise_id as away
        from upcoming_games where season = ? order by week, rowid`, [season]) as PredictorData['input']['remaining'];
+  const franchise = seasonFranchise(db);
   const franchises = db
-    .all(`select f.id, f.name, t.team_name as teamName
-       from season_lines l join franchises f on f.id = l.franchise_id
-       left join team_names t on t.franchise_id = l.franchise_id and t.season = l.season
-       where l.season = ? order by f.id`, [season]) as PredictorData['franchises'];
+    .all('select franchise_id as id from season_lines where season = ? order by franchise_id', [season])
+    .map((r) => franchise(season, r.id));
   return {
     season,
     weeks: [format.regularSeason[0], format.regularSeason[1]],
-    franchises: franchises.map((f) => ({ ...f, teamName: f.teamName ?? f.name })),
+    franchises,
     input: { ...input, remaining },
     marks: seasonPicture(season)!.marks,
   };

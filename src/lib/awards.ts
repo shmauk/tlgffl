@@ -1,6 +1,6 @@
 // Awards (#33): reads of the tables recordbook/awards.py writes. Like db.ts,
 // nothing here derives a figure; it only groups and formats them.
-import { type SeasonFranchise } from './db';
+import { seasonFranchise, type SeasonFranchise } from './db';
 import { open } from './database';
 import { figure } from './figures';
 
@@ -37,15 +37,19 @@ export function awards(): Award[] {
 
 /** Every award's winners (rank 1, so co-winners too), by award, season and name. */
 export function awardWinners(where: { award?: string; season?: number; franchiseId?: number } = {}): AwardResult[] {
-  return open()
-    .all(`select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
+  const db = open();
+  const franchise = seasonFranchise(db);
+  return db
+    .all(
+      `select r.award, r.season, r.value, r.rank, r.franchise_id as fid
        from award_results r join franchises f on f.id = r.franchise_id
-       left join team_names t on t.franchise_id = f.id and t.season = r.season
        join awards a on a.slug = r.award
        where r.rank = 1 and (?1 is null or r.award = ?1) and (?2 is null or r.season = ?2)
          and (?3 is null or r.franchise_id = ?3)
-       order by a.position, r.season, f.name`, [where.award ?? null, where.season ?? null, where.franchiseId ?? null])
-    .map(({ id, name, teamName, ...r }: any) => ({ ...r, franchise: { id, name, teamName } }));
+       order by a.position, r.season, f.name`,
+      [where.award ?? null, where.season ?? null, where.franchiseId ?? null],
+    )
+    .map(({ fid, ...r }: any) => ({ ...r, franchise: franchise(r.season, fid) }));
 }
 
 /** Seasons an award is due for but can't be decided from the data yet. */
@@ -77,12 +81,16 @@ export function seasonRuns(seasons: number[]): string {
 
 /** A regular season still being played: each award's leaders so far (rank 1, so level leaders too). */
 export function awardLeaders(season: number): AwardResult[] {
-  return open()
-    .all(`select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
+  const db = open();
+  const franchise = seasonFranchise(db);
+  return db
+    .all(
+      `select r.award, r.season, r.value, r.rank, r.franchise_id as fid
        from award_leaders r join franchises f on f.id = r.franchise_id
-       left join team_names t on t.franchise_id = f.id and t.season = r.season
        join awards a on a.slug = r.award
        where r.rank = 1 and r.season = ?
-       order by a.position, f.name`, [season])
-    .map(({ id, name, teamName, ...r }: any) => ({ ...r, franchise: { id, name, teamName } }));
+       order by a.position, f.name`,
+      [season],
+    )
+    .map(({ fid, ...r }: any) => ({ ...r, franchise: franchise(r.season, fid) }));
 }

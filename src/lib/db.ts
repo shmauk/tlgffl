@@ -1,7 +1,7 @@
 // The site's only way into the league database. Pages read it at build time
 // and never derive figures of their own (ADR 0004).
 import type { BracketKey } from './brackets';
-import { open } from './database';
+import { open, type Db } from './database';
 
 export interface Franchise {
   id: number;
@@ -132,6 +132,27 @@ export interface SeasonFranchise {
   teamName: string;
 }
 
+/**
+ * Every franchise as each season shows it. The build gives a franchise a team
+ * name for every season it plays (ADR 0004); one without goes by its
+ * franchise name, so nothing it played is ever dropped.
+ */
+export function seasonFranchise(db: Db): (season: number, franchiseId: number) => SeasonFranchise {
+  const names = new Map<number, string>();
+  const teamNames = new Map<string, string>();
+  for (const r of db.all(
+    `select f.id, f.name, t.season, t.team_name as teamName
+     from franchises f left join team_names t on t.franchise_id = f.id`,
+  )) {
+    names.set(r.id, r.name);
+    if (r.season != null) teamNames.set(`${r.season}-${r.id}`, r.teamName);
+  }
+  return (season, id) => {
+    const name = names.get(id)!;
+    return { id, name, teamName: teamNames.get(`${season}-${id}`) ?? name };
+  };
+}
+
 export interface Standing extends SeasonLine {
   franchise: SeasonFranchise;
   /** NFL.com's bracket type ('championship' is the Playoffs), or on Sleeper the bracket played in. */
@@ -144,14 +165,18 @@ export interface Standing extends SeasonLine {
 
 /** A season's lines, by division and then final placing. */
 export function seasonStandings(season: number): Standing[] {
-  return open()
-    .all(`select ${LINE_COLUMNS}, l.bracket, l.breakdown_wins as breakdownWins,
+  const db = open();
+  const franchise = seasonFranchise(db);
+  return db
+    .all(
+      `select ${LINE_COLUMNS}, l.bracket, l.breakdown_wins as breakdownWins,
               l.breakdown_losses as breakdownLosses, l.breakdown_ties as breakdownTies, l.luck,
-              f.id as fid, f.name, t.team_name as teamName
+              l.franchise_id as fid
        from season_lines l join franchises f on f.id = l.franchise_id
-       join team_names t on t.franchise_id = l.franchise_id and t.season = l.season
-       where l.season = ? order by l.division, l.final_placing, f.name`, [season])
-    .map(({ fid, name, teamName, ...l }: any) => ({ ...l, franchise: { id: fid, name, teamName } }));
+       where l.season = ? order by l.division, l.final_placing, f.name`,
+      [season],
+    )
+    .map(({ fid, ...l }: any) => ({ ...l, franchise: franchise(season, fid) }));
 }
 
 export interface Game {
@@ -168,33 +193,35 @@ export interface Game {
   winnerId: number | null;
 }
 
-const side = (r: any, p: string): SeasonFranchise => ({ id: r[`${p}Id`], name: r[`${p}Name`], teamName: r[`${p}Team`] });
+/** The columns a Game is read from, for the games table as g. */
+export const GAME_COLUMNS = `g.id, g.season, g.week, g.phase, g.bracket, g.round, g.home_points as homePoints,
+  g.away_points as awayPoints, g.winner_franchise_id as winnerId,
+  g.home_franchise_id as homeId, g.away_franchise_id as awayId`;
+
+/** A Game from a row of GAME_COLUMNS, each side as its season shows it. */
+export const toGame =
+  (franchise: ReturnType<typeof seasonFranchise>) =>
+  (r: any): Game & { season: number } => ({
+    id: r.id,
+    season: r.season,
+    week: r.week,
+    phase: r.phase,
+    bracket: r.bracket,
+    round: r.round,
+    home: franchise(r.season, r.homeId),
+    homePoints: r.homePoints,
+    away: franchise(r.season, r.awayId),
+    awayPoints: r.awayPoints,
+    winnerId: r.winnerId,
+  });
 
 /** A season's games, by week. A bracket game whose score is lost has null points. */
 export function seasonGames(season: number): Game[] {
-  return open()
-    .all(`select g.id, g.week, g.phase, g.bracket, g.round, g.home_points as homePoints,
-              g.away_points as awayPoints, g.winner_franchise_id as winnerId,
-              h.id as homeId, h.name as homeName, ht.team_name as homeTeam,
-              a.id as awayId, a.name as awayName, at.team_name as awayTeam
-       from games g
-       join franchises h on h.id = g.home_franchise_id
-       join team_names ht on ht.franchise_id = h.id and ht.season = g.season
-       join franchises a on a.id = g.away_franchise_id
-       join team_names at on at.franchise_id = a.id and at.season = g.season
-       where g.season = ? order by g.week, g.phase, g.round, g.id`, [season])
-    .map((r: any) => ({
-      id: r.id,
-      week: r.week,
-      phase: r.phase,
-      bracket: r.bracket,
-      round: r.round,
-      home: side(r, 'home'),
-      homePoints: r.homePoints,
-      away: side(r, 'away'),
-      awayPoints: r.awayPoints,
-      winnerId: r.winnerId,
-    }));
+  const db = open();
+  return db
+    .all(`select ${GAME_COLUMNS} from games g where g.season = ? order by g.week, g.phase, g.round, g.id`, [season])
+    .map(toGame(seasonFranchise(db)))
+    .map(({ season: _, ...g }) => g);
 }
 
 export interface BracketWinner {
@@ -206,15 +233,19 @@ export interface BracketWinner {
 
 /** Who each of the season's brackets crowned; a disputed one lists every candidate. */
 export function bracketWinners(season: number): BracketWinner[] {
-  return open()
-    .all(`select w.bracket, w.source, f.id, f.name, t.team_name as teamName
+  const db = open();
+  const franchise = seasonFranchise(db);
+  return db
+    .all(
+      `select w.bracket, w.source, w.franchise_id as fid
        from bracket_winners w left join franchises f on f.id = w.franchise_id
-       left join team_names t on t.franchise_id = f.id and t.season = w.season
-       where w.season = ? order by w.bracket, f.name`, [season])
+       where w.season = ? order by w.bracket, f.name`,
+      [season],
+    )
     .map((r: any) => ({
       bracket: r.bracket,
       source: r.source,
-      franchise: r.id == null ? null : { id: r.id, name: r.name, teamName: r.teamName },
+      franchise: r.fid == null ? null : franchise(season, r.fid),
     }));
 }
 
@@ -267,12 +298,7 @@ export function rollOfHonour(): Honours[] {
        from games g
        where g.bracket = 'playoffs' and g.winner_franchise_id is not null
          and g.round = (select max(round) from games m where m.season = g.season and m.bracket = 'playoffs')`) as unknown as { season: number; winnerId: number; loserId: number }[];
-  const named = (season: number, id: number) =>
-    open().all(
-      `select f.id, f.name, t.team_name as teamName from franchises f
-       join team_names t on t.franchise_id = f.id and t.season = ? where f.id = ?`,
-      [season, id],
-    )[0] as unknown as SeasonFranchise;
+  const named = seasonFranchise(open());
   const franchise = (season: number, id: number | undefined) => (id === undefined ? null : named(season, id));
   const formats = new Map(seasonFormats().map((f) => [f.season, f]));
   return seasons().flatMap((season) => {
