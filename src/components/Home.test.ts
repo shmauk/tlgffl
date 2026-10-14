@@ -37,6 +37,7 @@ const base: HomeData = {
   records: [],
   honours: null,
   next: null,
+  predictor: null,
 };
 
 const regular: HomeData = {
@@ -60,6 +61,7 @@ const regular: HomeData = {
     { award: { slug: 'highest-failed-bid', name: 'Highest failed bid' }, franchises: [fr(5), fr(6)], value: '$45' },
   ],
   records: [{ record: { slug: 'highest-score', name: 'Highest score' }, rank: 2, franchises: [fr(1)], figure: '190.12' }],
+  predictor: '/seasons/2026/predictor/',
 };
 
 const brackets: HomeData = {

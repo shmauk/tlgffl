@@ -13,7 +13,7 @@ import Notes from './Notes.astro';
 import SeasonLink from './SeasonLink.astro';
 import StatsguruLink from './StatsguruLink.astro';
 import BracketColumns from './BracketColumns.astro';
-import { BRACKET_NAMES, BRACKET_ORDER, predictorUrl, type HomeData, type Matchup } from '../lib/home';
+import { BRACKET_NAMES, BRACKET_ORDER, type HomeData, type Matchup } from '../lib/home';
 import { recordUrl, seasonUrl } from '../lib/urls';
 import type { Mark } from '../lib/seeding';
 
@@ -194,6 +194,6 @@ const CROWNS = [
 
 <Row label="More">
   <p><a class="more" href={seasonUrl(season)}>The {season} season →</a></p>
-  {phase === 'regular' && <p><a class="more" href={predictorUrl(season)}>The playoff predictor →</a></p>}
+  {data.predictor && <p><a class="more" href={data.predictor}>The playoff predictor →</a></p>}
   <p><StatsguruLink query={{ seasons: [season], view: 'season' }} label={`${season} in Statsguru →`} /></p>
 </Row>

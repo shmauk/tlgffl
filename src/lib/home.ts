@@ -88,6 +88,8 @@ export interface HomeData {
   honours: Record<BracketKey, SeasonFranchise | null> | null;
   /** In the off-season, once Sleeper has next season. draft is "1 September 2026" or null. */
   next: { season: number; draft: string | null } | null;
+  /** The playoff predictor's URL (#36), while it exists for this season. */
+  predictor: string | null;
 }
 
 export const BRACKET_NAMES: Record<BracketKey, string> = {
@@ -96,6 +98,3 @@ export const BRACKET_NAMES: Record<BracketKey, string> = {
   mediocre_bowl: 'Mediocre Bowl',
 };
 export const BRACKET_ORDER: BracketKey[] = ['playoffs', 'mediocre_bowl', 'shit_bowl'];
-
-/** The current season's page, predictor (#36) and Statsguru query. */
-export const predictorUrl = (season: number) => `/seasons/${season}/predictor/`;
