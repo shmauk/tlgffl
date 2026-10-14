@@ -168,3 +168,21 @@ test('profile section 10 renders for every franchise active in the Sleeper era',
     if (unrecorded.length) assert.match(html, new RegExp(`Keepers not yet recorded for ${unrecorded.join(', ')}`));
   }
 });
+
+test('each Records held entry says which era and games it is over, so it can’t pass for the career summary', () => {
+  const over = /<td>(All eras|NFL\.com era|Sleeper era), (all games|regular season|Playoffs)<\/td>/;
+  let seen = 0;
+  for (const f of franchises) {
+    const html = section(profile(f.id), 'Records held');
+    for (const row of html.match(/<tbody>[\s\S]*?<\/tbody>/)?.[0].match(/<tr[\s\S]*?<\/tr>/g) ?? []) {
+      seen++;
+      assert.match(row, over, `franchise ${f.id}`);
+    }
+  }
+  assert.ok(seen > 0);
+  // Career win % is over every game by default: the row says so, unlike the regular-season career summary.
+  const winPct = franchises
+    .map((f) => section(profile(f.id), 'Records held'))
+    .flatMap((h) => h.match(/<tr[^>]*>\s*<td><a href="\/records\/career-win-pct\/">[\s\S]*?<\/tr>/g) ?? []);
+  for (const row of winPct) assert.match(row, /<td>All eras, all games<\/td>/);
+});

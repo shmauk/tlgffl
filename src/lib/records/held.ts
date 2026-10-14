@@ -4,7 +4,7 @@
 // entries listed unranked (all ties) aren't top-10 entries.
 import { figure } from '../figures';
 import type { Db } from '../statsguru/engine';
-import { RECORDS, type RecordDef } from './catalogue';
+import { ERA_NAMES, RECORDS, type RecordDef } from './catalogue';
 import { recordView, type Entry, type RecordFranchise } from './records';
 
 /** Who holds an entry: a division's franchises, both of a shared pair, or its franchise. */
@@ -49,6 +49,15 @@ const inCatalogueOrder = (a: Held, b: Held) =>
 export function recordsHeld(db: Db, franchiseId: number): Held[] {
   return [...(everyHolding(db).get(franchiseId) ?? [])].sort(inCatalogueOrder);
 }
+
+const PHASE_WORDS = { all: 'all games', regular: 'regular season', playoffs: 'Playoffs' } as const;
+
+/**
+ * Which era and games a held entry is over: its record's own page's ("All
+ * eras, all games"). A career win % over every game isn't the career
+ * summary's regular-season one, so a profile says which it is.
+ */
+export const heldOver = (def: RecordDef) => `${ERA_NAMES[def.eras[0]]}, ${PHASE_WORDS[def.phases[0]]}`;
 
 /** An entry's figure as it reads on its own (src/lib/figures.ts). */
 export const figureText = (def: RecordDef, value: number) => figure(def.unit, value);
