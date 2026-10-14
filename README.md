@@ -17,7 +17,8 @@ npm ci
 .venv/bin/python -m recordbook.build               # data/ -> build/league.sqlite, from scratch
 .venv/bin/python -m recordbook.privacy             # fails on a forbidden field in data/, golden/ or the database
 .venv/bin/python -m recordbook.golden              # compares the database with golden/league_records.json
-npm run test:components                            # the shared components and helpers (Vitest)
+PYTHON=.venv/bin/python npm run test:components    # the shared components and helpers (Vitest), with scenario
+                                                   # databases the Python build makes (tests/scenarios.py)
 npm run build                                      # Astro renders dist/ from build/league.sqlite
 npm run test:site                                  # checks dist/ against the database
 ```
