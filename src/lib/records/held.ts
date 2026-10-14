@@ -49,3 +49,13 @@ export function recordsHeld(db: Db, franchiseId: number): Held[] {
 /** An entry's figure as its record shows it. */
 export const figureText = (def: RecordDef, value: number) =>
   def.unit === 'points' ? value.toFixed(2) : def.unit === 'pct' ? `${(value * 100).toFixed(1)}%` : String(value);
+
+/** Every top-10 entry set in the current season, in catalogue order (#35's home page). */
+export function recordsThisSeason(db: Db): Held[] {
+  const seen = new Set<Entry>();
+  const order = new Map(RECORDS.map((d, n) => [d.slug, n]));
+  return [...everyHolding(db).values()]
+    .flat()
+    .filter((h) => h.entry.thisSeason && !seen.has(h.entry) && seen.add(h.entry))
+    .sort((a, b) => order.get(a.def.slug)! - order.get(b.def.slug)! || a.rank - b.rank);
+}

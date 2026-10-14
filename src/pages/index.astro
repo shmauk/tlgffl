@@ -1,16 +1,25 @@
 ---
-// / is reserved for the current-season hub (#14); its contents are a later
-// ticket. Until then it points into the sections.
+// / is the current season's hub (#14, #16, #35): its phase (regular season,
+// brackets or off-season) is chosen from the data and the build date. No JS.
 import Base from '../layouts/Base.astro';
 import Row from '../components/Row.astro';
+import Home from '../components/Home.astro';
+import { homeData } from '../lib/home-db';
 import { MENU } from '../lib/urls';
+
+const data = homeData();
 ---
 
 <Base title="Home">
-  <Row label="The Fantasy League" sub="The record book, since 2012">
-    <h1>The record book</h1>
-    <p class="sub">The current season's hub is still to come.</p>
-  </Row>
+  {
+    data ? (
+      <Home data={data} />
+    ) : (
+      <Row label="The Fantasy League" sub="The record book, since 2012">
+        <h1>The record book</h1>
+      </Row>
+    )
+  }
   <Row label="Sections">
     {MENU.map(({ href, label }) => <p><a class="more" href={href}>{label} →</a></p>)}
   </Row>

@@ -176,7 +176,7 @@ const CROWNS = [
     ) : (
       data.records.map((r) => (
         <p>
-          <a href={recordUrl(r.record.slug)}>{r.record.name}</a>: {r.rank === 1 ? 'top' : `#${r.rank}`},{' '}
+          <a href={recordUrl(r.record.slug)}>{r.record.name}</a>: #{r.rank},{' '}
           {r.franchises.map((f, i) => (
             <>
               {i > 0 && ' and '}

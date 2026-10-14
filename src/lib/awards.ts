@@ -89,3 +89,18 @@ export function seasonRuns(seasons: number[]): string {
   }
   return runs.map(([a, b]) => (a === b ? String(a) : `${a}–${b}`)).join(', ');
 }
+
+/** A regular season still being played: each award's leaders so far (rank 1, so level leaders too). */
+export function awardLeaders(season: number): AwardResult[] {
+  return open()
+    .prepare(
+      `select r.award, r.season, r.value, r.rank, f.id, f.name, coalesce(t.team_name, f.name) as teamName
+       from award_leaders r join franchises f on f.id = r.franchise_id
+       left join team_names t on t.franchise_id = f.id and t.season = r.season
+       join awards a on a.slug = r.award
+       where r.rank = 1 and r.season = ?
+       order by a.position, f.name`,
+    )
+    .all(season)
+    .map(({ id, name, teamName, ...r }: any) => ({ ...r, franchise: { id, name, teamName } }));
+}
