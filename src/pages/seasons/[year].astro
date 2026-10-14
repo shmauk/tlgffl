@@ -485,7 +485,11 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
     }
   </Row>
 
-  <Row label="Documents">
-    {docs.map((d) => <p><a class="more" href={d.url}>{d.title} →</a></p>)}
-  </Row>
+  {
+    docs.length > 0 && (
+      <Row label="Documents">
+        {docs.map((d) => <p><a class="more" href={d.url}>{d.title} →</a></p>)}
+      </Row>
+    )
+  }
 </Base>

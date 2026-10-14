@@ -12,6 +12,9 @@ const decode = (s) => s.replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&').rep
 const page = (year) => decode(readFileSync(join(DIST, 'seasons', String(year), 'index.html'), 'utf8'));
 const NFL_SEASONS = db.prepare("select year from seasons where era = 'nfl.com' order by year").all().map((r) => r.year);
 const SECTIONS = ['Format', 'Standings', 'Brackets', 'Awards', 'Highs and lows', 'Breakdown', 'Weekly results', 'Draft', 'Documents'];
+// Documents only where the season has some (#23): no empty heading.
+const hasDocs = (year) => db.prepare('select count(*) as n from documents where season = ?').get(year).n > 0;
+const sectionsOf = (year) => (hasDocs(year) ? SECTIONS : SECTIONS.filter((s) => s !== 'Documents'));
 
 // The row a section's label heads, up to the next row.
 const section = (html, label) => {
@@ -29,8 +32,15 @@ test('every NFL.com season page has all eight sections, in order', () => {
   for (const year of NFL_SEASONS) {
     const html = page(year);
     const labels = [...html.matchAll(/<h2 class="lab"[^>]*>([^<]*)/g)].map((m) => m[1]);
-    assert.deepEqual(labels.slice(1), SECTIONS, String(year));
+    assert.deepEqual(labels.slice(1), sectionsOf(year), String(year));
   }
+});
+
+test('a season with no documents has no Documents heading', () => {
+  const years = db.prepare('select year from seasons').all().map((r) => r.year);
+  const bare = years.filter((y) => !hasDocs(y));
+  assert.ok(bare.length > 0);
+  for (const year of bare) assert.doesNotMatch(page(year), /<h2 class="lab"[^>]*>Documents/, String(year));
 });
 
 test('standings list every franchise by division, linked to its profile', () => {
@@ -114,7 +124,7 @@ test('documents link the season’s AGM doc', () => {
 test('the 2025 page has all eight sections and nothing still to come but awards and drafts', () => {
   const html = page(2025);
   const labels = [...html.matchAll(/<h2 class="lab"[^>]*>([^<]*)/g)].map((m) => m[1]);
-  assert.deepEqual(labels.slice(1), SECTIONS);
+  assert.deepEqual(labels.slice(1), sectionsOf(2025));
   assert.doesNotMatch(html, /Sleeper games are still to come/);
   assert.match(html, /Played on Sleeper/);
 });
