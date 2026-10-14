@@ -5,6 +5,8 @@ import { DEFAULT_QUERY, encodeQuery, type Query } from './statsguru/query';
 export const franchiseUrl = (id: number) => `/franchises/${id}/`;
 export const seasonUrl = (season: number, week?: number) =>
   `/seasons/${season}/${week === undefined ? '' : `#week-${week}`}`;
+/** The playoff predictor (#36): only the current season's, during its regular season (see predictorSeason()). */
+export const predictorUrl = (season: number) => `/seasons/${season}/predictor/`;
 /** A pair page always puts the lower franchise id first (#14). */
 export const headToHeadUrl = (a: number, b: number) => `/head-to-head/${Math.min(a, b)}-${Math.max(a, b)}/`;
 /** A record's own page, or one of its pre-rendered era and phase variants (#14). */

@@ -1,7 +1,7 @@
 // The playoff predictor (#36): picks of the remaining regular-season games,
 // scissors-paper-rock orders and the projection they give, all held in the URL.
 import { describe, expect, test } from 'vitest';
-import { decodeScenario, encodeScenario, project, type PredictorData, type Scenario } from './predictor';
+import { decodeScenario, encodeScenario, project, renderPredictor, type PredictorData, type Scenario } from './predictor';
 import { playoffPicture } from './seeding';
 
 // Two divisions of four (A: 1-4, B: 5-8), weeks 1-4, weeks 1-2 played. A
@@ -114,8 +114,52 @@ describe('the projection', () => {
     expect(ordered.scenario.spr).toEqual([[4, 6]]);
   });
 
+  test('a slot still open to scissors-paper-rock shows "A / B"', () => {
+    const data = fixture();
+    data.input.breakdown[6] = 0.5;
+    data.input.breakdown[4] = 0.5;
+    const html = renderPredictor(data, project(data, none), {}, 0);
+    expect(html).toContain('Team 4 / Team 6');
+  });
+
   test('an order for franchises no longer level is left out of the scenario', () => {
     const data = fixture();
     expect(project(data, decodeScenario('?spr=4.6', data).scenario).scenario.spr).toEqual([]);
+  });
+});
+
+describe('the page', () => {
+  const page = (search: string, marks: PredictorData['marks'] | null = {}) => {
+    const data = fixture();
+    const { scenario, dropped } = decodeScenario(search, data);
+    return renderPredictor(data, project(data, scenario), marks, dropped);
+  };
+  const links = (html: string) =>
+    [...html.matchAll(/<a class="pk" href="([^"]*)" aria-pressed="(true|false)">([^<]*)<\/a>/g)].map((m) => [m[3], m[1], m[2]]);
+
+  test('each remaining game offers both winners as links that set the URL, a picked one pressed', () => {
+    const html = page('?w3=3');
+    const shown = links(html);
+    expect(shown).toHaveLength(16);
+    // Picking 1 replaces the pick of 3; clicking 3 again unpicks it.
+    expect(shown[0]).toEqual(['Team 1', '/seasons/2030/predictor/?w3=1', 'false']);
+    expect(shown[1]).toEqual(['Team 3', '/seasons/2030/predictor/', 'true']);
+    expect(shown[2]).toEqual(['Team 2', '/seasons/2030/predictor/?w3=2,3', 'false']);
+  });
+
+  test('a link with picks for weeks played since says so in one line', () => {
+    expect(page('?w2=6,4&w3=1')).toMatch(/<p class="stale">2 picks were for weeks played since, and were dropped\.<\/p>/);
+    expect(page('?w3=1')).not.toMatch(/class="stale"/);
+  });
+
+  test('the standings show records with picks, seeds and marks', () => {
+    const html = page('?w3=3&w4=1,3', { 7: ['BYE'] });
+    const row = html.match(/<tr[^>]*><td><a class="fr" href="\/franchises\/3\/">[\s\S]*?<\/tr>/)![0];
+    expect(row).toContain('<td class="num">3-1-0</td><td class="num">2</td><td>Playoffs</td>');
+    expect(html).toMatch(/href="\/franchises\/7\/">Team 7<\/a> <span class="alias">\(Franchise 7\)<\/span><span class="bd now">BYE<\/span>/);
+  });
+
+  test('until the clinch marks are worked out, the page says so', () => {
+    expect(page('?w3=3', null)).toContain('Working out clinches');
   });
 });
