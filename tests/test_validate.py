@@ -222,6 +222,24 @@ def test_a_format_missing_a_field_or_unreadable_yaml_fails_readably(archive):
     assert problem.startswith("data/formats.yaml is not valid YAML")
 
 
+def test_sleeper_league_ids_are_one_number_per_season(archive):
+    write_csv(archive / "sleeper_leagues.csv", ["season", "league_id"],
+              [(2025, "1262684581069332480"), (2025, "999"), ("2026", "abc")])
+    assert validate(archive) == [
+        "data/sleeper_leagues.csv line 3: 2025 is already on line 2",
+        "data/sleeper_leagues.csv line 4: league_id 'abc' must be a whole number"]
+
+
+def test_a_sleeper_snapshot_must_be_of_its_seasons_league(archive):
+    league = archive / "sleeper" / "2025-league.json"
+    league.write_text(league.read_text().replace('"season"', '"league_id": "111", "season"'))
+    write_csv(archive / "sleeper_leagues.csv", ["season", "league_id"], [(2025, "222")])
+    assert validate(archive) == [
+        "data/sleeper/2025-league.json is league 111, but data/sleeper_leagues.csv gives 2025 league 222"]
+    write_csv(archive / "sleeper_leagues.csv", ["season", "league_id"], [(2024, "111")])
+    assert validate(archive) == ["data/sleeper/2025-league.json: 2025 has no row in data/sleeper_leagues.csv"]
+
+
 def test_the_cli_prints_each_problem_and_fails(archive, capsys):
     assert main([str(archive)]) == 0
     write_sleeper_aliases(archive, [(1, "Charlie Sleeper", "Charlie"), (2, "Alpha Sleeper", "Alpha Two")])

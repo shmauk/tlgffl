@@ -22,6 +22,7 @@ Most data comes from NFL.com and Sleeper and is never edited by hand. The hand-k
 | File | What it records |
 |---|---|
 | `franchises.csv` | Which franchise each NFL.com team and Sleeper roster belongs to. Ids are permanent and never reused |
+| `sleeper_leagues.csv` | Each Sleeper-era season's league id. Add next season's when Sleeper creates its league |
 | `sleeper_aliases.csv` | The franchise behind each Sleeper roster. Every roster needs a row by week 1 |
 | `formats.yaml` | Each season's format. Every season needs one, so write next season's down before it starts |
 | `shitbowl.csv`, `mediocre_bowl.csv` | NFL.com-era Shit Bowl and Mediocre Bowl winners. Blank means unknown, and `A\|B` means disputed |
@@ -48,8 +49,11 @@ Each file's header comment explains its columns. Franchises are always named by 
    pages you changed look right.
 
 Some entries come round every season and have no named owner. The maintainers share them:
-next season's format, aliases for new Sleeper rosters, keepers after the draft, and
-scissors-paper-rock results. The build fails if the current season has no format, or if a roster
+next season's league id (`sleeper_leagues.csv`: the id is in the league's Sleeper URL), next
+season's format, aliases for new Sleeper rosters, keepers after the draft, and
+scissors-paper-rock results. Sleeper has no way to find a new season's league without a manager's
+user id, which the record book never uses, so the league id is a one-line edit once a year; the
+fetch checks it is the right season and follows the previous season's league. The build fails if the current season has no format, or if a roster
 has no alias. Keepers that haven't been recorded don't fail the build. The site shows a "keepers
 not yet recorded" note instead, so a late entry never blocks the daily refresh.
 

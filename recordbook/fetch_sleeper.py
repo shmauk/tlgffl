@@ -23,9 +23,19 @@ season gets none: its names would no longer be the ones it was played under.
 
 The season Sleeper's state is about gets {season}-state.json, cut to its
 season_start_date (week 1's date), which the home page switches season on.
+
+Each season's league id is hand-kept in data/sleeper_leagues.csv. Sleeper
+gives every season a new league that points back to the one before
+(previous_league_id), but nothing points forward: finding a new season's
+league needs a manager's user id (/user/<id>/leagues/nfl/<season>), which the
+record book never uses. So a new season takes a one-line edit to the table,
+and the fetch checks each league is its row's season and follows the
+previous season's league before it writes anything.
 """
 import argparse
+import csv
 import json
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -33,11 +43,37 @@ from recordbook.privacy import redact
 
 BASE = "https://api.sleeper.app/v1"
 
-# Each Sleeper-era season's league id. Sleeper gives every season a new
-# league; add next season's here when it is created.
-LEAGUES = {2025: "1262684581069332480", 2026: "1380142135487004672"}
+LEAGUES = "sleeper_leagues.csv"
 
 WEEKS = range(1, 19)
+
+
+class LeagueError(Exception):
+    """data/sleeper_leagues.csv doesn't match the leagues Sleeper has."""
+
+
+def read_leagues(data):
+    """{season: league id} from the hand-kept data/sleeper_leagues.csv."""
+    path = Path(data) / LEAGUES
+    if not path.exists():
+        return {}
+    with open(path, newline="", encoding="utf-8") as f:
+        rows = csv.DictReader(line for line in f if not line.startswith("#"))
+        return {int(r["season"]): r["league_id"].strip() for r in rows}
+
+
+def check_leagues(leagues, fetched):
+    """Each league must be its row's season and, where the table has the season
+    before, follow that season's league. fetched is {season: league response}."""
+    for season, lid in sorted(leagues.items()):
+        league = fetched[season]
+        if str(league.get("season")) != str(season):
+            raise LeagueError(f"data/{LEAGUES} gives {season} league {lid}, but Sleeper says that league "
+                              f"is the {league.get('season')} season")
+        before = leagues.get(season - 1)
+        if before is not None and league.get("previous_league_id") != before:
+            raise LeagueError(f"data/{LEAGUES}: {season} league {lid} follows league "
+                              f"{league.get('previous_league_id')}, not {season - 1}'s {before}")
 
 
 def http_get(path):
@@ -106,18 +142,20 @@ def _write_weekly(folder, stem, week, obj, written):
 
 
 def fetch(data, get=http_get, leagues=None):
-    """Snapshot every season in leagues ({season: league id}) into
-    data/sleeper/. Returns the paths written."""
+    """Snapshot every season in leagues ({season: league id}; by default
+    data/sleeper_leagues.csv) into data/sleeper/. Returns the paths written."""
     folder = Path(data) / "sleeper"
-    leagues = LEAGUES if leagues is None else leagues
+    leagues = read_leagues(data) if leagues is None else leagues
     state = get("/state/nfl")
+    fetched = {season: get(f"/league/{lid}") for season, lid in leagues.items()}
+    check_leagues(leagues, fetched)
     written, dump = [], None
     for season, lid in sorted(leagues.items()):
         def save(name, obj):
             _write(folder / f"{season}-{name}.json", redact(obj, f"{season}-{name}.json"), written)
             return obj
 
-        league = save("league", get(f"/league/{lid}"))
+        league = save("league", fetched[season])
         rosters = save("rosters", get(f"/league/{lid}/rosters"))
         matchups = {w: save(f"matchups-{w:02d}", get(f"/league/{lid}/matchups/{w}")) for w in WEEKS}
         transactions = {w: save(f"transactions-{w:02d}", get(f"/league/{lid}/transactions/{w}"))
@@ -153,7 +191,12 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--data", default="data", type=Path)
     args = p.parse_args(argv)
-    written = fetch(args.data)
+    if not read_leagues(args.data):
+        sys.exit(f"fetch_sleeper: no league ids in {args.data / LEAGUES}")
+    try:
+        written = fetch(args.data)
+    except LeagueError as e:
+        sys.exit(f"fetch_sleeper: {e}")
     for path in written:
         print(f"wrote {path}")
     print(f"fetch_sleeper: {len(written)} file(s) changed")

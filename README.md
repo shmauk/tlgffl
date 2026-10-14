@@ -44,7 +44,7 @@ missing from `data/sleeper_brackets.csv`.
 How often it refreshes comes from the latest Sleeper season in the snapshot, not from editing the
 cron: daily from its draft (`drafts[].start_time`) until its last bracket week (`data/formats.yaml`)
 is scored, and on Tuesdays otherwise. So each new season needs its league id in
-`recordbook/fetch_sleeper.py` and its entry in `data/formats.yaml`; the weekly runs then pick up the
+`data/sleeper_leagues.csv` and its entry in `data/formats.yaml`; the weekly runs then pick up the
 draft date as soon as it is set.
 
 Keep-alive: GitHub disables a public repo's scheduled workflows after 60 days without activity, and
@@ -88,8 +88,12 @@ winners, which no platform data can supply. A blank row is shown as unknown, and
 .venv/bin/python -m recordbook.fetch_sleeper       # snapshots the Sleeper API into data/sleeper/
 ```
 
-The fetch pulls every Sleeper-era season (league ids in `recordbook/fetch_sleeper.py`; add each new
-season's there) and writes a file only when its content changed. Privacy reductions are applied
+The fetch pulls every Sleeper-era season in the hand-kept `data/sleeper_leagues.csv` (season,
+league id) and writes a file only when its content changed. Sleeper links each season's league to
+the one before but never to the next, and finding the next would need a manager's user id, which
+the record book never uses, so each new season's league id is a one-line edit to that table. The
+fetch fails before writing anything if a league isn't its row's season or doesn't follow the
+previous season's league, and the validation checks every league snapshot against the table. Privacy reductions are applied
 before writing: users become `{roster_id, team_name}`, the players dump is cut to the league's NFL
 players, and forbidden fields are stripped. A season in progress also gets dated weekly
 `<season>-team_names-<week>.json` and `<season>-players-<week>.json` files, because Sleeper only

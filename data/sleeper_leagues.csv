@@ -1,0 +1,9 @@
+# Each Sleeper-era season's league id, which python -m recordbook.fetch_sleeper
+# snapshots. Sleeper gives every season a new league that points back to the
+# one before, but nothing points forward to the next (finding it would need a
+# manager's user id, which the record book never uses): when Sleeper creates
+# next season's league, add its row here. The fetch checks each league is its
+# row's season and follows the previous season's league.
+season,league_id
+2025,1262684581069332480
+2026,1380142135487004672

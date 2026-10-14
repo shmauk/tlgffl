@@ -163,6 +163,10 @@ SCHEMAS = {
         {"kind": one_of("constitution", "agm"), "season": optional(whole_number),
          "title": required, "url": web_link},
         [agms_have_a_season]),
+    # Each Sleeper-era season's league id (#26), which the fetch reads: add next
+    # season's when Sleeper creates it.
+    "sleeper_leagues.csv": Table(
+        {"season": whole_number, "league_id": whole_number}, key=lambda row: row["season"]),
     # Scissors-paper-rock rulings (#34): the franchises a ruling orders, winner first.
     "scissors_paper_rock.csv": Table(
         {"season": whole_number, "order": required}, franchises=("order",)),
@@ -192,7 +196,7 @@ def validate(data):
     if problems:
         # The checks across tables assume each table is well formed.
         return problems
-    problems = check_platform_teams(data) + check_formats(data)
+    problems = check_platform_teams(data) + check_formats(data) + check_sleeper_leagues(data)
     if problems:
         return problems
     names = franchise_names(data)
@@ -238,6 +242,25 @@ def check_keepers(data):
                 known = {pid for pid, *_ in sleeperlib.nfl_players(sleeper, [])}
             if pid not in known:
                 problems.append(f"{where}: NFL player {pid!r} is not a Sleeper player id any snapshot knows")
+    return problems
+
+
+def check_sleeper_leagues(data):
+    """Each Sleeper league snapshot must be the league data/sleeper_leagues.csv
+    gives its season, and every snapshotted season needs a row."""
+    path = data / "sleeper_leagues.csv"
+    ids = {int(row["season"]): row["league_id"].strip() for _, row in read_rows(path)[1]} if path.exists() else {}
+    problems = []
+    for f in sorted((data / "sleeper").glob("*-league.json")):
+        lid = json.loads(f.read_text(encoding="utf-8")).get("league_id")
+        season = int(f.name[:4])
+        if lid is None:
+            continue
+        if season not in ids:
+            problems.append(f"data/sleeper/{f.name}: {season} has no row in data/sleeper_leagues.csv")
+        elif ids[season] != str(lid):
+            problems.append(f"data/sleeper/{f.name} is league {lid}, but data/sleeper_leagues.csv "
+                            f"gives {season} league {ids[season]}")
     return problems
 
 

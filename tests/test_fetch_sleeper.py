@@ -8,8 +8,9 @@ import json
 
 import pytest
 
-from recordbook.fetch_sleeper import fetch
+from recordbook.fetch_sleeper import LeagueError, fetch
 from recordbook.privacy import find_violations
+from tests.archive import write_csv
 
 LID = "L26"
 STATE = {"week": 5, "leg": 5, "season": "2026", "season_type": "regular", "display_week": 5,
@@ -182,6 +183,28 @@ def test_the_season_in_sleepers_state_keeps_its_start_date_only(data):
     fetch(data, Api(), {2026: LID})
     assert load(data, "2026-state.json") == {"season": "2026", "season_start_date": "2026-09-09"}
     assert fetch(data, Api(**{"/state/nfl": {**STATE, "week": 6}}), {2026: LID}) == []
+
+
+def test_the_league_ids_come_from_the_hand_kept_table(data):
+    write_csv(data / "sleeper_leagues.csv", ["season", "league_id"], [(2026, LID)])
+    api = Api()
+    fetch(data, api)
+    assert f"/league/{LID}" in api.calls
+    assert load(data, "2026-league.json")["league_id"] == LID
+
+
+def test_a_league_that_isnt_its_rows_season_fails_before_anything_is_written(data):
+    with pytest.raises(LeagueError, match=r"data/sleeper_leagues.csv gives 2025 league L26, but Sleeper says "
+                                          r"that league is the 2026 season"):
+        fetch(data, Api(), {2025: LID})
+    assert not (data / "sleeper").exists()
+
+
+def test_each_league_must_follow_the_previous_seasons(data):
+    # Sleeper links each season's league to the one before (previous_league_id).
+    api = Api(**{"/league/L24": {**LEAGUE, "season": "2025", "league_id": "L24", "previous_league_id": None}})
+    with pytest.raises(LeagueError, match=r"2026 league L26 follows league L25, not 2025's L24"):
+        fetch(data, api, {2025: "L24", 2026: LID})
 
 
 def test_a_season_sleepers_state_is_not_about_gets_no_state_snapshot(data):
