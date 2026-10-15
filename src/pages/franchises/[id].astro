@@ -15,10 +15,10 @@ import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
-import { franchises, teamNames, seasonLines, seasons, recordExclusions, exclusionNote, type Franchise } from '../../lib/db';
-import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from '../../lib/brackets';
+import { franchises, teamNames, seasonLines, seasons, seasonFormats, recordExclusions, exclusionNote, type Franchise } from '../../lib/db';
+import { BRACKET_NAMES, runResult } from '../../lib/brackets';
 import { draftSeasons, franchisePicks, mostStarted } from '../../lib/drafts';
-import { career, franchiseGames, bracketRounds, headToHeads, bestAndWorst, crowns, gapSeasons } from '../../lib/profiles';
+import { career, franchiseGames, bracketRuns, headToHeads, bestAndWorst, gapSeasons } from '../../lib/profiles';
 import { headToHeadUrl, recordUrl } from '../../lib/urls';
 import { categoryOf } from '../../lib/records/catalogue';
 import { figureText, heldOver, recordsHeld } from '../../lib/records/held';
@@ -38,8 +38,6 @@ const names = teamNames(db, id);
 const lines = seasonLines(db, id);
 const c = career(db, id);
 const games = franchiseGames(db, id);
-const rounds = bracketRounds(db);
-const won = crowns(db, id);
 const gaps = gapSeasons(db);
 const myGaps = [...new Set(lines.map((l) => l.season))].filter((s) => gaps.has(s));
 const best = bestAndWorst(db, id);
@@ -69,40 +67,14 @@ const record = (w: number, l: number, t: number) => `${w}-${l}-${t}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const seasonsList = (seasons: number[]) => seasons.join(', ');
 
-const roundName = (round: number, total: number) =>
-  round === total ? 'the final' : round === total - 1 ? 'the semi-finals' : `round ${round}`;
-
-// Bracket history: each season and bracket the franchise is known to have
-// played in or won, with its games.
-type Run = { season: number; bracket: BracketKey; seed: number | null; result: string; source?: string; games: typeof games };
-const runs: Run[] = [];
-const seasonsWithBrackets = [...new Set([...games.filter((g) => g.bracket).map((g) => g.season), ...won.map((w) => w.season)])].sort();
-for (const season of seasonsWithBrackets) {
-  for (const bracket of BRACKET_ORDER) {
-    const played = games.filter((g) => g.season === season && g.bracket === bracket);
-    const crown = won.find((w) => w.season === season && w.bracket === bracket);
-    if (!played.length && !crown) continue;
-    const line = lines.find((l) => l.season === season);
-    let result = '';
-    if (crown) {
-      result = crown.source === 'disputed' ? `${BRACKET_CROWNS[bracket]}?` : BRACKET_CROWNS[bracket];
-    } else if (bracket === 'playoffs') {
-      const last = played.at(-1)!;
-      const total = rounds.get(`${season}-${bracket}`) ?? last.round!;
-      result = last.round === total ? 'Runner-up' : `Out in ${roundName(last.round!, total)}`;
-    } else {
-      result = 'Played';
-    }
-    runs.push({
-      season,
-      bracket,
-      seed: bracket === 'playoffs' ? line?.seed ?? null : null,
-      result,
-      source: crown?.source,
-      games: played,
-    });
-  }
-}
+// Bracket history: each bracket run (#43), as the build wrote it, with its games.
+const formats = seasonFormats(db);
+const runs = bracketRuns(db, id).map((run) => ({
+  ...run,
+  seed: run.bracket === 'playoffs' ? lines.find((l) => l.season === run.season)?.seed ?? null : null,
+  result: runResult(run, formats.find((f) => f.season === run.season)!.brackets.find((b) => b.bracket === run.bracket)!),
+  games: games.filter((g) => g.season === run.season && g.bracket === run.bracket),
+}));
 
 const opponents = headToHeads(db, id)
   .map((p) => {
@@ -171,7 +143,7 @@ const unscored = opponents.some((o) => o.scored < o.games);
               ? 'Breakdown needs every regular-season score, and no season of this franchise has them all yet.'
               : `Breakdown % is over the ${plural(c.breakdownSeasons, 'season')} with every regular-season score.`,
         },
-        ...(won.some((w) => w.source === 'disputed')
+        ...(runs.some((r) => r.source === 'disputed')
           ? [{ text: 'A disputed title counts for nobody until it is settled.' }]
           : []),
       ]}
@@ -223,7 +195,7 @@ const unscored = opponents.some((o) => o.scored < o.games);
                 <td><SeasonLink season={r.season} /></td>
                 <td>{BRACKET_NAMES[r.bracket]}</td>
                 <td class="num">{r.seed ?? ''}</td>
-                <td>{r.result}{r.source && r.source !== 'derived' && r.source !== 'confirmed' && <> <SourceNote source={r.source as 'recalled' | 'disputed'} /></>}</td>
+                <td>{r.result}{(r.source === 'recalled' || r.source === 'disputed') && <> <SourceNote source={r.source} /></>}</td>
                 <td>{r.games.map((g) => <p><GameLine game={g} franchiseId={id} label={`Week ${g.week}`} /></p>)}</td>
               </tr>
             ))}

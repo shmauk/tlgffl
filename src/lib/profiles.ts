@@ -1,6 +1,6 @@
 // Franchise profiles and head-to-head pages (#27): reads of the tables
 // recordbook/profiles.py writes. Like db.ts, nothing here derives a figure.
-import type { BracketKey } from './brackets';
+import { byBracket, type BracketRun } from './brackets';
 import { GAME_COLUMNS, seasonFranchise, toGame, type Game } from './db';
 import type { Db } from './database';
 
@@ -56,15 +56,6 @@ export function pairGames(db: Db, lo: number, hi: number): DatedGame[] {
       [lo, hi, hi, lo],
     )
     .map(toGame(seasonFranchise(db)));
-}
-
-/** Rounds in each season's bracket, keyed `${season}-${bracket}`. */
-export function bracketRounds(db: Db): Map<string, number> {
-  return new Map(
-    db
-      .all(`select season, bracket, max(round) as rounds from games where bracket is not null group by season, bracket`)
-      .map((r: any) => [`${r.season}-${r.bracket}`, r.rounds]),
-  );
 }
 
 export interface HeadToHead {
@@ -126,16 +117,19 @@ export function bestAndWorst(db: Db, franchiseId: number): BestWorst[] {
     .map((r: any) => ({ measure: r.measure, rank: r.rank, points: r.points, game: games.get(r.gameId)! }));
 }
 
-export interface Crown {
+export interface SeasonRun extends BracketRun {
   season: number;
-  bracket: BracketKey;
-  source: 'derived' | 'confirmed' | 'recalled' | 'disputed';
 }
 
-/** The brackets a franchise won, or is one candidate of a disputed outcome for. */
-export function crowns(db: Db, franchiseId: number): Crown[] {
-  return db
-    .all('select season, bracket, source from bracket_winners where franchise_id = ? order by season, bracket', [franchiseId]) as unknown as Crown[];
+/** A franchise's bracket runs (#43), oldest season first, its brackets in BRACKET_ORDER. */
+export function bracketRuns(db: Db, franchiseId: number): SeasonRun[] {
+  return (
+    db.all(
+      `select season, bracket, round_reached as roundReached, result, source
+       from bracket_runs where franchise_id = ? order by season`,
+      [franchiseId],
+    ) as unknown as SeasonRun[]
+  ).sort((a, b) => a.season - b.season || byBracket((r: SeasonRun) => r.bracket)(a, b));
 }
 
 /** Seasons whose regular season has weeks with no game scores. */

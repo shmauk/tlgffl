@@ -87,6 +87,12 @@ def games_need_a_round(row):
         return "a playoffs, shit_bowl or mediocre_bowl game needs a round"
 
 
+def advanced_is_one_of_the_pair(row):
+    advanced = row["advanced"].strip()
+    if advanced and advanced not in (row["roster_a"].strip(), row["roster_b"].strip()):
+        return f"advanced {advanced} is neither roster_a nor roster_b"
+
+
 def pairing_key(row):
     a, b = sorted((int(row["roster_a"]), int(row["roster_b"])))
     return f"{row['season']} week {row['week']} rosters {a} and {b}"
@@ -143,8 +149,8 @@ SCHEMAS = {
     "sleeper_brackets.csv": Table(
         {"season": whole_number, "week": whole_number, "roster_a": whole_number,
          "roster_b": whole_number, "bracket": one_of("playoffs", "shit_bowl", "mediocre_bowl", "filler"),
-         "round": optional(whole_number)},
-        [games_need_a_round], pairing_key),
+         "round": optional(whole_number), "advanced": optional(whole_number)},
+        [games_need_a_round, advanced_is_one_of_the_pair], pairing_key),
     "sleeper_adjustments.csv": Table(
         {"season": whole_number, "roster_id": whole_number, "week": whole_number,
          "points": number, "reason": required}),

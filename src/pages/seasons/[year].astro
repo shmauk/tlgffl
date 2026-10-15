@@ -27,7 +27,7 @@ import {
   type Game,
 } from '../../lib/db';
 import { formatSummary, weekList } from '../../lib/format';
-import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, type BracketKey } from '../../lib/brackets';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, roundName, type BracketKey } from '../../lib/brackets';
 import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardLeaders, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
 import { inProgressWeeks } from '../../lib/home-db';
@@ -82,8 +82,8 @@ const soFar = live ? ', so far' : '';
 const gridWeeks = [...new Set([...weeks, ...toCome.keys()])].sort((a, b) => a - b);
 
 const bracketName = (key: BracketKey | null) => (key ? BRACKET_NAMES[key] : '');
-const brackets = BRACKET_ORDER.filter((key) => format?.brackets.some((f) => f.bracket === key)).map((key) => ({
-  key, name: BRACKET_NAMES[key], crown: BRACKET_CROWNS[key],
+const brackets = BRACKET_ORDER.flatMap((key) => format?.brackets.filter((f) => f.bracket === key) ?? []).map((spec) => ({
+  key: spec.bracket, name: BRACKET_NAMES[spec.bracket], crown: BRACKET_CROWNS[spec.bracket], spec,
 }));
 
 const divisions = [...new Set(standings.map((s) => s.division ?? ''))];
@@ -95,8 +95,6 @@ const NoScores = noScores.charAt(0).toUpperCase() + noScores.slice(1);
 const lost = 'Score is lost';
 const pts = (p: number | null) => (p === null ? '' : p.toFixed(2));
 const record = (w: number, l: number, t: number) => `${w}-${l}-${t}`;
-const roundName = (round: number, rounds: number) =>
-  round === rounds ? 'Final' : round === rounds - 1 ? 'Semi-finals' : `Round ${round}`;
 
 const breakdown = standings
   .filter((s) => s.breakdownWins !== null)
@@ -229,9 +227,8 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
       !live && sleeperPending && <p>{sleeperPending}</p>
     }
     {
-      !sleeperPending && live?.phase !== 'regular' && brackets.map(({ key, name, crown }) => {
+      !sleeperPending && live?.phase !== 'regular' && brackets.map(({ key, name, crown, spec }) => {
         const bracketGames = games.filter((g) => g.bracket === key);
-        const rounds = Math.max(0, ...bracketGames.map((g) => g.round ?? 0));
         const crowned = winners.filter((w) => w.bracket === key);
         const disputed = crowned.some((w) => w.source === 'disputed');
         const pending = [...toCome].flatMap(([week, list]) => list.filter((m) => m.bracket === key).map((m) => ({ week, m })));
@@ -264,7 +261,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                 <tbody>
                   {bracketGames.map((g) => (
                     <tr>
-                      <td>{roundName(g.round!, rounds)}</td>
+                      <td>{roundName(g.round!, spec)}</td>
                       <td><SeasonLink season={year} week={g.week}>{g.week}</SeasonLink></td>
                       <td>
                         {g.winnerId === g.away.id ? <FranchiseLink franchise={g.away} /> : <FranchiseLink franchise={g.home} />}

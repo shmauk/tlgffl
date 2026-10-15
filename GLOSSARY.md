@@ -102,12 +102,16 @@ _Avoid_: Draw
 One of the postseason competitions a season ends in. Each is defined by its role; its size and seeding change between seasons.
 _Avoid_: Postseason, playoffs (for all brackets)
 
+**Bracket run**:
+One franchise's path through one bracket in one season: the round it reached and how it ended.
+_Avoid_: Playoff run, postseason
+
 **Playoffs**:
 The bracket that decides the champion.
 _Avoid_: Winners bracket, championship bracket
 
 **Shit Bowl**:
-The bracket that decides the worst franchise of the season. Losing advances you.
+The bracket that decides the worst franchise of the season. Losing advances you; a franchise that wins a game escapes it.
 _Avoid_: Toilet bowl, losers bracket, consolation bracket
 
 **Shit Bowl winner**:

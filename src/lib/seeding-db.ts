@@ -77,7 +77,8 @@ export function seasonPicture(db: Db, season: number): SeasonPicture | null {
 export function bracketGames(db: Db, season: number): BracketGame[] {
   return db
     .all(
-      `select bracket, round, home_franchise_id as home, away_franchise_id as away, winner_franchise_id as winner
+      `select bracket, round, home_franchise_id as home, away_franchise_id as away, winner_franchise_id as winner,
+              advanced_franchise_id as advanced
        from games where season = ? and phase = 'bracket'`,
       [season],
     ) as unknown as BracketGame[];
