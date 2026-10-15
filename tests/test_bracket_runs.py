@@ -144,3 +144,14 @@ def test_a_tied_final_crowns_the_franchise_recorded_as_advancing(sleeper, tmp_pa
         ("shit_bowl", "Sleeper 2", 2, "runner_up", "derived"),
         ("shit_bowl", "Sleeper 3", 1, "out", "derived"),
         ("shit_bowl", "Sleeper 4", 2, "crowned", "derived")]
+
+
+def test_a_tied_playoffs_final_crowns_the_higher_seed_recorded_as_advancing(sleeper, tmp_path):
+    # Week 3's Playoffs final, roster 1 v roster 6, is a 100-100 tie; roster 1 is the higher seed.
+    write_sleeper_league(sleeper, 2025, {**WEEKS, 3: [(1, 100.0, 6, 100.0), *WEEKS[3][1:]]}, DIVISIONS, totals=TOTALS)
+    write_sleeper_brackets(sleeper, [(2025, 3, 1, 6, "playoffs", 1, 1), *BRACKETS[1:]])
+    db = built(sleeper, tmp_path)
+    assert [r for r in runs(db, 2025) if r[0] == "playoffs"] == [
+        ("playoffs", "Sleeper 1", 1, "crowned", "derived"),
+        ("playoffs", "Sleeper 6", 1, "runner_up", "derived")]
+    assert query(db, "select franchise_id from bracket_winners where season = 2025 and bracket = 'playoffs'") == [(11,)]

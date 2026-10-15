@@ -7,6 +7,7 @@ flag: a week is final once the league is complete or Sleeper has scored it
 """
 import json
 from collections import defaultdict
+from typing import NamedTuple
 
 from recordbook.brackets import went_on
 from recordbook.formats import BRACKET_NAMES
@@ -70,10 +71,16 @@ TITLES = {key: f"the {name}" for key, name in BRACKET_NAMES.items()}
 ASSIGNMENTS = "data/sleeper_brackets.csv"
 
 
+class Assignment(NamedTuple):
+    """A bracket-week pairing's row in the hand-kept bracket assignment."""
+    bracket: str               # a league bracket, or 'filler'
+    round: int | None          # None for filler
+    advanced: int | None = None  # the roster that went on from a tie
+
+
 def read_assignments(rows):
-    """{season: {(week, frozenset of two rosters): (bracket or 'filler', round,
-    roster that advanced from a tie or None)}} from the hand-kept bracket
-    assignment's rows."""
+    """{season: {(week, frozenset of two rosters): Assignment}} from the
+    hand-kept bracket assignment's rows."""
     out = defaultdict(dict)
     for r in rows:
         season, week = int(r["season"]), int(r["week"])
@@ -86,8 +93,8 @@ def read_assignments(rows):
         if bracket != "filler" and not rnd:
             raise SleeperError(f"{season} week {week}: {ASSIGNMENTS} gives rosters {a} and {b} no round")
         advanced = (r.get("advanced") or "").strip()
-        out[season][(week, frozenset((a, b)))] = (bracket, int(rnd) if bracket != "filler" else None,
-                                                  int(advanced) if advanced else None)
+        out[season][(week, frozenset((a, b)))] = Assignment(bracket, int(rnd) if bracket != "filler" else None,
+                                                            int(advanced) if advanced else None)
     return out
 
 
@@ -199,7 +206,7 @@ def upcoming_brackets(year, league, weeks, fmt, franchise_of, assigned, games):
             continue
         for a, _pa, b, _pb in pairings(weeks[week]):
             home, away = franchise_of(a), franchise_of(b)
-            bracket, rnd, _advanced = assigned.get((week, frozenset((a, b))), (None, None, None))
+            bracket, rnd, _advanced = assigned.get((week, frozenset((a, b))), Assignment(None, None))
             if bracket is None:
                 found = {alive[f] for f in (home, away) if f in alive}
                 found = found.pop() if len(found) == 1 else None

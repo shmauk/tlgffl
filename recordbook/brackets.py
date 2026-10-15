@@ -141,7 +141,8 @@ def winner_rows(games, formats, seasons, hand_kept, franchise_by_name):
 def went_on(game, franchise):
     """Whether a franchise went on from a knockout game: by winning it, or in
     the Shit Bowl, where losing advances you, by losing it. From a tie, the
-    franchise recorded as advancing (the higher seed) went on."""
+    franchise recorded as advancing (the higher seed) went on. The site's
+    src/lib/seeding.ts keeps the same rule in wentOn."""
     if game.winner is None:
         return game.advanced == franchise
     return (game.winner == franchise) != (game.bracket == "shit_bowl")

@@ -1,7 +1,7 @@
 // Round names and bracket run results (#43), worded from the season's format,
 // never from the rounds played so far.
 import { describe, expect, test } from 'vitest';
-import { roundName, runResult, type BracketRun, type BracketWeeks } from './brackets';
+import { bracketGameLine, roundName, runResult, type BracketRun, type BracketWeeks } from './brackets';
 
 const THREE_WEEKS: BracketWeeks = { firstWeek: 15, lastWeek: 17, series: null };
 const SERIES: BracketWeeks = { firstWeek: 15, lastWeek: 17, series: 'best of three' };
@@ -35,5 +35,15 @@ describe('a bracket run’s result', () => {
   test('a finalist that wasn’t crowned is runner-up, and a franchise yet to go out is still in', () => {
     expect(runResult(run('shit_bowl', 'runner_up', 3), THREE_WEEKS)).toBe('Runner-up');
     expect(runResult(run('mediocre_bowl', 'alive', 1), SERIES)).toBe('Still in');
+  });
+});
+
+describe('a bracket game’s line', () => {
+  test('puts the winner first', () => {
+    expect(bracketGameLine({ home: 3, away: 7, winnerId: 7, advancedId: null })).toEqual({ first: 7, second: 3, tied: false, wentOn: null });
+  });
+
+  test('shows a tie as a tie, with the franchise that went on from it', () => {
+    expect(bracketGameLine({ home: 3, away: 7, winnerId: null, advancedId: 3 })).toEqual({ first: 3, second: 7, tied: true, wentOn: 3 });
   });
 });

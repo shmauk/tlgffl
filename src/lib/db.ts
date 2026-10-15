@@ -1,7 +1,7 @@
 // The league database's core readers. Like every reader, each takes the
 // database (src/lib/database.ts) first: a page opens it once and passes it in.
 // Pages read it at build time and never derive figures of their own (ADR 0004).
-import type { BracketKey } from './brackets';
+import type { BracketKey, CrownSource } from './brackets';
 import type { Db } from './database';
 
 export interface Franchise {
@@ -108,6 +108,11 @@ export function seasonFormats(db: Db): SeasonFormat[] {
     }));
 }
 
+/** One bracket's format in one season, which must have it. */
+export function bracketFormat(formats: SeasonFormat[], season: number, bracket: BracketKey): SeasonFormat['brackets'][number] {
+  return formats.find((f) => f.season === season)!.brackets.find((b) => b.bracket === bracket)!;
+}
+
 export interface LeagueDocument {
   kind: 'constitution' | 'agm';
   season: number | null;
@@ -200,11 +205,13 @@ export interface Game {
   awayPoints: number | null;
   /** Null for a tie. */
   winnerId: number | null;
+  /** From a tied knockout game, the franchise that went on (#43). */
+  advancedId: number | null;
 }
 
 /** The columns a Game is read from, for the games table as g. */
 export const GAME_COLUMNS = `g.id, g.season, g.week, g.phase, g.bracket, g.round, g.home_points as homePoints,
-  g.away_points as awayPoints, g.winner_franchise_id as winnerId,
+  g.away_points as awayPoints, g.winner_franchise_id as winnerId, g.advanced_franchise_id as advancedId,
   g.home_franchise_id as homeId, g.away_franchise_id as awayId`;
 
 /** A Game from a row of GAME_COLUMNS, each side as its season shows it. */
@@ -222,6 +229,7 @@ export const toGame =
     away: franchise(r.season, r.awayId),
     awayPoints: r.awayPoints,
     winnerId: r.winnerId,
+    advancedId: r.advancedId,
   });
 
 /** A season's games, by week. A bracket game whose score is lost has null points. */
@@ -236,7 +244,7 @@ export interface BracketWinner {
   bracket: BracketKey;
   /** Null when nobody recorded it. */
   franchise: SeasonFranchise | null;
-  source: 'derived' | 'confirmed' | 'recalled' | 'disputed' | 'unknown';
+  source: CrownSource | 'unknown';
 }
 
 /** Who each of the season's brackets crowned; a disputed one lists every candidate. */
@@ -300,15 +308,12 @@ export interface Honours {
 
 /** Every finished season's champion and runner-up, newest first: the season in progress has no row (#24). */
 export function rollOfHonour(db: Db): Honours[] {
-  // The Playoffs final is each season's last-round Playoffs game.
+  // The Playoffs' finalists, from their bracket runs (#43): a tied final's champion is the higher seed.
   const finals = db
     .all(
-      `select g.season, g.winner_franchise_id as winnerId,
-              case when g.winner_franchise_id = g.home_franchise_id then g.away_franchise_id
-                   else g.home_franchise_id end as loserId
-       from games g
-       where g.bracket = 'playoffs' and g.winner_franchise_id is not null
-         and g.round = (select max(round) from games m where m.season = g.season and m.bracket = 'playoffs')`,
+      `select c.season, c.franchise_id as winnerId, r.franchise_id as loserId
+       from bracket_runs c join bracket_runs r on r.season = c.season and r.bracket = 'playoffs' and r.result = 'runner_up'
+       where c.bracket = 'playoffs' and c.result = 'crowned'`,
     ) as unknown as { season: number; winnerId: number; loserId: number }[];
   const named = seasonFranchise(db);
   const franchise = (season: number, id: number | undefined) => (id === undefined ? null : named(season, id));

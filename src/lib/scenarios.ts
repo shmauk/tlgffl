@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
 
-export const SCENARIOS = ['regular', 'brackets', 'off-season'] as const;
+export const SCENARIOS = ['regular', 'brackets', 'off-season', 'tied-final'] as const;
 export type Scenario = (typeof SCENARIOS)[number];
 
 declare module 'vitest' {

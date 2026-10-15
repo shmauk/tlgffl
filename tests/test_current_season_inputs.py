@@ -9,7 +9,7 @@ import yaml
 from recordbook.build import build
 from recordbook.formats import Bracket, Format
 from recordbook.games import Game
-from recordbook.sleeper import upcoming_brackets
+from recordbook.sleeper import Assignment, upcoming_brackets
 
 from tests.archive import write_sleeper_brackets, write_sleeper_league
 from tests.test_seeding_inputs import built, query
@@ -137,5 +137,5 @@ def test_a_series_keeps_both_franchises_and_stays_round_1():
 def test_a_maintainers_row_wins_and_a_bracket_not_playing_that_week_places_nothing():
     rows = place({"playoffs": (4, [3], None), "mediocre_bowl": (2, [4], None)},
                  [("playoffs", 1, 100.0, 4, 90.0), ("playoffs", 2, 100.0, 3, 90.0)],
-                 [(1, 2), (5, 6)], assigned={(4, frozenset((5, 6))): ("mediocre_bowl", 1, None)})
+                 [(1, 2), (5, 6)], assigned={(4, frozenset((5, 6))): Assignment("mediocre_bowl", 1)})
     assert rows == [(2025, 4, 11, 12, None, None), (2025, 4, 15, 16, "mediocre_bowl", 1)]

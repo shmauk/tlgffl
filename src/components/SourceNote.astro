@@ -2,8 +2,10 @@
 // Where a hand-recorded outcome comes from, when it isn't the games themselves:
 // "recalled" is quiet grey text and "disputed" is red, bold and uppercase.
 // Derived and confirmed outcomes need no note.
+import type { CrownSource } from '../lib/brackets';
+
 interface Props {
-  source: 'derived' | 'confirmed' | 'recalled' | 'disputed';
+  source: CrownSource;
 }
 const { source } = Astro.props;
 ---
