@@ -128,15 +128,17 @@ def test_sleeper_aliases_need_a_roster_id_and_a_franchise(archive):
 
 
 def test_sleeper_bracket_assignments_name_a_bracket_a_round_and_each_pairing_once(archive):
-    write_csv(archive / "sleeper_brackets.csv", ["season", "week", "roster_a", "roster_b", "bracket", "round"],
-              [(2025, 15, 1, 2, "playoffs", 1), (2025, 15, 3, 4, "toilet_bowl", 1),
-               (2025, 15, 5, 6, "shit_bowl", ""), (2025, 15, 2, 1, "filler", ""),
-               (2025, 16, 1, 3, "filler", "")])
+    write_csv(archive / "sleeper_brackets.csv",
+              ["season", "week", "roster_a", "roster_b", "bracket", "round", "advanced"],
+              [(2025, 15, 1, 2, "playoffs", 1, ""), (2025, 15, 3, 4, "toilet_bowl", 1, ""),
+               (2025, 15, 5, 6, "shit_bowl", "", ""), (2025, 15, 2, 1, "filler", "", ""),
+               (2025, 16, 1, 3, "filler", "", ""), (2025, 16, 5, 6, "shit_bowl", 2, 7)])
     assert validate(archive) == [
         "data/sleeper_brackets.csv line 3: bracket 'toilet_bowl' must be one of "
         "playoffs, shit_bowl, mediocre_bowl, filler",
         "data/sleeper_brackets.csv line 4: a playoffs, shit_bowl or mediocre_bowl game needs a round",
         "data/sleeper_brackets.csv line 5: 2025 week 15 rosters 1 and 2 is already on line 2",
+        "data/sleeper_brackets.csv line 7: advanced 7 is neither roster_a nor roster_b",
     ]
 
 

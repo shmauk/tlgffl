@@ -8,6 +8,7 @@ flag: a week is final once the league is complete or Sleeper has scored it
 import json
 from collections import defaultdict
 
+from recordbook.brackets import went_on
 from recordbook.formats import BRACKET_NAMES
 from recordbook.games import Game, breakdown, regular_season_results, win_pct
 
@@ -70,8 +71,9 @@ ASSIGNMENTS = "data/sleeper_brackets.csv"
 
 
 def read_assignments(rows):
-    """{season: {(week, frozenset of two rosters): (bracket or 'filler', round)}}
-    from the hand-kept bracket assignment's rows."""
+    """{season: {(week, frozenset of two rosters): (bracket or 'filler', round,
+    roster that advanced from a tie or None)}} from the hand-kept bracket
+    assignment's rows."""
     out = defaultdict(dict)
     for r in rows:
         season, week = int(r["season"]), int(r["week"])
@@ -83,7 +85,9 @@ def read_assignments(rows):
         rnd = (r.get("round") or "").strip()
         if bracket != "filler" and not rnd:
             raise SleeperError(f"{season} week {week}: {ASSIGNMENTS} gives rosters {a} and {b} no round")
-        out[season][(week, frozenset((a, b)))] = (bracket, int(rnd) if bracket != "filler" else None)
+        advanced = (r.get("advanced") or "").strip()
+        out[season][(week, frozenset((a, b)))] = (bracket, int(rnd) if bracket != "filler" else None,
+                                                  int(advanced) if advanced else None)
     return out
 
 
@@ -118,7 +122,7 @@ def season_games(year, league, weeks, fmt, franchise_of, assigned):
                 raise SleeperError(f"{year} week {week}: rosters {a} and {b} have no bracket in "
                                    f"{ASSIGNMENTS} (name the bracket, or filler)")
             seen.add(key)
-            bracket, rnd = assigned[key]
+            bracket, rnd, advanced = assigned[key]
             if bracket == "filler":
                 continue
             played = fmt.brackets[bracket].weeks if bracket in fmt.brackets else ()
@@ -126,7 +130,15 @@ def season_games(year, league, weeks, fmt, franchise_of, assigned):
                 raise SleeperError(f"{year} week {week}: {ASSIGNMENTS} puts rosters {a} and {b} in "
                                    f"{TITLES[bracket]}, which data/formats.yaml plays in weeks "
                                    f"{', '.join(map(str, played)) or 'none'}")
-            games.append(Game(year, week, "bracket", bracket, rnd, "final", home, pa, away, pb, winner))
+            if winner is None and not fmt.brackets[bracket].series:
+                if advanced not in (a, b):
+                    raise SleeperError(f"{year} week {week}: rosters {a} and {b} tied in {TITLES[bracket]}, so "
+                                       f"the higher seed went on: name its roster under advanced in {ASSIGNMENTS}")
+                advanced = franchise_of(advanced)
+            elif advanced is not None:
+                raise SleeperError(f"{year} week {week}: {ASSIGNMENTS} names who advanced from rosters {a} and "
+                                   f"{b}, but their game wasn't a tied knockout game")
+            games.append(Game(year, week, "bracket", bracket, rnd, "final", home, pa, away, pb, winner, advanced))
     for week, pair in sorted(assigned, key=lambda k: (k[0], sorted(k[1]))):
         if week in final and (week, pair) not in seen:
             a, b = sorted(pair)
@@ -187,7 +199,7 @@ def upcoming_brackets(year, league, weeks, fmt, franchise_of, assigned, games):
             continue
         for a, _pa, b, _pb in pairings(weeks[week]):
             home, away = franchise_of(a), franchise_of(b)
-            bracket, rnd = assigned.get((week, frozenset((a, b))), (None, None))
+            bracket, rnd, _advanced = assigned.get((week, frozenset((a, b))), (None, None, None))
             if bracket is None:
                 found = {alive[f] for f in (home, away) if f in alive}
                 found = found.pop() if len(found) == 1 else None
@@ -255,10 +267,10 @@ def crowns(year, games, fmt):
     """bracket_winners rows (season, bracket, franchise, 'derived') for each
     of the season's brackets whose last week has been played.
 
-    A bracket's last round decides it: in a series, on games won (a tie
-    counting half) and then total points. The Playoffs and the Mediocre Bowl
-    crown the franchise on top; the Shit Bowl, where losing advances you,
-    crowns the one at the bottom.
+    A bracket's last round decides it. A knockout final crowns the franchise
+    that went on from it (brackets.went_on). A series is won on games (a tie
+    counting half) and then total points; the Shit Bowl, where losing
+    advances you, crowns the one at the bottom.
     """
     rows = []
     for name, b in fmt.brackets.items():
@@ -266,6 +278,11 @@ def crowns(year, games, fmt):
         if not any(g.week == b.last_week for g in played):
             continue
         last = max(g.round for g in played)
+        if not b.series:
+            # One final game: whoever went on from it is crowned, the higher seed from a tie.
+            final = next(g for g in played if g.round == last)
+            rows.append((year, name, next(f for f in (final.home, final.away) if went_on(final, f)), "derived"))
+            continue
         standing = defaultdict(lambda: [0.0, 0.0])
         for g in played:
             if g.round != last:

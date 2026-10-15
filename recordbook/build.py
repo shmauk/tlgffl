@@ -92,6 +92,9 @@ create table games (
     -- Null for a tie. A bracket game whose score is lost (null points) still
     -- has the winner its bracket says it had.
     winner_franchise_id integer references franchises(id),
+    -- A tied knockout game's franchise that went on: the higher seed, as
+    -- recorded in data/sleeper_brackets.csv (#43). Null for any other game.
+    advanced_franchise_id integer references franchises(id),
     check ((phase = 'regular') = (bracket is null and round is null))
 );
 -- How many of a week's games survive, per phase and bracket. The site's gap
@@ -192,6 +195,18 @@ create table bracket_winners (
     franchise_id integer references franchises(id),
     source text not null check (source in ('derived', 'confirmed', 'recalled', 'disputed', 'unknown')),
     check ((franchise_id is null) = (source = 'unknown'))
+);
+-- Each franchise's run through each bracket it played in or was crowned by
+-- (#43): the round it reached and how the run ended. A crowned franchise from
+-- a hand-kept table has no round, and its source is the crown's.
+create table bracket_runs (
+    season integer not null references seasons(year),
+    bracket text not null check (bracket in ('playoffs', 'shit_bowl', 'mediocre_bowl')),
+    franchise_id integer not null references franchises(id),
+    round_reached integer,
+    result text not null check (result in ('crowned', 'runner_up', 'out', 'alive')),
+    source text not null check (source in ('derived', 'confirmed', 'recalled', 'disputed')),
+    primary key (season, bracket, franchise_id)
 );
 -- Sleeper era only. A franchise's lineup in each week it played a game: the
 -- starters by slot (slot_index from 1; an empty slot has no NFL player) and
@@ -334,7 +349,8 @@ create table scissors_paper_rock (
 """
 
 GAME_COLUMNS = ("season", "week", "phase", "bracket", "round", "status", "home_franchise_id",
-                "home_points", "away_franchise_id", "away_points", "winner_franchise_id")
+                "home_points", "away_franchise_id", "away_points", "winner_franchise_id",
+                "advanced_franchise_id")
 
 class BuildError(Exception):
     """The canonical data is inconsistent; the build must not go on."""
@@ -625,6 +641,8 @@ def build(data, out, today=None):
         con.executemany("insert into season_brackets values (?, ?, ?, ?, ?, ?, ?)", bracket_rows)
         con.executemany("insert into documents values (?, ?, ?, ?)", documents)
         con.executemany("insert into bracket_winners values (?, ?, ?, ?)", winners)
+        con.executemany("insert into bracket_runs values (?, ?, ?, ?, ?, ?)",
+                        bracketlib.run_rows(games, formats, winners))
         con.executemany("insert into lineups values (?, ?, ?, ?, ?, ?, ?, ?)", lineups)
         con.executemany("insert into upcoming_games values (?, ?, ?, ?)", upcoming)
         con.executemany("insert into season_calendar values (?, ?, ?)", calendar)

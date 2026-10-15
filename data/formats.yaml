@@ -23,7 +23,9 @@ x-rules-tiebreaks: &rules-tiebreaks >-
   Win %, a tie counting half. Two franchises: head-to-head, then divisional
   record if they share a division, then Breakdown, then scissors-paper-rock.
   Three or more: divisional record if all share a division, then Breakdown,
-  then scissors-paper-rock. The Shit Bowl uses the reverse.
+  then scissors-paper-rock. The Shit Bowl uses the reverse. A tied bracket
+  game: the higher seed advances (in the Shit Bowl, the lower franchise stays
+  in).
 
 x-nfl-4: &nfl-4
   playoffs: {size: 4, weeks: [15, 16], seeding: "The top 4 as NFL.com seeded them: 1 v 4 and 2 v 3, the winners meet"}

@@ -10,6 +10,7 @@ winners, unlike the Shit Bowl, and it never seeded a Mediocre Bowl, so neither
 can be rebuilt from the platform: their winners are recorded by hand.
 """
 import math
+from collections import defaultdict
 
 from recordbook.formats import BRACKET_NAMES
 from recordbook.games import Game, playoffs_rounds
@@ -134,4 +135,51 @@ def winner_rows(games, formats, seasons, hand_kept, franchise_by_name):
                     raise BracketError(f"data/{table}: {season} names {name!r}, which is not a "
                                        "franchise name")
                 rows.append((season, bracket, franchise_by_name[name], source))
+    return rows
+
+
+def went_on(game, franchise):
+    """Whether a franchise went on from a knockout game: by winning it, or in
+    the Shit Bowl, where losing advances you, by losing it. From a tie, the
+    franchise recorded as advancing (the higher seed) went on."""
+    if game.winner is None:
+        return game.advanced == franchise
+    return (game.winner == franchise) != (game.bracket == "shit_bowl")
+
+
+def run_rows(games, formats, winners):
+    """bracket_runs rows (season, bracket, franchise, round reached, result,
+    source): each franchise's run through each bracket it played in.
+
+    A franchise that didn't go on from its last game (went_on) is out in that
+    round, or runner-up if the round was the final; one that did is still in.
+    In a series, both are still in until the bracket crowns one. A crowned
+    franchise is crowned whatever its games say.
+    """
+    crowned = {(s, b, f): source for s, b, f, source in winners if f is not None}
+    played = defaultdict(list)
+    for g in games:
+        if g.phase == "bracket":
+            played[(g.season, g.bracket)].append(g)
+    rows = []
+    for (season, bracket), these in sorted(played.items()):
+        b = formats[season].brackets[bracket]
+        final = 1 if b.series else len(b.weeks)
+        decided = any((season, bracket) == key[:2] for key in crowned)
+        last = {}
+        for g in sorted(these, key=lambda g: g.week):
+            last[g.home] = last[g.away] = g
+        for f, g in sorted(last.items()):
+            if (season, bracket, f) in crowned:
+                rows.append((season, bracket, f, g.round, "crowned", crowned[(season, bracket, f)]))
+                continue
+            still_in = not decided if b.series else went_on(g, f)
+            if still_in:
+                rows.append((season, bracket, f, g.round, "alive", "derived"))
+            else:
+                rows.append((season, bracket, f, g.round, "runner_up" if g.round == final else "out", "derived"))
+    # A crown from a hand-kept table, with no games behind it: its path is unknown.
+    for (season, bracket, f), source in sorted(crowned.items()):
+        if (season, bracket) not in played:
+            rows.append((season, bracket, f, None, "crowned", source))
     return rows

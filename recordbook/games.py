@@ -22,6 +22,8 @@ class Game:
     away: int
     away_points: float | None
     winner: int | None = None   # null for a tie
+    # A tied knockout game's franchise that went on (#43): the higher seed.
+    advanced: int | None = None
 
 
 def read_log(path):

@@ -162,9 +162,11 @@ def write_sleeper_league(data: Path, year: int, weeks, divisions, status="comple
 
 
 def write_sleeper_brackets(data: Path, rows):
-    """The hand-kept bracket assignment: (season, week, roster, roster, bracket, round)."""
+    """The hand-kept bracket assignment: (season, week, roster, roster, bracket, round[,
+    roster that advanced from a tie])."""
     write_csv(data / "sleeper_brackets.csv",
-              ["season", "week", "roster_a", "roster_b", "bracket", "round"], rows)
+              ["season", "week", "roster_a", "roster_b", "bracket", "round", "advanced"],
+              [(*r, "") if len(r) == 6 else r for r in rows])
 
 
 def write_sleeper_adjustments(data: Path, rows):

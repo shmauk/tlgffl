@@ -14,6 +14,11 @@
 # round counts each bracket's rounds from 1. A Shit Bowl game's winner is the
 # higher scorer, as in any game; losing advances you.
 #
+# advanced is blank except on a tied game outside a series: the league's rule
+# is that the higher seed goes on (in the Shit Bowl, the lower franchise stays
+# in), so name the roster that went on. The build fails on a tie without it, and
+# the site's build checks it against the seeds.
+#
 # 2025 is NOT YET CONFIRMED BY A MAINTAINER. It is the reading of issue #2
 # (Sleeper API research): Playoffs = rosters 4, 5, 6, 7, 9, 11 (Sleeper's
 # winners bracket, 7 and 9 on byes); Shit Bowl = 2, 3, 8, 14, 15, 16 (Sleeper's
@@ -23,23 +28,23 @@
 # bye teams and Mediocre Bowl teams (3 v 13, 1 v 14), and Sleeper's placement
 # games (week 16: 11 v 16; week 17: 6 v 9, 11 v 13, 14 v 15). Correct any row
 # by pull request, citing the league's ruling.
-season,week,roster_a,roster_b,bracket,round
-2025,15,6,11,playoffs,1
-2025,15,4,5,playoffs,1
-2025,16,6,7,playoffs,2
-2025,16,5,9,playoffs,2
-2025,17,5,7,playoffs,3
-2025,15,2,15,shit_bowl,1
-2025,15,8,16,shit_bowl,1
-2025,16,3,15,shit_bowl,2
-2025,16,8,14,shit_bowl,2
-2025,17,3,8,shit_bowl,3
-2025,16,1,12,mediocre_bowl,1
-2025,16,10,13,mediocre_bowl,1
-2025,17,10,12,mediocre_bowl,2
-2025,15,3,13,filler,
-2025,15,1,14,filler,
-2025,16,11,16,filler,
-2025,17,6,9,filler,
-2025,17,11,13,filler,
-2025,17,14,15,filler,
+season,week,roster_a,roster_b,bracket,round,advanced
+2025,15,6,11,playoffs,1,
+2025,15,4,5,playoffs,1,
+2025,16,6,7,playoffs,2,
+2025,16,5,9,playoffs,2,
+2025,17,5,7,playoffs,3,
+2025,15,2,15,shit_bowl,1,
+2025,15,8,16,shit_bowl,1,
+2025,16,3,15,shit_bowl,2,
+2025,16,8,14,shit_bowl,2,
+2025,17,3,8,shit_bowl,3,
+2025,16,1,12,mediocre_bowl,1,
+2025,16,10,13,mediocre_bowl,1,
+2025,17,10,12,mediocre_bowl,2,
+2025,15,3,13,filler,,
+2025,15,1,14,filler,,
+2025,16,11,16,filler,,
+2025,17,6,9,filler,,
+2025,17,11,13,filler,,
+2025,17,14,15,filler,,

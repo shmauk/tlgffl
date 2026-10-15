@@ -331,6 +331,19 @@ describe('the seed check', () => {
     expect(checkSeeds(picture, wrong).join('\n')).toMatch(/Mediocre Bowl/);
   });
 
+  test('from a tied game, the higher seed goes on: in the Shit Bowl, the lower franchise stays in', () => {
+    const tied = (bracket: 'playoffs' | 'shit_bowl', home: number, away: number, advanced: number) =>
+      ({ bracket, round: 1, home, away, winner: null, advanced });
+    // Playoffs seeds 5 (2) and 6 (3) tie; Shit Bowl seeds 4 (2) and 7 (3) tie.
+    const ruled = [tied('playoffs', 5, 6, 5), played[1], tied('shit_bowl', 4, 7, 4), game('shit_bowl', 2, 8, 4, 8), played[4]];
+    expect(checkSeeds(picture, ruled)).toEqual([]);
+    const wrong = [tied('playoffs', 5, 6, 6), game('playoffs', 2, 1, 6, 1), tied('shit_bowl', 4, 7, 7), played[3], played[4]];
+    expect(checkSeeds(picture, wrong)).toEqual([
+      'Playoffs round 1: 5 v 6 tied, so seed 2, 5, went on, but 6 is recorded as advancing',
+      'Shit Bowl round 1: 4 v 7 tied, so seed 2, 4, went on, but 7 is recorded as advancing',
+    ]);
+  });
+
   test('fails a season whose seeds still wait on scissors-paper-rock', () => {
     const level = playoffPicture(league(levelPairForCheck, { breakdown: { 2: 0.9, 4: 0.1, 8: 0.2 } }));
     expect(checkSeeds(level, []).join('\n')).toMatch(/scissors-paper-rock/);

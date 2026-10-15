@@ -316,6 +316,8 @@ export interface BracketGame {
   away: FranchiseId;
   /** Null for a tie. */
   winner: FranchiseId | null;
+  /** From a tied knockout game, the franchise recorded as going on (#43). */
+  advanced?: FranchiseId | null;
 }
 
 
@@ -326,9 +328,10 @@ export interface BracketGame {
  * by seed: the top seeds bye up to the next power of two and the rest meet
  * outside-in (3 v 6 and 4 v 5 of six). After byes, the second round is
  * re-seeded: the top seed meets the lowest left. The Shit Bowl's seed 1 is
- * its worst franchise, and losing advances. Franchises still level after
- * every tiebreak but scissors-paper-rock fail the check until a ruling is
- * recorded. name shows a franchise in the sentences.
+ * its worst franchise, and losing advances. From a tied game the higher seed
+ * goes on, and the franchise recorded as advancing must be it. Franchises
+ * still level after every tiebreak but scissors-paper-rock fail the check
+ * until a ruling is recorded. name shows a franchise in the sentences.
  */
 export function checkSeeds(
   picture: Place[],
@@ -370,11 +373,22 @@ export function checkSeeds(
       problems.push(`${title} round 1: the seeds pair ${show(expected)}, but ${show(round(1))} played`);
       continue;
     }
+    // From a tied game the higher seed goes on: in the Shit Bowl, whose seed 1 is its worst, the lower franchise.
+    for (const g of games.filter((g) => g.winner === null && g.advanced != null)) {
+      const higher = seeded.indexOf(g.home) < seeded.indexOf(g.away) ? g.home : g.away;
+      if (g.advanced !== higher)
+        problems.push(
+          `${title} round ${g.round}: ${name(g.home)} v ${name(g.away)} tied, so seed ${seeded.indexOf(higher) + 1}, ` +
+            `${name(higher)}, went on, but ${name(g.advanced!)} is recorded as advancing`,
+        );
+    }
     if (!bye || !games.some((g) => g.round === 2)) continue;
-    // Who goes on from round 1: its winners, but in the Shit Bowl its losers.
+    // Who goes on from round 1: its winners, but in the Shit Bowl its losers, and from a tie the one recorded.
     const on = games
       .filter((g) => g.round === 1)
-      .map((g) => (bracket === 'shit_bowl' ? (g.winner === g.home ? g.away : g.home) : g.winner))
+      .map((g) =>
+        g.winner === null ? g.advanced ?? null : bracket === 'shit_bowl' ? (g.winner === g.home ? g.away : g.home) : g.winner,
+      )
       .filter((f): f is FranchiseId => f !== null);
     const left = seeded.filter((f) => seeded.indexOf(f) < bye || on.includes(f));
     const second = outsideIn(left).sort();
