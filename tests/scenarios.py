@@ -12,7 +12,8 @@ divisions (Group A: 1, 3, 5; Group B: 2, 4, 6). The regular season (weeks
 franchise 1 to 0-5 for franchise 6. Roster r scores 130 - 10r + week every
 week. The Playoffs (top 4) are weeks 6-7, the Shit Bowl (bottom 2) week 6:
 week 6 is 1 v 4 and 2 v 3 in the Playoffs and 5 v 6 in the Shit Bowl, week
-7 the Playoffs final, 1 v 2, with 3 v 4 and 5 v 6 as filler.
+7 the Playoffs final, 1 v 2, with 3 v 4 and 5 v 6 as filler. The tied-final
+scenario is the off-season with that final level, seed 1 going on.
 """
 import json
 import sys
@@ -42,16 +43,22 @@ def points(roster, week):
     return float(130 - 10 * roster + week)
 
 
-def season(data, through, status, brackets_through, paired=7):
-    """2025, final through week `through`, with Sleeper's pairings up to week `paired`."""
-    weeks = {w: [(a, points(a, w) if w <= through else 0.0, b, points(b, w) if w <= through else 0.0)
-                 for a, b in pairs] for w, pairs in SCHEDULE.items() if w <= paired}
+def season(data, through, status, brackets_through, paired=7, tied_final=False):
+    """2025, final through week `through`, with Sleeper's pairings up to week
+    `paired`. A tied final is 1 v 2 level in week 7, seed 1 going on."""
+    def scored(a, b, w):
+        if w > through:
+            return 0.0, 0.0
+        return (points(a, w),) * 2 if tied_final and w == 7 and (a, b) == (1, 2) else (points(a, w), points(b, w))
+    weeks = {w: [(a, pa, b, pb) for a, b in pairs for pa, pb in [scored(a, b, w)]]
+             for w, pairs in SCHEDULE.items() if w <= paired}
     regular = [w for w in range(1, 6) if w <= through]
     totals = {r: (sum(1 for w in regular for a, b in SCHEDULE[w] if r == min(a, b) and r in (a, b)),
                   sum(1 for w in regular for a, b in SCHEDULE[w] if r == max(a, b) and r in (a, b)),
                   0, sum(points(r, w) for w in regular)) for r in ROSTERS}
     write_sleeper_league(data, 2025, weeks, DIVISIONS, status=status, last_scored_leg=through, totals=totals)
-    write_sleeper_brackets(data, [b for b in BRACKETS if b[1] <= brackets_through])
+    write_sleeper_brackets(data, [(*b, 1) if tied_final and b[1:4] == (7, 1, 2) else b
+                                  for b in BRACKETS if b[1] <= brackets_through])
 
 
 def common(data):
@@ -76,10 +83,10 @@ def brackets(data):
     return "2025-10-15"
 
 
-def off_season(data):
+def off_season(data, tied_final=False):
     """2025 is crowned; 2026 has a draft date and starts on 9 September 2026."""
     common(data)
-    season(data, through=7, status="complete", brackets_through=7)
+    season(data, through=7, status="complete", brackets_through=7, tied_final=tied_final)
     write_sleeper_league(data, 2026, {1: [(1, 0.0, 2, 0.0)]}, DIVISIONS, status="pre_draft", last_scored_leg=0)
     sleeper = data / "sleeper"
     # 1 September 2026, 18:00 UK time.
@@ -88,7 +95,12 @@ def off_season(data):
     return "2026-08-01"
 
 
-SCENARIOS = {"regular": regular, "brackets": brackets, "off-season": off_season}
+def tied_final(data):
+    """The off-season, but 2025's Playoffs final was a tie that seed 1 went on from."""
+    return off_season(data, tied_final=True)
+
+
+SCENARIOS = {"regular": regular, "brackets": brackets, "off-season": off_season, "tied-final": tied_final}
 
 
 def write(scenario, out):

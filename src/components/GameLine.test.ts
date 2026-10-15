@@ -12,7 +12,7 @@ const ant = { id: 1, name: 'Ant', teamName: 'Ant' };
 const bee = { id: 2, name: 'Bee', teamName: 'Bee Team' };
 const game = (homePoints: number | null, awayPoints: number | null, winnerId: number | null) => ({
   id: 7, season: 2015, week: 3, phase: 'regular', bracket: null, round: null,
-  home: ant, homePoints, away: bee, awayPoints, winnerId,
+  home: ant, homePoints, away: bee, awayPoints, winnerId, advancedId: null,
 });
 const text = (html: string) => html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 

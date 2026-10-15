@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, inject, test } from 'vitest';
 import { open, type Db } from './database';
-import { seasonFranchise, seasonGames } from './db';
+import { rollOfHonour, seasonFranchise, seasonGames } from './db';
 
 const sqlite = new DatabaseSync(':memory:');
 sqlite.exec(`
@@ -45,4 +45,9 @@ test('a franchise with no team name for a season still has its games shown, by i
     [2, 4, { id: 6, name: 'Sixers', teamName: 'Sixers' }],
     [3, 2, { id: 6, name: 'Sixers', teamName: 'Sixers' }],
   ]);
+});
+
+test('a tied Playoffs final’s champion is the franchise that went on from it, and its runner-up the other', () => {
+  const [row] = rollOfHonour(open(inject('scenarios')['tied-final']));
+  expect([row.season.year, row.champion?.id, row.runnerUp?.id]).toEqual([2025, 1, 2]);
 });

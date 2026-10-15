@@ -126,7 +126,7 @@ export function bracketRuns(db: Db, franchiseId: number): SeasonRun[] {
   return (
     db.all(
       `select season, bracket, round_reached as roundReached, result, source
-       from bracket_runs where franchise_id = ? order by season`,
+       from bracket_runs where franchise_id = ?`,
       [franchiseId],
     ) as unknown as SeasonRun[]
   ).sort((a, b) => a.season - b.season || byBracket((r: SeasonRun) => r.bracket)(a, b));

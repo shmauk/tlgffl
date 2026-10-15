@@ -15,7 +15,7 @@ import FranchiseLink from '../../components/FranchiseLink.astro';
 import GameLine from '../../components/GameLine.astro';
 import NflPlayerLink from '../../components/NflPlayerLink.astro';
 import StatsguruLink from '../../components/StatsguruLink.astro';
-import { franchises, teamNames, seasonLines, seasons, seasonFormats, recordExclusions, exclusionNote, type Franchise } from '../../lib/db';
+import { franchises, teamNames, seasonLines, seasons, seasonFormats, bracketFormat, recordExclusions, exclusionNote, type Franchise } from '../../lib/db';
 import { BRACKET_NAMES, runResult } from '../../lib/brackets';
 import { draftSeasons, franchisePicks, mostStarted } from '../../lib/drafts';
 import { career, franchiseGames, bracketRuns, headToHeads, bestAndWorst, gapSeasons } from '../../lib/profiles';
@@ -72,7 +72,7 @@ const formats = seasonFormats(db);
 const runs = bracketRuns(db, id).map((run) => ({
   ...run,
   seed: run.bracket === 'playoffs' ? lines.find((l) => l.season === run.season)?.seed ?? null : null,
-  result: runResult(run, formats.find((f) => f.season === run.season)!.brackets.find((b) => b.bracket === run.bracket)!),
+  result: runResult(run, bracketFormat(formats, run.season, run.bracket)),
   games: games.filter((g) => g.season === run.season && g.bracket === run.bracket),
 }));
 

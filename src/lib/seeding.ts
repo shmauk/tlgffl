@@ -322,6 +322,14 @@ export interface BracketGame {
 
 
 /**
+ * Who went on from a knockout game: its winner, but in the Shit Bowl, where
+ * losing advances you, its loser. From a tie, the franchise recorded as
+ * advancing. recordbook/brackets.py's went_on keeps the same rule.
+ */
+export const wentOn = (g: BracketGame): FranchiseId | null =>
+  g.winner === null ? g.advanced ?? null : g.bracket === 'shit_bowl' ? (g.winner === g.home ? g.away : g.home) : g.winner;
+
+/**
  * Where a finished season's brackets, as played, disagree with its computed
  * seeds, each a sentence (empty when they agree). Each bracket must hold
  * exactly the franchises its seeds give it. Its first round must pair them
@@ -383,13 +391,7 @@ export function checkSeeds(
         );
     }
     if (!bye || !games.some((g) => g.round === 2)) continue;
-    // Who goes on from round 1: its winners, but in the Shit Bowl its losers, and from a tie the one recorded.
-    const on = games
-      .filter((g) => g.round === 1)
-      .map((g) =>
-        g.winner === null ? g.advanced ?? null : bracket === 'shit_bowl' ? (g.winner === g.home ? g.away : g.home) : g.winner,
-      )
-      .filter((f): f is FranchiseId => f !== null);
+    const on = games.filter((g) => g.round === 1).map(wentOn).filter((f): f is FranchiseId => f !== null);
     const left = seeded.filter((f) => seeded.indexOf(f) < bye || on.includes(f));
     const second = outsideIn(left).sort();
     if (round(2).join() !== second.join())

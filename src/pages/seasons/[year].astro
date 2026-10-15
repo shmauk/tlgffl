@@ -27,7 +27,7 @@ import {
   type Game,
 } from '../../lib/db';
 import { formatSummary, weekList } from '../../lib/format';
-import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, roundName, type BracketKey } from '../../lib/brackets';
+import { BRACKET_CROWNS, BRACKET_NAMES, BRACKET_ORDER, bracketGameLine, roundName, type BracketKey, type CrownSource } from '../../lib/brackets';
 import AwardLink from '../../components/AwardLink.astro';
 import { awards, awardLeaders, awardWinners, awardUnknowns, awardValue } from '../../lib/awards';
 import { inProgressWeeks } from '../../lib/home-db';
@@ -249,7 +249,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                       <FranchiseLink franchise={w.franchise!} teamName={w.franchise!.teamName} />
                     </>
                   ))}{' '}
-                  <SourceNote source={disputed ? 'disputed' : (crowned[0].source as 'derived' | 'confirmed' | 'recalled')} />
+                  <SourceNote source={disputed ? 'disputed' : (crowned[0].source as CrownSource)} />
                 </>
               )}
             </p>
@@ -259,24 +259,29 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                   <tr><th>Round</th><th>Week</th><th>Game</th><th class="num">Score</th></tr>
                 </thead>
                 <tbody>
-                  {bracketGames.map((g) => (
-                    <tr>
-                      <td>{roundName(g.round!, spec)}</td>
-                      <td><SeasonLink season={year} week={g.week}>{g.week}</SeasonLink></td>
-                      <td>
-                        {g.winnerId === g.away.id ? <FranchiseLink franchise={g.away} /> : <FranchiseLink franchise={g.home} />}
-                        {' beat '}
-                        {g.winnerId === g.away.id ? <FranchiseLink franchise={g.home} /> : <FranchiseLink franchise={g.away} />}
-                      </td>
-                      <td class="num">
-                        {g.homePoints === null ? (
-                          <Marker glyph="‡" title={lost} />
-                        ) : (
-                          `${pts(Math.max(g.homePoints, g.awayPoints!))}–${pts(Math.min(g.homePoints, g.awayPoints!))}`
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {bracketGames.map((g) => {
+                    const line = bracketGameLine({ home: g.home.id, away: g.away.id, winnerId: g.winnerId, advancedId: g.advancedId });
+                    const side = (id: number) => (id === g.home.id ? g.home : g.away);
+                    return (
+                      <tr>
+                        <td>{roundName(g.round!, spec)}</td>
+                        <td><SeasonLink season={year} week={g.week}>{g.week}</SeasonLink></td>
+                        <td>
+                          <FranchiseLink franchise={side(line.first)} />
+                          {line.tied ? ' tied ' : ' beat '}
+                          <FranchiseLink franchise={side(line.second)} />
+                          {line.wentOn !== null && <>, <FranchiseLink franchise={side(line.wentOn)} /> went on</>}
+                        </td>
+                        <td class="num">
+                          {g.homePoints === null ? (
+                            <Marker glyph="‡" title={lost} />
+                          ) : (
+                            `${pts(Math.max(g.homePoints, g.awayPoints!))}–${pts(Math.min(g.homePoints, g.awayPoints!))}`
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {pending.map(({ week, m }) => (
                     <tr>
                       <td></td>
