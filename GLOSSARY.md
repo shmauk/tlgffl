@@ -11,8 +11,12 @@ A continuous run in one league slot under the same management, as the league jud
 _Avoid_: Team, roster, slot
 
 **Franchise name**:
-The name a franchise is shown by: the latest team name it played under, on Sleeper or NFL.com. The hand-kept tables may also use the name the franchise is filed under, the last team name it played under on NFL.com, which a rename on Sleeper doesn't change.
+The name a franchise is shown by: the latest team name it played under, on Sleeper or NFL.com. The hand-kept tables may name a franchise by this or by its filed name. No two franchises may share either.
 _Avoid_: Team name (for the franchise as a whole)
+
+**Filed name**:
+The name a franchise is filed under: the last real team name it played under on NFL.com or, for a franchise that has only played on Sleeper, the name the league filed it under. A rename on Sleeper doesn't change it.
+_Avoid_: Old name, NFL.com name
 
 **Manager**:
 The person who runs a franchise. One manager may run several franchises over time; real names are never published.
