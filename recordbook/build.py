@@ -19,6 +19,7 @@ from recordbook import awards as awardlib
 from recordbook import brackets as bracketlib
 from recordbook import current as currentlib
 from recordbook import divisions as divisionlib
+from recordbook import franchises as franchiselib
 from recordbook import formats as formatfile
 from recordbook import games as gamelog
 from recordbook import lineup_records
@@ -29,14 +30,10 @@ from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
 
-# Names a platform shows when no real team name exists. They are kept as a
-# season's team name but never become a franchise name.
-PLACEHOLDER_NAMES = {"pending", "[name redacted]"}
-
 SCHEMA = """
 -- name is the latest team name the franchise played under, Sleeper's
 -- included. filed_name is the name the hand-kept tables and the golden test
--- know it by (franchise_name in build.py), which a rename doesn't change.
+-- know it by (recordbook/franchises.py), which a rename doesn't change.
 create table franchises (
     id integer primary key,
     name text not null,
@@ -390,6 +387,13 @@ def _count(value):
     return None if value in (None, "") else int(value)
 
 
+def team_counts(nfl, sleeper):
+    """{season: teams played} from the NFL.com and Sleeper seasons."""
+    return ({year: len(league["teams"]) for year, league in nfl.items()}
+            | {year: int(league.get("total_rosters") or len(rosters))
+               for year, (league, rosters) in sleeper.items()})
+
+
 def sleeper_seasons(data):
     """{year: (league, rosters)} from the Sleeper snapshots."""
     out = {}
@@ -400,18 +404,6 @@ def sleeper_seasons(data):
     return out
 
 
-def franchise_keys(data):
-    """{(era, slot, owner user id): franchise id} from the hand-kept table.
-
-    NFL.com teams are keyed on (teamId, ownerUserId); Sleeper teams on roster
-    id alone. Several keys may share one franchise: that is how the league's
-    judgement that a manager merely switched accounts is recorded.
-    """
-    keys = {}
-    for r in read_csv(data / "franchises.csv"):
-        owner = r["owner_user_id"] if r["era"] == "nfl.com" else ""
-        keys[(r["era"], str(r["slot"]), owner)] = int(r["franchise_id"])
-    return keys
 
 
 # ---------- build ----------
@@ -421,37 +413,26 @@ def build(data, out, today=None):
     date the current season is chosen on (recordbook/current.py)."""
     data, out = Path(data), Path(out)
     today = today or currentlib.uk_today()
-    keys = franchise_keys(data)
     nfl = nfl_seasons(data)
     sleeper = sleeper_seasons(data)
-    aliases = {int(r["roster_id"]): r for r in read_csv(data / "sleeper_aliases.csv")}
+    if not nfl and not sleeper:
+        raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
+    registry = franchiselib.load(data, nfl, sleeper)
+    if registry.problems:
+        raise BuildError("the franchises can't be told apart or named:\n  "
+                         + "\n  ".join(registry.problems))
+    team_names, played = registry.team_names, registry.played
 
-    def nfl_franchise(year, t):
-        key = ("nfl.com", t["teamId"], t["ownerUserId"])
-        if key not in keys:
-            raise BuildError(f"{year} NFL.com team {t['teamId']} (owner {t['ownerUserId']}) "
-                             "has no franchise in data/franchises.csv")
-        return keys[key]
-
-    def sleeper_franchise(year, roster_id):
-        key = ("sleeper", str(roster_id), "")
-        if key not in keys:
-            raise BuildError(f"{year} Sleeper roster {roster_id} has no franchise in data/franchises.csv")
-        return keys[key]
-
+    counts = team_counts(nfl, sleeper)
     seasons = []
-    team_names = {}
     lines = []
-    played = defaultdict(set)
     nfl_moves = {}
     for year, lg in nfl.items():
-        seasons.append((year, "nfl.com", len(lg["teams"])))
+        seasons.append((year, "nfl.com", counts[year]))
         order = lg.get("finalStandingsTeamIds") or []
         divisions = {d["divisionId"]: d.get("name") for d in (lg.get("divisions") or {}).values()}
         for t in lg["teams"].values():
-            fid = nfl_franchise(year, t)
-            played[fid].add(year)
-            team_names[(fid, year)] = t["name"]
+            fid = registry.nfl_team(t)
             s = _season_stats(t, year)
             nfl_moves[(year, fid)] = (_count(s.get("transactionAddCount")),
                                       _count(s.get("transactionTradeCount")))
@@ -463,34 +444,17 @@ def build(data, out, today=None):
                 s.get("playoffBracketType"),
                 order.index(t["teamId"]) + 1 if t["teamId"] in order else None,
             ))
-    sleeper_ids = {}
-    for year, (lg, rosters) in sleeper.items():
-        seasons.append((year, "sleeper", int(lg.get("total_rosters") or len(rosters))))
-        snapshot = sleeperlib.team_names(data / "sleeper", year)
-        for r in rosters:
-            rid = r["roster_id"]
-            fid = sleeper_franchise(year, rid)
-            played[fid].add(year)
-            sleeper_ids[fid] = rid
-            if rid not in aliases:
-                raise BuildError(f"{year} Sleeper roster {rid} has no row in data/sleeper_aliases.csv")
-            # Never the manager's display name: an unsnapshotted season takes
-            # the name ff-data-project recorded for the roster.
-            team_names[(fid, year)] = snapshot.get(rid) or aliases[rid]["sleeper_name"]
-
-    if not seasons:
-        raise BuildError(f"no seasons in {data}: is the archive imported? (see README)")
+    seasons += [(year, "sleeper", counts[year]) for year in sleeper]
     try:
-        formats = formatfile.load(data / "formats.yaml", {y: n for y, _, n in seasons})
+        formats = formatfile.load(data / "formats.yaml", counts)
     except formatfile.FormatError as e:
         raise BuildError(str(e)) from e
     regular_weeks = {y: formats[y].regular_season[1] for y in nfl}
-    franchise_by_team_name = {(y, n): f for (f, y), n in team_names.items()}
 
     def franchise_of(year, name):
-        if (year, name) not in franchise_by_team_name:
+        if (fid := registry.team_named(year, name)) is None:
             raise BuildError(f"the {year} game log names {name!r}, but no team had that name in {year}")
-        return franchise_by_team_name[(year, name)]
+        return fid
 
     games, postseason = gamelog.nfl_games(gamelog.read_log(data / "league_h2h.csv"), franchise_of,
                                           regular_weeks)
@@ -516,13 +480,12 @@ def build(data, out, today=None):
         assigned = sleeperlib.read_assignments(read_optional_csv(data / "sleeper_brackets.csv"))
         for year, (lg, _rosters) in sorted(sleeper.items()):
             games += sleeperlib.season_games(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
-                                             formats[year], lambda r, y=year: sleeper_franchise(y, r),
+                                             formats[year], registry.roster,
                                              assigned.get(year, {}))
     except sleeperlib.SleeperError as e:
         raise BuildError(str(e)) from e
     check_one_game_a_week(games)
-    team_counts = {year: count for year, _, count in seasons}
-    coverage = gamelog.coverage(games, team_counts, regular_weeks, playoff_teams)
+    coverage = gamelog.coverage(games, counts, regular_weeks, playoff_teams)
     season_lines, disagreements = gamelog.season_lines(games, coverage, lines)
     if disagreements:
         raise BuildError("the games and NFL.com's reported season lines disagree (ADR 0001):\n  "
@@ -530,8 +493,8 @@ def build(data, out, today=None):
     explained = sleeperlib.read_explanations(read_optional_csv(data / "sleeper_adjustments.csv"))
     problems = []
     for year, (lg, rosters) in sorted(sleeper.items()):
-        coverage += sleeperlib.coverage(year, games, team_counts[year])
-        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
+        coverage += sleeperlib.coverage(year, games, counts[year])
+        of = registry.roster
         lines_of_year = sleeperlib.season_lines(year, games, lg, rosters, of)
         problems += sleeperlib.cross_check(year, lg, rosters, lines_of_year, of, explained.get(year, {}))
         season_lines += lines_of_year
@@ -540,20 +503,11 @@ def build(data, out, today=None):
                          + "\n  ".join(problems))
     check_team_names(team_names, games, season_lines)
 
-    all_ids = sorted(set(keys.values()))
-    franchises = []
-    for fid in all_ids:
-        if not played[fid]:
-            raise BuildError(f"franchise {fid} in data/franchises.csv never played a season")
-        nfl_names = {k: n for k, n in team_names.items() if k[1] in nfl}
-        # Whether it is active is known once the current season is (below).
-        franchises.append((fid, franchise_name(fid, nfl_names, sleeper_ids, aliases),
-                           None, min(played[fid]), max(played[fid])))
-    check_against_sleeper_aliases(franchises, sleeper_ids, aliases)
-    # The site shows a franchise by its latest team name (#25); the hand-kept
-    # tables may name it either way.
-    shown = {fid: latest_name(fid, team_names) or name for fid, name, *_ in franchises}
-    by_name = franchise_lookup({fid: (name, shown[fid]) for fid, name, *_ in franchises})
+    # Whether each is active is known once the current season is (below).
+    franchises = [(fid, registry.filed_name(fid), None, min(played[fid]), max(played[fid]))
+                  for fid in registry.ids]
+    shown = {fid: registry.name(fid) for fid in registry.ids}
+    by_name = {name: registry.named(name) for name in registry.names}
     format_rows, bracket_rows = season_format_rows(formats)
     hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
     try:
@@ -570,7 +524,7 @@ def build(data, out, today=None):
     upcoming_brackets = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
         calendar.append(sleeperlib.calendar(data / "sleeper", year))
-        of = lambda r, y=year: sleeper_franchise(y, r)  # noqa: E731
+        of = registry.roster
         upcoming_brackets += sleeperlib.upcoming_brackets(
             year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], of, assigned.get(year, {}),
             games)
@@ -770,30 +724,8 @@ def season_format_rows(formats):
     return rows, brackets
 
 
-def franchise_name(fid, team_names, sleeper_ids, aliases):
-    """The name the hand-kept tables file the franchise under: the last real
-    NFL.com-era team name it played under.
-
-    The hand-kept tables and the golden test name franchises as
-    ff-data-project does, so a franchise that has only played on Sleeper
-    takes the name ff-data-project gave its roster. The site shows
-    latest_name instead (#25).
-    """
-    real = [n for (f, y), n in sorted(team_names.items(), key=lambda kv: kv[0][1])
-            if f == fid and n not in PLACEHOLDER_NAMES]
-    if real:
-        return real[-1]
-    roster = sleeper_ids.get(fid)
-    if roster in aliases:
-        return aliases[roster]["franchise"]
-    raise BuildError(f"franchise {fid} has no team name that could be its franchise name")
 
 
-def latest_name(fid, team_names):
-    """The franchise's latest real team name in either era, or None."""
-    real = [n for (f, y), n in sorted(team_names.items(), key=lambda kv: kv[0][1])
-            if f == fid and n not in PLACEHOLDER_NAMES]
-    return real[-1] if real else None
 
 
 def record_exclusions(rows, games, by_name):
@@ -815,18 +747,6 @@ def record_exclusions(rows, games, by_name):
     return out
 
 
-def franchise_lookup(names):
-    """{name: franchise} from {franchise: (filed name, name on the site)}, so
-    a hand-kept table can use either. A name that is two franchises' fails."""
-    out = {}
-    for fid, (filed, shown) in sorted(names.items()):
-        out[filed] = fid
-    for fid, (filed, shown) in sorted(names.items()):
-        if out.get(shown, fid) != fid:
-            raise BuildError(f"{shown!r} is franchise {fid}'s name on the site and franchise "
-                             f"{out[shown]}'s filed name: a hand-kept table naming it can't tell them apart")
-        out[shown] = fid
-    return out
 
 
 def check_team_names(team_names, games, season_lines):
@@ -866,15 +786,6 @@ def scissors_paper_rock(rows, franchise_ids):
     return out
 
 
-def check_against_sleeper_aliases(franchises, sleeper_ids, aliases):
-    """ff-data-project's sleeper_aliases.csv names the franchise behind each
-    Sleeper roster. The franchise ids must make the same call (issue #20)."""
-    names = {fid: name for fid, name, *_ in franchises}
-    for fid, roster in sorted(sleeper_ids.items(), key=lambda kv: kv[1]):
-        expected = aliases.get(roster, {}).get("franchise")
-        if expected != names[fid]:
-            raise BuildError(f"Sleeper roster {roster} is franchise {fid} ({names[fid]!r}), "
-                             f"but data/sleeper_aliases.csv says {expected!r}")
 
 
 def main(argv=None):

@@ -4,7 +4,7 @@ import pytest
 
 from recordbook.build import build, BuildError
 from tests.archive import (team, write_nfl_season, write_franchise_keys, write_sleeper_aliases,
-                           write_formats, write_documents, fmt)
+                           write_formats, write_documents, write_csv, fmt)
 
 
 def query(db, sql, *args):
@@ -15,32 +15,28 @@ def query(db, sql, *args):
         con.close()
 
 
-def test_franchise_name_is_the_last_team_name_it_played_under_in_either_era(archive, tmp_path):
+
+
+
+
+
+
+def test_a_franchise_is_shown_by_its_latest_name_and_hand_kept_tables_may_use_either(archive, tmp_path):
+    # Alpha Two by its filed name, Charlie by its name on the site
+    # (tests/test_franchises.py has the naming rules).
+    write_csv(archive / "scissors_paper_rock.csv", ["season", "order"], [(2025, "Alpha Two|Charlie Sleeper")])
     db = tmp_path / "league.sqlite"
     build(archive, db)
-    assert query(db, "select id, name from franchises order by id") == [
-        (1, "Alpha Sleeper"), (2, "Bravo"), (3, "Charlie Sleeper"), (4, "Delta")]
+    assert query(db, "select id, name, filed_name from franchises order by id") == [
+        (1, "Alpha Sleeper", "Alpha Two"), (2, "Bravo", "Bravo"), (3, "Charlie Sleeper", "Charlie"),
+        (4, "Delta", "Delta")]
+    assert query(db, "select position, franchise_id from scissors_paper_rock") == [(1, 1), (2, 3)]
 
 
-def test_the_hand_kept_tables_file_a_franchise_under_its_last_nfl_com_name(archive, tmp_path):
-    db = tmp_path / "league.sqlite"
-    build(archive, db)
-    assert query(db, "select id, filed_name from franchises order by id") == [
-        (1, "Alpha Two"), (2, "Bravo"), (3, "Charlie"), (4, "Delta")]
-
-
-def test_placeholder_team_names_never_become_a_franchise_name(archive, tmp_path):
-    write_nfl_season(archive, 2014, [
-        team(1, 100, "[name redacted]", (1, 0, 0), 100, 90),
-        team(2, 300, "pending", (0, 1, 0), 90, 100),
-    ])
-    db = tmp_path / "league.sqlite"
-    build(archive, db)
-    assert query(db, "select id, filed_name from franchises where id in (1, 3) order by id") == [
-        (1, "Alpha Two"), (3, "Charlie")]
-    # ...but they are still what the franchise played under that season.
-    assert query(db, "select franchise_id, team_name from team_names where season = 2014 "
-                     "order by franchise_id") == [(1, "[name redacted]"), (3, "pending")]
+def test_franchise_problems_fail_the_build_together(archive, tmp_path):
+    write_nfl_season(archive, 2014, [team(1, 999, "Stranger", (1, 0, 0)), team(2, 998, "Other", (0, 1, 0))])
+    with pytest.raises(BuildError, match=r"2014 NFL.com team 1 \(owner 999\).*\n.*2014 NFL.com team 2 \(owner 998\)"):
+        build(archive, tmp_path / "league.sqlite")
 
 
 def test_an_unplayed_all_zero_nfl_season_is_not_a_season(archive, tmp_path):
@@ -75,32 +71,10 @@ def test_reported_season_line_comes_from_nfl_com_standings(archive, tmp_path):
         (1, 2013, 1, 2, 0, 260.0, 290.0, "Division 1", None, None, 2)]
 
 
-def test_a_team_with_no_franchise_fails_the_build(archive, tmp_path):
-    write_nfl_season(archive, 2014, [team(1, 100, "Alpha", (1, 0, 0)), team(2, 999, "Stranger", (0, 1, 0))])
-    with pytest.raises(BuildError, match="2014 NFL.com team 2 .*999"):
-        build(archive, tmp_path / "league.sqlite")
 
 
-def test_a_manager_switching_accounts_stays_one_franchise(archive, tmp_path):
-    # The league judged owner 400 to be owner 100 on a new NFL.com account.
-    write_franchise_keys(archive, [
-        (1, "nfl.com", 1, 100), (1, "nfl.com", 1, 400), (2, "nfl.com", 2, 200),
-        (3, "nfl.com", 2, 300), (3, "sleeper", 1, ""), (1, "sleeper", 2, ""), (4, "sleeper", 3, "")])
-    write_nfl_season(archive, 2014, [team(1, 400, "Alpha Three", (1, 0, 0)), team(2, 300, "Charlie", (0, 1, 0))])
-    write_sleeper_aliases(archive, [(1, "C", "Charlie"), (2, "A", "Alpha Three"), (3, "D", "Delta")])
-    db = tmp_path / "league.sqlite"
-    build(archive, db)
-    assert query(db, "select season, team_name from team_names where franchise_id = 1 order by season") == [
-        (2012, "Alpha One"), (2013, "Alpha Two"), (2014, "Alpha Three"), (2025, "A")]
 
 
-def test_franchise_ids_must_agree_with_ff_data_projects_sleeper_aliases(archive, tmp_path):
-    # Roster 2 is Alpha Two's; claiming it for Charlie contradicts ff-data-project.
-    write_franchise_keys(archive, [
-        (1, "nfl.com", 1, 100), (2, "nfl.com", 2, 200), (3, "nfl.com", 2, 300),
-        (3, "sleeper", 2, ""), (1, "sleeper", 1, ""), (4, "sleeper", 3, "")])
-    with pytest.raises(BuildError, match="roster 1"):
-        build(archive, tmp_path / "league.sqlite")
 
 
 def test_an_empty_archive_fails_the_build(tmp_path):
@@ -183,10 +157,3 @@ def test_league_documents_come_from_the_hand_kept_table(archive, tmp_path):
         ("agm", 2022, "AGM minutes 2022", "https://docs.google.com/document/d/m22/edit"),
     ]
 
-
-def test_a_hand_kept_table_can_name_a_franchise_as_the_site_shows_it_or_as_it_is_filed():
-    from recordbook.build import franchise_lookup
-    assert franchise_lookup({1: ("Kurlewless", "Kurlewis"), 2: ("Bravo", "Bravo")}) == {
-        "Kurlewless": 1, "Kurlewis": 1, "Bravo": 2}
-    with pytest.raises(BuildError, match="'Bravo' is franchise 1's name on the site and franchise 2's filed name"):
-        franchise_lookup({1: ("Alpha", "Bravo"), 2: ("Bravo", "Charlie")})

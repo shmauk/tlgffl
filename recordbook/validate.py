@@ -13,10 +13,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 from recordbook import build as buildlib
 from recordbook import formats as formatfile
+from recordbook import franchises as franchiselib
 from recordbook import sleeper as sleeperlib
 
 
@@ -140,7 +139,7 @@ SCHEMAS = {
         [winners_need_a_source(MEDIOCRE_BOWL_SOURCES)], lambda row: row["year"], ("franchise",)),
     "sleeper_aliases.csv": Table(
         {"roster_id": whole_number, "sleeper_name": text, "franchise": required},
-        key=lambda row: f"roster {row['roster_id']}", franchises=("franchise",)),
+        key=lambda row: f"roster {row['roster_id']}"),
     "emoji.csv": Table(
         {"franchise": required, "emoji": text},
         key=lambda row: row["franchise"], franchises=("franchise",)),
@@ -208,17 +207,23 @@ def validate(data):
     if problems:
         # The checks across tables assume each table is well formed.
         return problems
-    problems = check_platform_teams(data) + check_formats(data) + check_sleeper_leagues(data)
+    nfl, sleeper = buildlib.nfl_seasons(data), buildlib.sleeper_seasons(data)
+    registry = franchiselib.load(data, nfl, sleeper)
+    formats, format_problems = {}, []
+    try:
+        formats = formatfile.load(data / "formats.yaml", buildlib.team_counts(nfl, sleeper))
+    except formatfile.FormatError as e:
+        format_problems = e.problems
+    problems = registry.problems + format_problems + check_sleeper_leagues(data)
     if problems:
         return problems
-    names = franchise_names(data)
     for name, table in SCHEMAS.items():
         if table.franchises and (data / name).exists():
-            problems += check_franchise_names(name, table, data / name, names)
-    return problems + check_keepers(data)
+            problems += check_franchise_names(name, table, data / name, registry)
+    return problems + check_keepers(data, registry, formats)
 
 
-def check_keepers(data):
+def check_keepers(data, registry, formats):
     """Each keeper's franchise id must exist and, in a season with a Sleeper
     draft snapshot, be the franchise that took the NFL player with the pick
     of the round it cost. Elsewhere the NFL player must be a Sleeper id some
@@ -226,17 +231,13 @@ def check_keepers(data):
     path = data / "keepers.csv"
     if not path.exists():
         return []
-    franchises = {int(fid) for fid in buildlib.franchise_keys(data).values()}
+    franchises = set(registry.ids)
     sleeper = data / "sleeper"
     drafts = {}
     for f in sorted(sleeper.glob("*-draft_picks.json")):
         drafts[int(f.name[:4])] = {(p["roster_id"], p["player_id"]): p["round"]
                                    for p in json.loads(f.read_text(encoding="utf-8")) if p.get("player_id")}
-    roster_franchise = {int(slot): fid for (era, slot, _), fid in buildlib.franchise_keys(data).items()
-                        if era == "sleeper"}
-    formats_path = data / "formats.yaml"
-    formats = (yaml.safe_load(formats_path.read_text(encoding="utf-8")) if formats_path.exists() else None) or {}
-    keeperless = {y for y, f in formats.items() if isinstance(f, dict) and f.get("keepers") is False}
+    keeperless = {y for y, f in formats.items() if not f.keepers}
     known = None
     problems = []
     for line, row in read_rows(path)[1]:
@@ -247,7 +248,7 @@ def check_keepers(data):
         elif fid not in franchises:
             problems.append(f"{where}: franchise_id {fid} is not a franchise id in data/franchises.csv")
         elif season in drafts:
-            taken = {roster_franchise.get(r): n for (r, p), n in drafts[season].items() if p == pid}
+            taken = {registry.sleeper_keys.get(r): n for (r, p), n in drafts[season].items() if p == pid}
             if fid not in taken:
                 problems.append(f"{where}: franchise {fid} made no pick of NFL player {pid} in the {season} draft "
                                 "(a keeper takes the pick of the round it cost)")
@@ -302,118 +303,17 @@ def check_table(name, table, path):
     return problems
 
 
-def _keyed_slots(data, era):
-    path = data / "franchises.csv"
-    return {row["slot"] if era == "sleeper" else (row["slot"], row["owner_user_id"])
-            for _, row in (read_rows(path)[1] if path.exists() else []) if row["era"] == era}
-
-
-def check_platform_teams(data):
-    """Every platform team needs a franchise, and every Sleeper roster an
-    alias: the build can't place one without them (#19: by week 1)."""
-    problems = []
-    nfl_keys = _keyed_slots(data, "nfl.com")
-    for year, league in buildlib.nfl_seasons(data).items():
-        for t in league["teams"].values():
-            if (t["teamId"], t["ownerUserId"]) not in nfl_keys:
-                problems.append(f"data/nfl-api/standings-{year}.json: team {t['teamId']} "
-                                f"(owner {t['ownerUserId']}) has no nfl.com row in data/franchises.csv")
-    sleeper_keys = _keyed_slots(data, "sleeper")
-    aliases_path = data / "sleeper_aliases.csv"
-    aliases = ({row["roster_id"] for _, row in read_rows(aliases_path)[1]}
-               if aliases_path.exists() else set())
-    for path in sorted((data / "sleeper").glob("*-rosters.json")):
-        for roster in json.loads(path.read_text(encoding="utf-8")):
-            rid = str(roster["roster_id"])
-            where = f"data/sleeper/{path.name}: roster {rid}"
-            if rid not in sleeper_keys:
-                problems.append(f"{where} has no sleeper row in data/franchises.csv")
-            if rid not in aliases:
-                problems.append(f"{where} has no row in data/sleeper_aliases.csv")
-    return problems
-
-
-FORMAT_FIELDS = ("teams", "divisions", "realignment", "regular_season_weeks")
-BRACKET_FIELDS = ("size", "weeks")
-
-
-def check_formats(data):
-    """Every season the archive holds needs a format in data/formats.yaml
-    (#19), with the fields the build reads."""
-    path = data / "formats.yaml"
-    try:
-        entries = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else None) or {}
-    except yaml.YAMLError as e:
-        return [f"data/formats.yaml is not valid YAML: {e}"]
-    problems = []
-    for season, entry in entries.items():
-        if not isinstance(season, int):
-            continue  # anchors such as x-nfl-4
-        where = f"data/formats.yaml {season}"
-        if not isinstance(entry, dict):
-            problems.append(f"{where}: must be a mapping of {', '.join(FORMAT_FIELDS)} and brackets")
-            continue
-        problems += [f"{where}: no {f}" for f in FORMAT_FIELDS if f not in entry]
-        if not isinstance(entry.get("keepers", True), bool):
-            problems.append(f"{where}: keepers must be true or false")
-        for name, bracket in (entry.get("brackets") or {}).items():
-            problems += [f"{where} {name}: no {f}" for f in BRACKET_FIELDS
-                         if f not in (bracket or {})]
-    if problems:
-        return problems
-    team_counts = {year: len(league["teams"]) for year, league in buildlib.nfl_seasons(data).items()}
-    team_counts |= {year: int(league.get("total_rosters") or len(rosters))
-                    for year, (league, rosters) in buildlib.sleeper_seasons(data).items()}
-    try:
-        formatfile.load(path, team_counts)
-    except formatfile.FormatError as e:
-        return [str(e)]
-    return []
-
-
-def franchise_names(data):
-    """Every name a hand-kept table may give a franchise, as the build gives
-    them: its filed name (the last real NFL.com-era team name it played under,
-    or its Sleeper alias if it has only played on Sleeper) and its name on the
-    site (its latest team name in either era)."""
-    keys = buildlib.franchise_keys(data)
-    team_names = {}
-    for year, league in buildlib.nfl_seasons(data).items():
-        for t in league["teams"].values():
-            team_names[(keys[("nfl.com", t["teamId"], t["ownerUserId"])], year)] = t["name"]
-    sleeper_ids = {fid: int(slot) for (era, slot, _), fid in keys.items() if era == "sleeper"}
-    aliases_path = data / "sleeper_aliases.csv"
-    aliases = ({int(r["roster_id"]): r for r in buildlib.read_csv(aliases_path)}
-               if aliases_path.exists() else {})
-    all_names = dict(team_names)
-    for year, (_league, rosters) in buildlib.sleeper_seasons(data).items():
-        snapshot = sleeperlib.team_names(data / "sleeper", year)
-        for r in rosters:
-            rid, fid = r["roster_id"], keys.get(("sleeper", str(r["roster_id"]), ""))
-            if fid is not None and (rid in snapshot or rid in aliases):
-                all_names[(fid, year)] = snapshot.get(rid) or aliases[rid]["sleeper_name"]
-    names = set()
-    for fid in set(keys.values()):
-        try:
-            names.add(buildlib.franchise_name(fid, team_names, sleeper_ids, aliases))
-        except buildlib.BuildError:
-            pass
-        if shown := buildlib.latest_name(fid, all_names):
-            names.add(shown)
-    return names
-
-
-def check_franchise_names(name, table, path, names):
+def check_franchise_names(name, table, path, registry):
     problems = []
     for line, row in read_rows(path)[1]:
         for column in table.franchises:
             for franchise in (n.strip() for n in (row[column] or "").split("|")):
-                if franchise and franchise not in names:
+                if franchise and registry.named(franchise) is None:
                     problems.append(
                         f"data/{name} line {line}: {column} {franchise!r} is not a franchise name "
                         "(a franchise goes by its name on the site or the last NFL.com team name it "
                         "played under: "
-                        f"{', '.join(sorted(names))})")
+                        f"{', '.join(registry.names)})")
     return problems
 
 

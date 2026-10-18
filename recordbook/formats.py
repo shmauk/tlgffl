@@ -14,8 +14,17 @@ BRACKETS = ("playoffs", "shit_bowl", "mediocre_bowl")
 BRACKET_NAMES = {"playoffs": "Playoffs", "shit_bowl": "Shit Bowl", "mediocre_bowl": "Mediocre Bowl"}
 
 
+FORMAT_FIELDS = ("teams", "divisions", "realignment", "regular_season_weeks")
+BRACKET_FIELDS = ("size", "weeks")
+
+
 class FormatError(Exception):
-    """data/formats.yaml is missing a season or contradicts the archive."""
+    """data/formats.yaml is missing a season or contradicts the archive.
+    problems holds each readable problem; the message is them all."""
+
+    def __init__(self, *problems):
+        super().__init__("\n".join(problems))
+        self.problems = list(problems)
 
 
 @dataclass(frozen=True)
@@ -57,10 +66,16 @@ class Format:
 def load(path, team_counts):
     """{season: Format} for every season in team_counts ({season: teams played}).
 
-    Raises FormatError when a season has no entry, when an entry's team count
-    isn't what was played, or when it names an unknown bracket.
+    Raises FormatError when the file isn't valid YAML, when an entry misses a
+    field, when a season has no entry, when an entry's team count isn't what
+    was played, or when it names an unknown bracket.
     """
-    entries = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else None) or {}
+    try:
+        entries = (yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else None) or {}
+    except yaml.YAMLError as e:
+        raise FormatError(f"data/formats.yaml is not valid YAML: {e}") from e
+    if problems := missing_fields(entries):
+        raise FormatError(*problems)
     for season in sorted(team_counts):
         if season not in entries:
             raise FormatError(f"{season} has no format in data/formats.yaml: every season needs one")
@@ -84,3 +99,22 @@ def load(path, team_counts):
                              tuple(f["regular_season_weeks"]), brackets, f.get("tiebreaks"),
                              f.get("keepers", True))
     return out
+
+
+def missing_fields(entries):
+    """Every field an entry misses, written ahead of its season or not."""
+    problems = []
+    for season, entry in entries.items():
+        if not isinstance(season, int):
+            continue  # anchors such as x-nfl-4
+        where = f"data/formats.yaml {season}"
+        if not isinstance(entry, dict):
+            problems.append(f"{where}: must be a mapping of {', '.join(FORMAT_FIELDS)} and brackets")
+            continue
+        problems += [f"{where}: no {f}" for f in FORMAT_FIELDS if f not in entry]
+        if not isinstance(entry.get("keepers", True), bool):
+            problems.append(f"{where}: keepers must be true or false")
+        for name, bracket in (entry.get("brackets") or {}).items():
+            problems += [f"{where} {name}: no {f}" for f in BRACKET_FIELDS
+                         if f not in (bracket or {})]
+    return problems

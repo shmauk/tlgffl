@@ -227,24 +227,17 @@ def test_a_season_sleeper_has_scored_further_than_its_final_weeks_is_not_cross_c
     assert query(db, "select wins from season_lines where franchise_id = 11") == [(1,)]
 
 
-def test_a_roster_missing_from_the_identity_table_fails_the_build(sleeper, tmp_path):
-    write_franchise_keys(sleeper, [(10 + r, "sleeper", r, "") for r in DIVISIONS if r != 6])
-    with pytest.raises(BuildError, match="2025 Sleeper roster 6 has no franchise"):
-        build(sleeper, tmp_path / "league.sqlite")
 
 
-def test_a_roster_missing_from_the_aliases_fails_the_build(sleeper, tmp_path):
-    write_sleeper_aliases(sleeper, [(r, f"Sleeper {r}", f"Team {r}") for r in DIVISIONS if r != 6])
-    with pytest.raises(BuildError, match="roster 6"):
-        build(sleeper, tmp_path / "league.sqlite")
 
 
 def test_a_franchise_with_a_game_but_no_team_name_for_its_season_fails_the_build(sleeper, tmp_path):
     # Roster 6 plays its games but has dropped out of the rosters snapshot, so
     # nothing gives it a 2025 team name (ADR 0004: the build guarantees one).
+    # It has no other season, so the franchise registry already finds it.
     rosters = sleeper / "sleeper" / "2025-rosters.json"
     rosters.write_text(json.dumps([r for r in json.loads(rosters.read_text()) if r["roster_id"] != 6]))
-    with pytest.raises(BuildError, match=r"franchise 16 has a game or a season line in 2025 but no team name"):
+    with pytest.raises(BuildError, match=r"franchise 16 in data/franchises.csv never played a season"):
         build(sleeper, tmp_path / "league.sqlite")
 
 
@@ -263,18 +256,8 @@ def test_a_sleeper_seasons_team_names_come_from_its_latest_weekly_snapshot(sleep
                      "order by franchise_id") == [(11, "Renamed"), (12, "Week 1 2"), (13, "Week 1 3")]
 
 
-def test_without_snapshots_a_sleeper_team_name_is_the_one_recorded_in_the_aliases(sleeper, tmp_path):
-    # 2025's names were never snapshotted; ff-data-project recorded them.
-    db = built(sleeper, tmp_path)
-    assert query(db, "select team_name from team_names where franchise_id = 11") == [("Sleeper 1",)]
-    # The franchise is named for it; the hand-kept tables still file it under the aliases' name.
-    assert query(db, "select name, filed_name from franchises where id = 11") == [("Sleeper 1", "Team 1")]
 
 
-def test_a_franchise_takes_its_latest_sleeper_team_name(sleeper, tmp_path):
-    write_team_names(sleeper, 2025, 1, {**{r: f"Week 1 {r}" for r in DIVISIONS}, 1: "Renamed"})
-    db = built(sleeper, tmp_path)
-    assert query(db, "select name, filed_name from franchises where id = 11") == [("Renamed", "Team 1")]
 
 
 def test_a_lineup_holds_starters_by_slot_and_the_bench_with_each_nfl_players_points(sleeper, tmp_path):
