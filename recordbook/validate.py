@@ -248,7 +248,7 @@ def check_keepers(data, registry, formats):
         elif fid not in franchises:
             problems.append(f"{where}: franchise_id {fid} is not a franchise id in data/franchises.csv")
         elif season in drafts:
-            taken = {registry.sleeper_keys.get(r): n for (r, p), n in drafts[season].items() if p == pid}
+            taken = {registry.roster(r): n for (r, p), n in drafts[season].items() if p == pid}
             if fid not in taken:
                 problems.append(f"{where}: franchise {fid} made no pick of NFL player {pid} in the {season} draft "
                                 "(a keeper takes the pick of the round it cost)")
@@ -311,8 +311,7 @@ def check_franchise_names(name, table, path, registry):
                 if franchise and registry.named(franchise) is None:
                     problems.append(
                         f"data/{name} line {line}: {column} {franchise!r} is not a franchise name "
-                        "(a franchise goes by its name on the site or the last NFL.com team name it "
-                        "played under: "
+                        "(a hand-kept table names a franchise by its franchise name or its filed name: "
                         f"{', '.join(registry.names)})")
     return problems
 

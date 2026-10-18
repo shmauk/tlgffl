@@ -61,14 +61,12 @@ def test_a_platform_team_can_belong_to_only_one_franchise(archive):
         "data/franchises.csv line 8: nfl.com team 1 (owner 100) is already on line 2"]
 
 
-
-
 def test_the_franchise_registrys_problems_are_reported(archive):
     # Delta, only ever on Sleeper, is filed under Bravo's name.
     write_sleeper_aliases(archive, [(1, "Charlie Sleeper", "Charlie"), (2, "Alpha Sleeper", "Alpha Two"),
                                     (3, "Delta", "Bravo")])
     assert validate(archive) == [
-        "'Bravo' is franchise 2's filed name and name on the site and franchise 4's filed name: "
+        "'Bravo' is franchise 2's filed name and franchise name and franchise 4's filed name: "
         "a hand-kept table naming it can't tell them apart"]
 
 
@@ -78,10 +76,8 @@ def test_a_shit_bowl_winner_must_be_a_franchise_name(archive):
               comments=["Who took the Shit Bowl."])
     assert validate(archive) == [
         "data/shitbowl.csv line 4: franchise 'Alpha One' is not a franchise name "
-        "(a franchise goes by its name on the site or the last NFL.com team name it played under: "
+        "(a hand-kept table names a franchise by its franchise name or its filed name: "
         "Alpha Sleeper, Alpha Two, Bravo, Charlie, Charlie Sleeper, Delta)"]
-
-
 
 
 def test_bracket_winner_tables_check_their_source_and_season(archive):

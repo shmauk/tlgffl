@@ -404,8 +404,6 @@ def sleeper_seasons(data):
     return out
 
 
-
-
 # ---------- build ----------
 
 def build(data, out, today=None):
@@ -494,9 +492,9 @@ def build(data, out, today=None):
     problems = []
     for year, (lg, rosters) in sorted(sleeper.items()):
         coverage += sleeperlib.coverage(year, games, counts[year])
-        of = registry.roster
-        lines_of_year = sleeperlib.season_lines(year, games, lg, rosters, of)
-        problems += sleeperlib.cross_check(year, lg, rosters, lines_of_year, of, explained.get(year, {}))
+        lines_of_year = sleeperlib.season_lines(year, games, lg, rosters, registry.roster)
+        problems += sleeperlib.cross_check(year, lg, rosters, lines_of_year, registry.roster,
+                                           explained.get(year, {}))
         season_lines += lines_of_year
     if problems:
         raise BuildError("Sleeper's roster totals and the games disagree (ADR 0001, Sleeper era):\n  "
@@ -506,7 +504,7 @@ def build(data, out, today=None):
     # Whether each is active is known once the current season is (below).
     franchises = [(fid, registry.filed_name(fid), None, min(played[fid]), max(played[fid]))
                   for fid in registry.ids]
-    shown = {fid: registry.name(fid) for fid in registry.ids}
+    shown = {fid: registry.franchise_name(fid) for fid in registry.ids}
     by_name = {name: registry.named(name) for name in registry.names}
     format_rows, bracket_rows = season_format_rows(formats)
     hand_kept = {b: read_optional_csv(data / table) for b, (table, _) in bracketlib.HAND_KEPT.items()}
@@ -524,19 +522,19 @@ def build(data, out, today=None):
     upcoming_brackets = []
     for year, (lg, _rosters) in sorted(sleeper.items()):
         calendar.append(sleeperlib.calendar(data / "sleeper", year))
-        of = registry.roster
         upcoming_brackets += sleeperlib.upcoming_brackets(
-            year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], of, assigned.get(year, {}),
-            games)
+            year, lg, sleeperlib.read_weeks(data / "sleeper", year), formats[year], registry.roster,
+            assigned.get(year, {}), games)
         upcoming += sleeperlib.upcoming(year, lg, sleeperlib.read_weeks(data / "sleeper", year),
-                                        formats[year], of)
+                                        formats[year], registry.roster)
         winners += sleeperlib.crowns(year, games, formats[year])
-        lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games, of)
+        lineups += sleeperlib.lineups(year, lg, sleeperlib.read_weeks(data / "sleeper", year), games,
+                                      registry.roster)
         for table, rows in sleeperlib.transactions(
-                year, sleeperlib.read_transactions(data / "sleeper", year), of).items():
+                year, sleeperlib.read_transactions(data / "sleeper", year), registry.roster).items():
             moves[table] += rows
         try:
-            picks += sleeperlib.draft_picks(data / "sleeper", year, of)
+            picks += sleeperlib.draft_picks(data / "sleeper", year, registry.roster)
         except sleeperlib.SleeperError as e:
             raise BuildError(str(e)) from e
     current = currentlib.current_season(season_states(formats, games, winners, calendar, set(nfl)), today)
@@ -724,10 +722,6 @@ def season_format_rows(formats):
     return rows, brackets
 
 
-
-
-
-
 def record_exclusions(rows, games, by_name):
     """record_exclusions rows (game id, franchise, reason) from the hand-kept
     rows (season, week, franchise, reason), game ids being the stored games'
@@ -745,8 +739,6 @@ def record_exclusions(rows, games, by_name):
                              f"in {season} week {week}")
         out.append((found[0], fid, r["reason"].strip()))
     return out
-
-
 
 
 def check_team_names(team_names, games, season_lines):
@@ -784,8 +776,6 @@ def scissors_paper_rock(rows, franchise_ids):
                                  "which is not a franchise name")
             out.append((season, count[season], position, franchise_ids[name]))
     return out
-
-
 
 
 def main(argv=None):

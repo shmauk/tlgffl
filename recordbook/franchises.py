@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 
 from recordbook import sleeper as sleeperlib
 
+# Names a platform shows when no real team name exists. They are kept as a
+# season's team name but never become a franchise name or a filed name.
 PLACEHOLDER_NAMES = {"pending", "[name redacted]"}
 
 
@@ -21,8 +23,8 @@ class Registry:
     nfl_keys: dict
     sleeper_keys: dict
     team_names: dict = field(default_factory=dict)
-    filed: dict = field(default_factory=dict)
-    shown: dict = field(default_factory=dict)
+    filed_names: dict = field(default_factory=dict)
+    franchise_names: dict = field(default_factory=dict)
     by_name: dict = field(default_factory=dict)
     by_team_name: dict = field(default_factory=dict)
     problems: list = field(default_factory=list)
@@ -53,16 +55,16 @@ class Registry:
         real team name it played under on NFL.com or, if it has only played
         on Sleeper, the name ff-data-project gave its roster. A rename on
         Sleeper doesn't change it."""
-        return self.filed[fid]
+        return self.filed_names[fid]
 
-    def name(self, fid):
-        """The name the site shows the franchise by: its latest real team
-        name in either era (#25)."""
-        return self.shown[fid]
+    def franchise_name(self, fid):
+        """The name the franchise is shown by: its latest real team name in
+        either era (#25)."""
+        return self.franchise_names[fid]
 
     def named(self, name):
-        """The franchise a hand-kept table's name refers to, by its name on
-        the site or its filed name, or None."""
+        """The franchise a hand-kept table's name refers to, by its franchise
+        name or its filed name, or None."""
         return self.by_name.get(name)
 
     @property
@@ -97,71 +99,73 @@ def registry(keys, aliases, nfl, sleeper):
     """The registry from the franchises.csv and sleeper_aliases.csv rows,
     {year: NFL.com teams} and {year: (Sleeper roster ids, {roster: snapshot
     team name})}."""
-    nfl_keys = {(r["slot"], r["owner_user_id"]): int(r["franchise_id"])
-                for r in keys if r["era"] == "nfl.com"}
-    sleeper_keys = {int(r["slot"]): int(r["franchise_id"]) for r in keys if r["era"] == "sleeper"}
+    nfl_keys = {(row["slot"], row["owner_user_id"]): int(row["franchise_id"])
+                for row in keys if row["era"] == "nfl.com"}
+    sleeper_keys = {int(row["slot"]): int(row["franchise_id"]) for row in keys if row["era"] == "sleeper"}
     by_roster = {int(a["roster_id"]): a for a in aliases}
-    r = Registry(nfl_keys, sleeper_keys)
+    reg = Registry(nfl_keys, sleeper_keys)
     last_roster = {}
+    # Franchises with a roster but no alias: their names can't be known, so
+    # they go unchecked until it's added.
+    unnamed = set()
     for year, teams in nfl.items():
         for t in teams:
             if (t["teamId"], t["ownerUserId"]) not in nfl_keys:
-                r.problems.append(f"{year} NFL.com team {t['teamId']} (owner {t['ownerUserId']}) "
-                                  "has no franchise in data/franchises.csv")
+                reg.problems.append(f"{year} NFL.com team {t['teamId']} (owner {t['ownerUserId']}) "
+                                    "has no franchise in data/franchises.csv")
                 continue
-            r.team_names[(r.nfl_team(t), year)] = t["name"]
+            reg.team_names[(reg.nfl_team(t), year)] = t["name"]
     for year, (rosters, snapshot) in sleeper.items():
         for rid in rosters:
             if rid not in sleeper_keys:
-                r.problems.append(f"{year} Sleeper roster {rid} has no franchise in data/franchises.csv")
+                reg.problems.append(f"{year} Sleeper roster {rid} has no franchise in data/franchises.csv")
             if rid not in by_roster:
-                r.problems.append(f"{year} Sleeper roster {rid} has no row in data/sleeper_aliases.csv")
+                reg.problems.append(f"{year} Sleeper roster {rid} has no row in data/sleeper_aliases.csv")
+                if rid in sleeper_keys:
+                    unnamed.add(sleeper_keys[rid])
             if rid in sleeper_keys and rid in by_roster:
                 # Never the manager's display name: an unsnapshotted season
                 # takes the name ff-data-project recorded for the roster.
-                r.team_names[(r.roster(rid), year)] = snapshot.get(rid) or by_roster[rid]["sleeper_name"]
-                last_roster[r.roster(rid)] = rid
-    if r.problems:
-        # A franchise's names hang off every team it played as.
-        return r
-    for (fid, year), name in sorted(r.team_names.items(), key=lambda kv: (kv[0][1], kv[0][0])):
-        if (other := r.by_team_name.setdefault((year, name), fid)) != fid:
-            r.problems.append(f"{year}: franchises {other} and {fid} both played as {name!r}, "
-                              "so the game log can't tell them apart")
-    played = r.played
-    for fid in r.ids:
+                reg.team_names[(reg.roster(rid), year)] = snapshot.get(rid) or by_roster[rid]["sleeper_name"]
+                last_roster[reg.roster(rid)] = rid
+    for (fid, year), name in sorted(reg.team_names.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+        if (other := reg.by_team_name.setdefault((year, name), fid)) != fid:
+            reg.problems.append(f"{year}: franchises {other} and {fid} both played as {name!r}, "
+                                "so the game log can't tell them apart")
+    played = reg.played
+    for fid in (f for f in reg.ids if f not in unnamed):
         if not played[fid]:
-            r.problems.append(f"franchise {fid} in data/franchises.csv never played a season")
+            reg.problems.append(f"franchise {fid} in data/franchises.csv never played a season")
             continue
-        real = [(year, n) for (f, year), n in sorted(r.team_names.items(), key=lambda kv: kv[0][1])
+        real = [(year, n) for (f, year), n in sorted(reg.team_names.items(), key=lambda kv: kv[0][1])
                 if f == fid and n not in PLACEHOLDER_NAMES]
         on_nfl = [n for year, n in real if year in nfl]
         if on_nfl:
-            r.filed[fid] = on_nfl[-1]
+            reg.filed_names[fid] = on_nfl[-1]
         elif last_roster.get(fid) in by_roster:
-            r.filed[fid] = by_roster[last_roster[fid]]["franchise"]
+            reg.filed_names[fid] = by_roster[last_roster[fid]]["franchise"]
         else:
-            r.problems.append(f"franchise {fid} has no team name that could be its filed name")
+            reg.problems.append(f"franchise {fid} has no team name that could be its filed name")
             continue
-        r.shown[fid] = real[-1][1] if real else r.filed[fid]
-    r.problems += _name_clashes(r)
+        reg.franchise_names[fid] = real[-1][1] if real else reg.filed_names[fid]
+    reg.problems += _name_clashes(reg)
     # ff-data-project's sleeper_aliases.csv names the franchise behind each
     # Sleeper roster. The franchise ids must make the same call (#20).
     for fid, roster in sorted(last_roster.items(), key=lambda kv: kv[1]):
         expected = by_roster[roster]["franchise"]
-        if fid in r.filed and expected != r.filed[fid]:
-            r.problems.append(f"Sleeper roster {roster} is franchise {fid} ({r.filed[fid]!r}), "
-                              f"but data/sleeper_aliases.csv says {expected!r}")
-    return r
+        if fid in reg.filed_names and expected != reg.filed_names[fid]:
+            reg.problems.append(f"Sleeper roster {roster} is franchise {fid} ({reg.filed_names[fid]!r}), "
+                                f"but data/sleeper_aliases.csv says {expected!r}")
+    return reg
 
 
-def _name_clashes(r):
-    """Every name more than one franchise goes by, on the site or as filed,
+def _name_clashes(reg):
+    """Every franchise name or filed name more than one franchise goes by,
     which a hand-kept table naming it couldn't tell apart."""
     goes_by = defaultdict(lambda: defaultdict(list))
-    for fid in r.filed:
-        goes_by[r.filed[fid]][fid].append("filed name")
-        goes_by[r.shown[fid]][fid].append("name on the site")
+    for fid in reg.filed_names:
+        goes_by[reg.filed_names[fid]][fid].append("filed name")
+        goes_by[reg.franchise_names[fid]][fid].append("franchise name")
     problems = []
     for name, franchises in goes_by.items():
         if len(franchises) > 1:
@@ -169,5 +173,5 @@ def _name_clashes(r):
                 f"franchise {fid}'s {' and '.join(kinds)}" for fid, kinds in sorted(franchises.items()))
                 + ": a hand-kept table naming it can't tell them apart")
         else:
-            [r.by_name[name]] = franchises
+            [reg.by_name[name]] = franchises
     return problems
