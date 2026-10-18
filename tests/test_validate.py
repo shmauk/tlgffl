@@ -61,14 +61,15 @@ def test_a_platform_team_can_belong_to_only_one_franchise(archive):
         "data/franchises.csv line 8: nfl.com team 1 (owner 100) is already on line 2"]
 
 
-def test_every_sleeper_roster_needs_a_franchise_and_an_alias(archive):
-    write_sleeper_season(archive, 2026, [1, 2, 3, 4])
-    write_formats(archive, {2012: fmt(2, 3, (1, [4])), 2013: fmt(2, 3, (1, [4])),
-                            2025: fmt(3, 14, (2, [15])), 2026: fmt(4, 14, (2, [15]))})
+
+
+def test_the_franchise_registrys_problems_are_reported(archive):
+    # Delta, only ever on Sleeper, is filed under Bravo's name.
+    write_sleeper_aliases(archive, [(1, "Charlie Sleeper", "Charlie"), (2, "Alpha Sleeper", "Alpha Two"),
+                                    (3, "Delta", "Bravo")])
     assert validate(archive) == [
-        "data/sleeper/2026-rosters.json: roster 4 has no sleeper row in data/franchises.csv",
-        "data/sleeper/2026-rosters.json: roster 4 has no row in data/sleeper_aliases.csv",
-    ]
+        "'Bravo' is franchise 2's filed name and name on the site and franchise 4's filed name: "
+        "a hand-kept table naming it can't tell them apart"]
 
 
 def test_a_shit_bowl_winner_must_be_a_franchise_name(archive):
@@ -81,11 +82,6 @@ def test_a_shit_bowl_winner_must_be_a_franchise_name(archive):
         "Alpha Sleeper, Alpha Two, Bravo, Charlie, Charlie Sleeper, Delta)"]
 
 
-def test_a_franchise_can_be_named_as_the_site_shows_it_or_as_it_is_filed(archive):
-    write_csv(archive / "shitbowl.csv", ["year", "franchise", "second_last", "source"],
-              [(2012, "Alpha Sleeper", "", "recalled"), (2013, "Alpha Two", "", "recalled")],
-              comments=["Who took the Shit Bowl."])
-    assert validate(archive) == []
 
 
 def test_bracket_winner_tables_check_their_source_and_season(archive):
@@ -266,7 +262,7 @@ def test_the_cli_prints_each_problem_and_fails(archive, capsys):
     write_sleeper_aliases(archive, [(1, "Charlie Sleeper", "Charlie"), (2, "Alpha Sleeper", "Alpha Two")])
     assert main([str(archive)]) == 1
     out = capsys.readouterr().out
-    assert "data/sleeper/2025-rosters.json: roster 3 has no row in data/sleeper_aliases.csv" in out
+    assert "2025 Sleeper roster 3 has no row in data/sleeper_aliases.csv" in out
     assert "1 problem(s)" in out
 
 
