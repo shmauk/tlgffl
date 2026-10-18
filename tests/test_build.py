@@ -15,14 +15,8 @@ def query(db, sql, *args):
         con.close()
 
 
-
-
-
-
-
-
 def test_a_franchise_is_shown_by_its_latest_name_and_hand_kept_tables_may_use_either(archive, tmp_path):
-    # Alpha Two by its filed name, Charlie by its name on the site
+    # Alpha Two by its filed name, Charlie by its franchise name
     # (tests/test_franchises.py has the naming rules).
     write_csv(archive / "scissors_paper_rock.csv", ["season", "order"], [(2025, "Alpha Two|Charlie Sleeper")])
     db = tmp_path / "league.sqlite"
@@ -69,12 +63,6 @@ def test_reported_season_line_comes_from_nfl_com_standings(archive, tmp_path):
         (1, 2012, 2, 1, 0, 300.5, 280.25, "Division 1", 1, "championship", 1)]
     assert query(db, "select * from reported_season_lines where franchise_id = 1 and season = 2013") == [
         (1, 2013, 1, 2, 0, 260.0, 290.0, "Division 1", None, None, 2)]
-
-
-
-
-
-
 
 
 def test_an_empty_archive_fails_the_build(tmp_path):

@@ -227,10 +227,6 @@ def test_a_season_sleeper_has_scored_further_than_its_final_weeks_is_not_cross_c
     assert query(db, "select wins from season_lines where franchise_id = 11") == [(1,)]
 
 
-
-
-
-
 def test_a_franchise_with_a_game_but_no_team_name_for_its_season_fails_the_build(sleeper, tmp_path):
     # Roster 6 plays its games but has dropped out of the rosters snapshot, so
     # nothing gives it a 2025 team name (ADR 0004: the build guarantees one).
@@ -254,10 +250,6 @@ def test_a_sleeper_seasons_team_names_come_from_its_latest_weekly_snapshot(sleep
     db = built(sleeper, tmp_path)
     assert query(db, "select franchise_id, team_name from team_names where franchise_id in (11, 12, 13) "
                      "order by franchise_id") == [(11, "Renamed"), (12, "Week 1 2"), (13, "Week 1 3")]
-
-
-
-
 
 
 def test_a_lineup_holds_starters_by_slot_and_the_bench_with_each_nfl_players_points(sleeper, tmp_path):

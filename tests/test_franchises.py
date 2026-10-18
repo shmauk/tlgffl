@@ -64,15 +64,15 @@ def test_every_sleeper_roster_needs_a_franchise_and_an_alias():
         "2025 Sleeper roster 3 has no row in data/sleeper_aliases.csv"]
 
 
-def test_a_franchise_is_filed_under_its_last_nfl_com_name_and_shown_by_its_latest():
+def test_a_franchise_is_filed_under_its_last_nfl_com_name_and_named_for_its_latest():
     # Alpha renames itself on Sleeper; Bravo has only played on Sleeper.
     r = registry(keys((1, "nfl.com", 1, 100), (1, "sleeper", 1, ""), (2, "sleeper", 2, "")),
                  aliases((1, "Alpha Sleeper", "Alpha Two"), (2, "The Bravos", "Bravo")),
                  nfl(y2012=[(1, 100, "Alpha One")], y2013=[(1, 100, "Alpha Two")]),
                  {2025: ([1, 2], {})})
     assert r.problems == []
-    assert (r.filed_name(1), r.name(1)) == ("Alpha Two", "Alpha Sleeper")
-    assert (r.filed_name(2), r.name(2)) == ("Bravo", "The Bravos")
+    assert (r.filed_name(1), r.franchise_name(1)) == ("Alpha Two", "Alpha Sleeper")
+    assert (r.filed_name(2), r.franchise_name(2)) == ("Bravo", "The Bravos")
 
 
 def test_a_placeholder_name_is_a_team_name_but_never_a_franchise_name():
@@ -80,7 +80,7 @@ def test_a_placeholder_name_is_a_team_name_but_never_a_franchise_name():
                  nfl(y2012=[(1, 100, "Alpha")], y2013=[(1, 100, "pending")], y2014=[(1, 100, "[name redacted]")]),
                  {})
     assert r.team_names[(1, 2013)] == "pending"
-    assert (r.filed_name(1), r.name(1)) == ("Alpha", "Alpha")
+    assert (r.filed_name(1), r.franchise_name(1)) == ("Alpha", "Alpha")
 
 
 def test_a_franchise_needs_a_season_and_a_real_name():
@@ -91,7 +91,7 @@ def test_a_franchise_needs_a_season_and_a_real_name():
         "franchise 2 in data/franchises.csv never played a season"]
 
 
-def test_a_hand_kept_table_can_name_a_franchise_as_the_site_shows_it_or_as_it_is_filed():
+def test_a_hand_kept_table_can_name_a_franchise_by_its_franchise_name_or_its_filed_name():
     r = registry(keys((1, "nfl.com", 1, 100), (1, "sleeper", 1, ""), (2, "nfl.com", 2, 200)),
                  aliases((1, "Kurlewis", "Kurlewless")),
                  nfl(y2012=[(1, 100, "Kurlewless"), (2, 200, "Bravo")]), {2025: ([1], {})})
@@ -113,26 +113,26 @@ def test_two_franchises_cant_share_a_filed_name():
     r = registry(keys((1, "nfl.com", 1, 100), (2, "nfl.com", 2, 200)), [],
                  nfl(y2012=[(1, 100, "Alpha"), (2, 200, "Bravo")], y2013=[(2, 200, "Alpha")]), {})
     assert r.problems == [
-        "'Alpha' is franchise 1's filed name and name on the site and franchise 2's filed name and "
-        "name on the site: a hand-kept table naming it can't tell them apart"]
+        "'Alpha' is franchise 1's filed name and franchise name and franchise 2's filed name and "
+        "franchise name: a hand-kept table naming it can't tell them apart"]
 
 
-def test_two_franchises_cant_share_a_name_on_the_site():
+def test_two_franchises_cant_share_a_franchise_name():
     r = registry(keys((1, "nfl.com", 1, 100), (2, "nfl.com", 2, 200), (1, "sleeper", 1, ""), (2, "sleeper", 2, "")),
                  aliases((1, "Same", "Alpha"), (2, "Same", "Bravo")),
                  nfl(y2012=[(1, 100, "Alpha"), (2, 200, "Bravo")]), {2025: ([1, 2], {2: "Bravo Again"}),
                                                                      2026: ([2], {2: "Same"})})
     assert r.problems == [
-        "'Same' is franchise 1's name on the site and franchise 2's name on the site: "
+        "'Same' is franchise 1's franchise name and franchise 2's franchise name: "
         "a hand-kept table naming it can't tell them apart"]
 
 
-def test_one_franchises_name_on_the_site_cant_be_anothers_filed_name():
+def test_one_franchises_franchise_name_cant_be_anothers_filed_name():
     r = registry(keys((1, "nfl.com", 1, 100), (2, "nfl.com", 2, 200), (1, "sleeper", 1, "")),
                  aliases((1, "Bravo", "Alpha")),
                  nfl(y2012=[(1, 100, "Alpha"), (2, 200, "Bravo")]), {2025: ([1], {})})
     assert r.problems == [
-        "'Bravo' is franchise 1's name on the site and franchise 2's filed name and name on the site: "
+        "'Bravo' is franchise 1's franchise name and franchise 2's filed name and franchise name: "
         "a hand-kept table naming it can't tell them apart"]
 
 
@@ -152,3 +152,16 @@ def test_franchise_ids_must_agree_with_ff_data_projects_sleeper_aliases():
     assert r.problems == [
         "Sleeper roster 1 is franchise 2 ('Bravo'), but data/sleeper_aliases.csv says 'Alpha'",
         "Sleeper roster 2 is franchise 1 ('Alpha'), but data/sleeper_aliases.csv says 'Bravo'"]
+
+
+def test_a_team_without_a_franchise_doesnt_hide_the_other_franchises_problems():
+    # Roster 1's franchise has no alias, so its names are unknown and go
+    # unchecked; Alpha and Bravo still can't share a filed name.
+    r = registry(keys((1, "nfl.com", 1, 100), (2, "nfl.com", 2, 200), (3, "sleeper", 1, "")), [],
+                 nfl(y2012=[(1, 100, "Alpha"), (2, 200, "Bravo")], y2013=[(2, 200, "Alpha"), (3, 999, "Stranger")]),
+                 {2025: ([1], {})})
+    assert r.problems == [
+        "2013 NFL.com team 3 (owner 999) has no franchise in data/franchises.csv",
+        "2025 Sleeper roster 1 has no row in data/sleeper_aliases.csv",
+        "'Alpha' is franchise 1's filed name and franchise name and franchise 2's filed name and "
+        "franchise name: a hand-kept table naming it can't tell them apart"]
