@@ -6,8 +6,8 @@
 // already computes, and never adds rows up: a line or bar with more than one
 // row to a point draws nothing and says which view groups that way.
 import type { QueryResult } from './engine';
-import { chartSpecOf, viewOf, viewsOf, type Mark, type Query, type View } from './query';
-import { HEADINGS, viewName } from './render';
+import { chartSpecOf, positionRank, viewOf, viewsOf, type Mark, type Query, type View } from './query';
+import { HEADINGS, heading, viewName } from './render';
 import { columnValue, type Value } from './values';
 
 export { defaultChart, type ChartSpec, type Mark } from './query';
@@ -22,7 +22,10 @@ export interface Channel {
 
 export interface Point {
   x: Value;
+  /** In a share bar, the point's fraction of its bar. */
   y: number;
+  /** In a share bar, the figure itself, as the table shows it. */
+  value?: number;
   /** The line, bar in its group or dot colour the point has, for a chart with series. */
   series?: string;
   /** When x is a game's place in order: which game it is. */
@@ -51,11 +54,15 @@ export interface Chart {
   note?: string;
 }
 
+/** An NFL player position no Sleeper snapshot knows, as the table shows it. */
+const UNKNOWN = 'Unknown';
+
 /** How many series a chart can tell apart by colour. */
 export const COLOURS = 8;
 
 const PERCENTS = new Set(['pct', 'share']);
-const channel = (key: string): Channel => (PERCENTS.has(key) ? { key, label: HEADINGS[key], percent: true } : { key, label: HEADINGS[key] });
+const channel = (key: string, q: Query): Channel =>
+  PERCENTS.has(key) ? { key, label: heading(key, q), percent: true } : { key, label: heading(key, q) };
 /** A heading inside a sentence: "franchise", but "W" and "PF" as they are. */
 const inWords = (label: string) => label.replace(/^.(?=[a-z])/, (c) => c.toLowerCase());
 
@@ -78,15 +85,15 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     const y = columnValue(r, spec.y);
     if (typeof y !== 'number') return [];
     const point: Point = { x: columnValue(r, spec.x), y };
-    if (spec.series) point.series = String(columnValue(r, spec.series) ?? '');
+    if (spec.series) point.series = String(columnValue(r, spec.series) ?? (spec.series === 'pos' ? UNKNOWN : ''));
     const season = Number(columnValue(r, 's'));
     if (games) point.at = `${season} week ${point.x}`;
     return [{ point, season, week: Number(point.x) }];
   });
   if (!drawn.length) return null;
   const points = drawn.map((d) => d.point);
-  const chart: Chart = { mark: spec.mark, x: channel(spec.x), y: channel(spec.y), points };
-  if (spec.series) chart.series = channel(spec.series);
+  const chart: Chart = { mark: spec.mark, x: channel(spec.x, q), y: channel(spec.y, q), points };
+  if (spec.series) chart.series = channel(spec.series, q);
   if (games) chart.ticks = inGameOrder(drawn);
   if (spec.mark !== 'scatter' && !onePerPoint(points)) {
     chart.points = [];
@@ -95,6 +102,12 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     return chart;
   }
   if (spec.mark === 'line') points.sort((a, b) => Number(a.x) - Number(b.x));
+  if (spec.mark === 'share') {
+    const { scaled, segments } = shares(points, spec.series === 'pos');
+    chart.points = scaled;
+    if (chart.series) chart.coloured = segments.slice(0, COLOURS);
+    return chart;
+  }
   if (chart.series) {
     const all = biggest(points);
     chart.coloured = all.slice(0, COLOURS);
@@ -104,6 +117,25 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     }
   }
   return chart;
+}
+
+/**
+ * Each bar's points as fractions of the bar, so every bar reaches 100%: the
+ * one thing a chart works out that the view doesn't, and only to draw it.
+ * Bars keep the table's order; the segments in each follow the lineup (for
+ * positions) or the order they first come. A bar of nothing is all 0%.
+ */
+function shares(points: Point[], lineup: boolean): { scaled: Point[]; segments: string[] } {
+  const bars = [...new Set(points.map((p) => p.x))];
+  const first = [...new Set(points.map((p) => p.series ?? ''))];
+  const rank = (s: string) => (lineup ? positionRank(s === UNKNOWN ? null : s) : String(first.indexOf(s)).padStart(4, '0'));
+  const segments = [...first].sort((a, b) => rank(a).localeCompare(rank(b)));
+  const scaled = bars.flatMap((x) => {
+    const bar = points.filter((p) => p.x === x).sort((a, b) => rank(a.series ?? '').localeCompare(rank(b.series ?? '')));
+    const total = bar.reduce((sum, p) => sum + p.y, 0);
+    return bar.map((p) => ({ ...p, y: total ? p.y / total : 0, value: p.y }));
+  });
+  return { scaled, segments };
 }
 
 /** Whether no two points share an x and a series. */
