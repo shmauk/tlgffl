@@ -50,7 +50,7 @@ export interface Chart {
   coloured?: string[];
   /** For games in order: a label at each season's first game. */
   ticks?: Tick[];
-  /** Said under the chart when some series are grey, or instead of it when it can't be drawn. */
+  /** Said under the chart when some series are grey or bars are left out, or instead of it when it can't be drawn. */
   note?: string;
 }
 
@@ -59,6 +59,8 @@ const UNKNOWN = 'Unknown';
 
 /** How many series a chart can tell apart by colour. */
 export const COLOURS = 8;
+/** How many bars (or groups of bars) a chart draws before it gets too narrow to read. */
+export const BARS = 30;
 
 const PERCENTS = new Set(['pct', 'share']);
 const channel = (key: string, q: Query): Channel =>
@@ -102,20 +104,28 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     return chart;
   }
   if (spec.mark === 'line') points.sort((a, b) => Number(a.x) - Number(b.x));
+  const notes: string[] = [];
+  if (spec.mark === 'bar' || spec.mark === 'share') {
+    const bars = [...new Set(points.map((p) => p.x))];
+    if (bars.length > BARS) {
+      const drawn = new Set(bars.slice(0, BARS));
+      chart.points = points.filter((p) => drawn.has(p.x));
+      notes.push(`Only the first ${BARS} of ${bars.length} ${inWords(chart.x.label)}s are drawn, in the table’s order: sort or filter the table to chart others.`);
+    }
+  }
   if (spec.mark === 'share') {
-    const { scaled, segments } = shares(points, spec.series === 'pos');
+    const { scaled, segments } = shares(chart.points, spec.series === 'pos');
     chart.points = scaled;
     if (chart.series) chart.coloured = segments.slice(0, COLOURS);
-    return chart;
-  }
-  if (chart.series) {
-    const all = biggest(points);
+  } else if (chart.series) {
+    const all = biggest(chart.points);
     chart.coloured = all.slice(0, COLOURS);
     if (all.length > COLOURS) {
       const label = chart.series.label;
-      chart.note = `Only the ${COLOURS} biggest of ${all.length} ${label.toLowerCase()}s are in colour. Choose the ${label.toLowerCase()}s to compare with the ${label} filter.`;
+      notes.push(`Only the ${COLOURS} biggest of ${all.length} ${inWords(label)}s are in colour. Choose the ${inWords(label)}s to compare with the ${label} filter.`);
     }
   }
+  if (notes.length) chart.note = notes.join(' ');
   return chart;
 }
 
@@ -123,12 +133,15 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
  * Each bar's points as fractions of the bar, so every bar reaches 100%: the
  * one thing a chart works out that the view doesn't, and only to draw it.
  * Bars keep the table's order; the segments in each follow the lineup (for
- * positions) or the order they first come. A bar of nothing is all 0%.
+ * positions), go up (for numbers, like rounds) or keep the order they first
+ * come. A bar of nothing is all 0%.
  */
 function shares(points: Point[], lineup: boolean): { scaled: Point[]; segments: string[] } {
   const bars = [...new Set(points.map((p) => p.x))];
   const first = [...new Set(points.map((p) => p.series ?? ''))];
-  const rank = (s: string) => (lineup ? positionRank(s === UNKNOWN ? null : s) : String(first.indexOf(s)).padStart(4, '0'));
+  const numbers = first.every((s) => s !== '' && Number.isFinite(Number(s)));
+  const place = (s: string) => String(numbers ? Number(s) : first.indexOf(s)).padStart(4, '0');
+  const rank = (s: string) => (lineup ? positionRank(s === UNKNOWN ? null : s) : place(s));
   const segments = [...first].sort((a, b) => rank(a).localeCompare(rank(b)));
   const scaled = bars.flatMap((x) => {
     const bar = points.filter((p) => p.x === x).sort((a, b) => rank(a.series ?? '').localeCompare(rank(b.series ?? '')));

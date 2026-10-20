@@ -88,10 +88,23 @@ describe('a Statsguru query in the URL', () => {
     // y takes figures only; x and series only the view's columns; the series only a column that names things.
     expect(decodeQuery('chart=1&mark=pie&x=o&y=f&series=pf').chartChoice).toEqual({});
     expect(decodeQuery('view=games&chart=1&x=o&y=mar&series=res').chartChoice).toEqual({ x: 'o', y: 'mar', series: 'res' });
-    // Only with the chart on, and only for a view that has one.
+    // Only with the chart on.
     expect(decodeQuery('mark=scatter').chartChoice).toEqual({});
-    expect(decodeQuery('sub=player&chart=1&mark=scatter').chartChoice).toEqual({});
     expect(encodeQuery(q({ chartChoice: { mark: 'scatter' } }))).toBe('');
+  });
+
+  test('NFL-player and draft-pick charts take their own view’s columns, and round-trip', () => {
+    const log = 'sub=player&view=log&chart=1&mark=scatter&series=f';
+    expect(decodeQuery(log).chartChoice).toEqual({ mark: 'scatter', series: 'f' });
+    expect(encodeQuery(decodeQuery(log))).toBe(log);
+    // Pts started is no column of the performance log.
+    expect(decodeQuery('sub=player&view=log&chart=1&y=spts').chartChoice).toEqual({});
+    // Per franchise by round splits bars into rounds of its own; rounds are no column by position.
+    expect(decodeQuery('sub=pick&view=fr&by=round&chart=1&series=rd').chartChoice).toEqual({});
+    expect(decodeQuery('sub=pick&view=fr&chart=1&series=rd').chartChoice).toEqual({});
+    const pl = 'sub=pick&view=pl&chart=1&y=val';
+    expect(decodeQuery(pl).chartChoice).toEqual({ y: 'val' });
+    expect(encodeQuery(decodeQuery(pl))).toBe(pl);
   });
 });
 
