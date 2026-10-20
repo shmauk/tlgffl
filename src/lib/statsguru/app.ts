@@ -5,10 +5,10 @@ import initSqlJs from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
 import type { Db } from '../database';
 import { esc } from '../html';
-import { chartOf, defaultChart, type Chart } from './chart';
+import { chartOf, type Chart } from './chart';
 import { runQuery } from './engine';
 import { formValues, queryFromForm, type Fields, type FormContext } from './form';
-import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, encodeQuery, type Query } from './query';
+import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, defaultChart, encodeQuery, type Query } from './query';
 import { HEADINGS, renderResults, summary, type Context } from './render';
 import { sqlJsDb } from './sqljs';
 
