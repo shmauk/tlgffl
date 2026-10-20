@@ -2,8 +2,8 @@ import { describe, expect, test } from 'vitest';
 import type {
   GameRow, GapRow, GroupRow, PerformanceRow, PickGroupRow, PickPlayerRow, PickRow, PlayerRow, PositionRow, Row,
 } from './engine';
-import { columnsOf } from './query';
-import { columnValue } from './values';
+import { allColumns, columnsOf } from './query';
+import { columnKind, columnValue } from './values';
 
 const SERP = { id: 8, name: 'SERPION' };
 const CATS = { id: 17, name: 'Not Enough Cooks' };
@@ -135,5 +135,12 @@ describe('draft-pick rows', () => {
 
   test('a column another kind of row has reads empty', () => {
     expect(read(pick, ['gp', 'wk', 'o'])).toEqual({ gp: null, wk: null, o: null });
+  });
+});
+
+describe('column kinds', () => {
+  test('every column of every subject says what it holds', () => {
+    for (const subject of ['franchise', 'player', 'pick'] as const)
+      for (const key of allColumns(subject)) expect(columnKind(key), key).toBeDefined();
   });
 });

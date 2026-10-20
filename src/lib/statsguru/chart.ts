@@ -8,7 +8,7 @@
 import type { QueryResult } from './engine';
 import { chartSpecOf, positionRank, viewOf, viewsOf, type Mark, type Query, type View } from './query';
 import { HEADINGS, heading, viewName } from './render';
-import { columnValue, type Value } from './values';
+import { columnKind, columnValue, type Value } from './values';
 
 export { defaultChart, type ChartSpec, type Mark } from './query';
 
@@ -62,9 +62,8 @@ export const COLOURS = 8;
 /** How many bars (or groups of bars) a chart draws before it gets too narrow to read. */
 export const BARS = 30;
 
-const PERCENTS = new Set(['pct', 'share']);
 const channel = (key: string, q: Query): Channel =>
-  PERCENTS.has(key) ? { key, label: heading(key, q), percent: true } : { key, label: heading(key, q) };
+  columnKind(key) === 'fraction' ? { key, label: heading(key, q), percent: true } : { key, label: heading(key, q) };
 /** A heading inside a sentence: "franchise", but "W" and "PF" as they are. */
 const inWords = (label: string) => label.replace(/^.(?=[a-z])/, (c) => c.toLowerCase());
 

@@ -4,6 +4,7 @@
 // filters and views only have data from 2025, when lineups start. A third
 // (#37), draft picks (`sub=pick`), has its own filters and views and none of
 // the game filters (opposition, phase, weeks, result, minimum games).
+import { isLabel } from './values';
 import { ERAS, LEAGUE_SIZES, type Era, type LeagueSize, type ScopedSeason, type SeasonScope } from '../season-sets';
 
 /** R: regular season, P: the Playoffs, C: the Shit Bowl and the Mediocre Bowl. */
@@ -247,12 +248,10 @@ function pickChart(view: PickView, grouping?: Grouping): ChartSpec | null {
   }
 }
 
-/** Columns that name or place a row rather than count something: a chart's series, never its y. */
-const LABELS = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 'slot', 'sf', 'kd', 'frs', 'pk', 'rd']);
 /** The columns a query's chart can take on each axis: any of the view's on x, figures on y, labels as the series. */
 export const chartColumns = (q: Pick<Query, 'subject' | 'view' | 'grouping'>) => {
   const columns = columnsOf(q);
-  return { x: columns, y: columns.filter((k) => !LABELS.has(k)), series: columns.filter((k) => LABELS.has(k)) };
+  return { x: columns, y: columns.filter((k) => !isLabel(k)), series: columns.filter(isLabel) };
 };
 
 /** The query's chart: the view's own with the builder's choices over it, or null for a view with none. */

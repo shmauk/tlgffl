@@ -10,6 +10,45 @@ import type { Phase } from './query';
 
 export type Value = number | string | null;
 
+/**
+ * What a column holds, which says how the table shows and sorts it and how a
+ * chart reads it:
+ * - name: words (a franchise, a phase, a result), never a chart's y
+ * - place: a number that places a row (season, week, pick, round), never a chart's y
+ * - count: whole numbers that add up (wins, starts, picks)
+ * - rank: whole numbers that don't add up, best first (league rank, top pick)
+ * - points: points that add up (PF, points started, pick value)
+ * - average: points per game or start, or one game's (Avg PF, High, Points), to two places
+ * - fraction: 0 to 1, shown as a percentage (Win %, Share %)
+ */
+export type ColumnKind = 'name' | 'place' | 'count' | 'rank' | 'points' | 'average' | 'fraction';
+
+const KINDS: Record<string, ColumnKind> = {
+  f: 'name', o: 'name', ph: 'name', res: 'name', pl: 'name', pos: 'name', slot: 'name', sf: 'name', kd: 'name', frs: 'name',
+  s: 'place', wk: 'place', pk: 'place', rd: 'place',
+  gp: 'count', w: 'count', l: 'count', t: 'count', st: 'count', ro: 'count', dr: 'count', kc: 'count', nfr: 'count', n: 'count',
+  rank: 'rank', top: 'rank',
+  pf: 'points', pa: 'points', spts: 'points', bpts: 'points', val: 'points',
+  apf: 'average', apa: 'average', ppg: 'average', avg: 'average', hi: 'average', lo: 'average', best: 'average',
+  pts: 'average', mar: 'average',
+  pct: 'fraction', share: 'fraction',
+};
+/** Names that read Z-A before A-Z. */
+const DESCENDING_NAMES = new Set(['kd', 'frs']);
+
+export const columnKind = (key: string): ColumnKind => KINDS[key];
+/** A column of words, not figures. */
+export const isText = (key: string) => KINDS[key] === 'name';
+/** A column that names or places a row rather than counting something: a chart's series, never its y. */
+export const isLabel = (key: string) => KINDS[key] === 'name' || KINDS[key] === 'place';
+/** Shown as a whole number. */
+export const isWhole = (key: string) => ['place', 'count', 'rank'].includes(KINDS[key]);
+/** A figure that means something added up over rows, so a series' size is its sum; for the rest it's the mean. */
+export const addsUp = (key: string) => KINDS[key] === 'count' || KINDS[key] === 'points';
+/** Read A-Z (or oldest first, or best first) before the other way. */
+export const ascendingFirst = (key: string) =>
+  ['name', 'place', 'rank'].includes(KINDS[key]) && !DESCENDING_NAMES.has(key);
+
 export const PHASE_NAMES: Record<Phase, string> = {
   R: 'Regular season',
   P: 'Playoffs',

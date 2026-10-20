@@ -4,6 +4,7 @@
 // style gives it the site's font.
 import * as Plot from '@observablehq/plot';
 import type { Channel, Chart, Point } from './chart';
+import { isWhole } from './values';
 
 /** Roughly how wide a label is at the chart's 12px. */
 const textWidth = (label: string) => [...label].length * 6.5;
@@ -17,7 +18,7 @@ export function drawChart(chart: Chart, width: number): SVGSVGElement | HTMLElem
 
 /** A figure as the table shows it: counts whole, points to two places, fractions as percentages. */
 const figure = (y: number, c: Channel) =>
-  c.percent ? `${(y * 100).toFixed(1)}%` : Number.isInteger(y) ? String(y) : y.toFixed(2);
+  c.percent ? `${(y * 100).toFixed(1)}%` : isWhole(c.key) ? String(y) : y.toFixed(2);
 const value = (v: Point['x'], c: Channel) => (typeof v === 'number' ? figure(v, c) : String(v ?? ''));
 /** An x of names or labels, in the order the rows bring them, rather than A-Z. */
 const xAxis = (chart: Chart) =>
