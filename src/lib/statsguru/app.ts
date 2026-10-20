@@ -8,7 +8,7 @@ import { esc } from '../html';
 import { chartOf, type Chart } from './chart';
 import { runQuery } from './engine';
 import { formValues, queryFromForm, type Fields, type FormContext } from './form';
-import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, defaultChart, encodeQuery, readChartChoice, type Query } from './query';
+import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, defaultChart, encodeQuery, readChartChoice, type ChartField, type Query } from './query';
 import { HEADINGS, renderResults, summary, type Context } from './render';
 import { sqlJsDb } from './sqljs';
 
@@ -54,8 +54,9 @@ export function start(root: HTMLElement) {
   const chartOn = chartSwitch.querySelector<HTMLInputElement>('input')!;
   const chartBox = root.querySelector<HTMLElement>('#sg-chart')!;
   const builder = root.querySelector<HTMLElement>('#sg-chart-build')!;
-  const choose = (name: string) => builder.querySelector<HTMLSelectElement>(`select[name="${name}"]`)!;
-  let drawn: Chart | null = null;
+  const builderField = (name: ChartField) => builder.querySelector<HTMLSelectElement>(`select[name="${name}"]`)!;
+  /** The chart of the query on show, drawn now and again on a resize. */
+  let currentChart: Chart | null = null;
 
   // The builder offers only the view's own columns, and shows the chart as it is drawn.
   const options = (keys: string[], none = false) =>
@@ -65,13 +66,13 @@ export function start(root: HTMLElement) {
     builder.hidden = !spec;
     if (!spec) return;
     const columns = chartColumns(q);
-    choose('x').innerHTML = options(columns.x);
-    choose('y').innerHTML = options(columns.y);
-    choose('series').innerHTML = options(columns.series.filter((k) => k !== spec.x), true);
-    choose('mark').value = spec.mark;
-    choose('x').value = spec.x;
-    choose('y').value = spec.y;
-    choose('series').value = spec.series ?? 'none';
+    builderField('x').innerHTML = options(columns.x);
+    builderField('y').innerHTML = options(columns.y);
+    builderField('series').innerHTML = options(columns.series.filter((k) => k !== spec.x), true);
+    builderField('mark').value = spec.mark;
+    builderField('x').value = spec.x;
+    builderField('y').value = spec.y;
+    builderField('series').value = spec.series ?? 'none';
   }
 
   // Each subject shows only its own views and filters (data-subject lists the subjects a field is for).
@@ -98,21 +99,21 @@ export function start(root: HTMLElement) {
       chartSwitch.hidden = !defaultChart(q);
       chartOn.checked = q.chart;
       showBuilder(q);
-      drawn = q.chart ? chartOf(result, q) : null;
+      currentChart = q.chart ? chartOf(result, q) : null;
       void draw();
     } catch (e) {
-      drawn = null;
+      currentChart = null;
       chartBox.replaceChildren();
       results.innerHTML = `<p class="sub">Statsguru couldn't load the record book: ${String((e as Error).message ?? e)}</p>`;
     }
   }
   // Above the table, never instead of it, as wide as the results.
   async function draw() {
-    if (!drawn) {
+    if (!currentChart) {
       chartBox.replaceChildren();
       return;
     }
-    const chart = drawn;
+    const chart = currentChart;
     // A line or bar that would need rows added up is only its note.
     if (!chart.points.length) {
       chartBox.innerHTML = `<p class="sub">${esc(chart.note ?? '')}</p>`;
@@ -120,7 +121,7 @@ export function start(root: HTMLElement) {
     }
     try {
       const { drawChart } = await loadPlot();
-      if (chart !== drawn) return;
+      if (chart !== currentChart) return;
       width = results.clientWidth;
       chartBox.replaceChildren(drawChart(chart, width));
     } catch (e) {
@@ -133,7 +134,7 @@ export function start(root: HTMLElement) {
   new ResizeObserver(() => {
     clearTimeout(settle);
     settle = setTimeout(() => {
-      if (drawn?.points.length && results.clientWidth !== width) void draw();
+      if (currentChart?.points.length && results.clientWidth !== width) void draw();
     }, 150);
   }).observe(results);
 
@@ -171,7 +172,7 @@ export function start(root: HTMLElement) {
   chartOn.addEventListener('change', () => go(encodeQuery({ ...decodeQuery(location.search), chart: chartOn.checked })));
   builder.addEventListener('change', () => {
     const q = decodeQuery(location.search);
-    go(encodeQuery({ ...q, chartChoice: chartChoiceOf(q, readChartChoice((name) => choose(name).value)) }));
+    go(encodeQuery({ ...q, chartChoice: chartChoiceOf(q, readChartChoice((name) => builderField(name).value)) }));
   });
   addEventListener('popstate', () => void render());
   void render();

@@ -6,7 +6,7 @@ import { weekList } from '../format';
 import { franchiseUrl, nflPlayerName, nflPlayerUrl, seasonUrl } from '../urls';
 import type { GameRow, GapRow, Named, NflPlayer, PerformanceRow, PickPlayerRow, PickRow, QueryResult, Row } from './engine';
 import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView, type PickView, type PlayerView, type Query } from './query';
-import { ascendingFirst, columnKind, columnValue, isText, isWhole, PHASE_NAMES } from './values';
+import { ascendingFirst, columnKind, columnValue, isText, isWhole, PHASE_NAMES, UNKNOWN_POSITION } from './values';
 import type { Era } from '../season-sets';
 
 export interface Context {
@@ -133,7 +133,7 @@ export function summary(q: Query, ctx: Context): string {
 const fr = (f: Named) => `<a class="fr" href="${franchiseUrl(f.id)}">${esc(f.name)}</a>`;
 const season = (y: number) => `<a href="${seasonUrl(y)}">${y}</a>`;
 const fixed = (n: number | null) => (n == null ? '' : n.toFixed(2));
-const pos = (p: string | null) => (p == null ? 'Unknown' : esc(p));
+const pos = (p: string | null) => (p == null ? UNKNOWN_POSITION : esc(p));
 
 export function renderResults(result: QueryResult, q: Query): string {
   const used = new Set<Glyph>();

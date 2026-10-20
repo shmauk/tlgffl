@@ -8,7 +8,7 @@
 import type { QueryResult } from './engine';
 import { chartSpecOf, positionRank, viewOf, viewsOf, type Mark, type Query, type View } from './query';
 import { HEADINGS, heading, viewName } from './render';
-import { addsUp, columnKind, columnValue, type Value } from './values';
+import { addsUp, columnKind, columnValue, UNKNOWN_POSITION, type Value } from './values';
 
 /** A results column on one of the chart's axes, by its sort key. */
 export interface Channel {
@@ -52,8 +52,6 @@ export interface Chart {
   note?: string;
 }
 
-/** An NFL player position no Sleeper snapshot knows, as the table shows it. */
-const UNKNOWN = 'Unknown';
 
 /** How many series a chart can tell apart by colour. */
 export const COLOURS = 8;
@@ -84,7 +82,7 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     const y = columnValue(r, spec.y);
     if (typeof y !== 'number') return [];
     const point: Point = { x: columnValue(r, spec.x), y };
-    if (spec.series) point.series = String(columnValue(r, spec.series) ?? (spec.series === 'pos' ? UNKNOWN : ''));
+    if (spec.series) point.series = String(columnValue(r, spec.series) ?? (spec.series === 'pos' ? UNKNOWN_POSITION : ''));
     const season = Number(columnValue(r, 's'));
     if (games) point.at = `${season} week ${point.x}`;
     return [{ point, season, week: Number(point.x) }];
@@ -105,8 +103,8 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
   if (spec.mark === 'bar' || spec.mark === 'share') {
     const bars = [...new Set(points.map((p) => p.x))];
     if (bars.length > BARS) {
-      const drawn = new Set(bars.slice(0, BARS));
-      chart.points = points.filter((p) => drawn.has(p.x));
+      const firstBars = new Set(bars.slice(0, BARS));
+      chart.points = points.filter((p) => firstBars.has(p.x));
       notes.push(`Only the first ${BARS} of ${bars.length} ${inWords(chart.x.label)}s are drawn, in the table’s order: sort or filter the table to chart others.`);
     }
   }
@@ -135,7 +133,7 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
 /**
  * Each bar's points as fractions of the bar, so every bar reaches 100%: the
  * one thing a chart works out that the view doesn't, and only to draw it.
- * Bars keep the table's order; the segments in each follow the lineup (for
+ * Bars keep the table's order; the segments in each are in lineup order (for
  * positions), go up (for numbers, like rounds) or keep the order they first
  * come. A bar of nothing is all 0%.
  */
@@ -144,7 +142,7 @@ function shares(points: Point[], lineup: boolean): { scaled: Point[]; segments: 
   const first = [...new Set(points.map((p) => p.series ?? ''))];
   const numbers = first.every((s) => s !== '' && Number.isFinite(Number(s)));
   const place = (s: string) => String(numbers ? Number(s) : first.indexOf(s)).padStart(4, '0');
-  const rank = (s: string) => (lineup ? positionRank(s === UNKNOWN ? null : s) : place(s));
+  const rank = (s: string) => (lineup ? positionRank(s === UNKNOWN_POSITION ? null : s) : place(s));
   const segments = [...first].sort((a, b) => rank(a).localeCompare(rank(b)));
   const scaled = bars.flatMap((x) => {
     const bar = points.filter((p) => p.x === x).sort((a, b) => rank(a.series ?? '').localeCompare(rank(b.series ?? '')));
