@@ -405,6 +405,13 @@ describe('the chart of draft picks', () => {
     ]);
   });
 
+  test('past 8 segments, only the first 8 get colour, and a note says the rest are grey', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => pickGroup(i + 1, 1));
+    const chart = chartOf(result(rows), picks({ view: 'fr', grouping: 'round' }))!;
+    expect(chart.coloured).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+    expect(chart.note).toBe('Only the first 8 of 10 rounds, in the legend’s order, are in colour; the rest are grey.');
+  });
+
   test('per NFL player opens on times drafted, a bar per NFL player', () => {
     const drafted = (p: NflPlayer, n: number): PickPlayerRow => ({
       kind: 'pickPlayer', player: p, n, dr: n, kc: 0, top: { season: 2025, pick: 1 }, franchises: [SERP], value: 100,
