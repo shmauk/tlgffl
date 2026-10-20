@@ -7,7 +7,7 @@ ends (#16).
 from recordbook import season_sets
 from recordbook.games import win_pct
 
-SCHEMA = """
+SCHEMA = f"""
 -- Every season line the season and luck records rank: all but the current
 -- season's while its regular season is on (#16; recordbook/current.py). Rates count a
 -- tie as half a win; Breakdown % and luck only exist for fully covered
@@ -39,7 +39,7 @@ create table record_seasons (
 create table record_tallies (
     record text not null check (record in ('championships', 'finals', 'playoffs',
         'shit_bowl_titles', 'shit_bowl', 'mediocre_bowl_titles')),
-    season_set text not null,
+    {season_sets.COLUMN},
     franchise_id integer not null references franchises(id),
     count integer not null,
     seasons text not null
@@ -50,7 +50,7 @@ create table record_tallies (
 -- finished season and it plays the current season, so the run may go on.
 create table record_runs (
     record text not null check (record in ('appearances', 'drought')),
-    season_set text not null,
+    {season_sets.COLUMN},
     franchise_id integer not null references franchises(id),
     length integer not null,
     first_season integer not null,
@@ -116,10 +116,10 @@ def tally_rows(by_record, sets):
     rows = []
     for record in TALLIES:
         for fid, seasons in sorted(by_record[record].items()):
-            for key, members in sets.items():
-                mine = sorted(s for s in seasons if s in members)
-                if mine:
-                    rows.append((record, key, fid, len(mine), ",".join(map(str, mine))))
+            for season_set, set_seasons in sets.items():
+                counted = sorted(s for s in seasons if s in set_seasons)
+                if counted:
+                    rows.append((record, season_set, fid, len(counted), ",".join(map(str, counted))))
     return rows
 
 
@@ -132,12 +132,12 @@ def run_rows(appeared, played, sets, current, done):
     the franchise plays the current season."""
     rows = []
     for fid in sorted(played):
-        mine = sorted(s for s in played[fid] if s in done)
-        if not mine:
+        finished = sorted(s for s in played[fid] if s in done)
+        if not finished:
             continue
         active = current in played[fid]
-        for key, members in sets.items():
-            seasons = [s for s in mine if s in members]
+        for season_set, set_seasons in sets.items():
+            seasons = [s for s in finished if s in set_seasons]
             runs = []   # (appeared, [seasons])
             for s in seasons:
                 hit = s in appeared.get(fid, ())
@@ -146,8 +146,8 @@ def run_rows(appeared, played, sets, current, done):
                 else:
                     runs.append((hit, [s]))
             for hit, run in runs:
-                rows.append(("appearances" if hit else "drought", key, fid, len(run), run[0], run[-1],
-                             int(active and run[-1] == mine[-1])))
+                rows.append(("appearances" if hit else "drought", season_set, fid, len(run), run[0], run[-1],
+                             int(active and run[-1] == finished[-1])))
     return rows
 
 

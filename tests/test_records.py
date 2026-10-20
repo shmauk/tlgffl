@@ -99,6 +99,23 @@ def test_each_season_set_lists_its_seasons(archive, tmp_path):
     ]
 
 
+def test_a_table_keyed_by_season_set_takes_only_a_season_set(data, tmp_path):
+    import sqlite3
+    import pytest
+    db = built(data, tmp_path)
+    con = sqlite3.connect(db)
+    try:
+        for table, row in (("season_sets", ("all", 2012)),
+                           ("completed_seasons", (1, "all", 0)),
+                           ("record_tallies", ("championships", "all", 1, 1, "2012")),
+                           ("record_runs", ("drought", "all", 1, 1, 2012, 2012, 0)),
+                           ("record_streaks", ("winning", "all", 1, 1, 1, 1, 0, 0))):
+            with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
+                con.execute(f"insert into {table} values ({', '.join('?' * len(row))})", row)
+    finally:
+        con.close()
+
+
 def test_a_streak_under_a_league_size_counts_only_that_sizes_seasons(data, tmp_path):
     # tests/test_season_records.py's 2014-16, the same regular season each year:
     # Bee beats half the league in weeks 1 and 3, so its run from 2014's week 3

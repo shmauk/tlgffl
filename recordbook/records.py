@@ -8,7 +8,9 @@ that reaches one is marked, because it may continue into it.
 """
 from collections import defaultdict
 
-SCHEMA = """
+from recordbook import season_sets
+
+SCHEMA = f"""
 -- Every maximal run of one franchise's consecutive regular-season games
 -- (record 'winning' or 'losing') or weeks beating at least half the league
 -- ('top_half', a level score counting half), across the seasons of each
@@ -18,7 +20,7 @@ SCHEMA = """
 -- continue there.
 create table record_streaks (
     record text not null check (record in ('winning', 'losing', 'top_half')),
-    season_set text not null,
+    {season_sets.COLUMN},
     franchise_id integer not null references franchises(id),
     length integer not null,
     first_game_id integer not null references games(id),
@@ -36,7 +38,7 @@ create table combined_scores (
 -- rates need at least 2 (#7).
 create table completed_seasons (
     franchise_id integer not null references franchises(id),
-    season_set text not null,
+    {season_sets.COLUMN},
     seasons integer not null,
     primary key (franchise_id, season_set)
 );
@@ -50,18 +52,19 @@ def streak_rows(games, sets, regular_weeks, team_counts, played, current):
 
     games are the stored Game records (ids are 1-based positions), sets maps
     each season set to its seasons (recordbook/season_sets.py), regular_weeks
-    a season to its regular season's last week, team_counts a season to its team count, played a franchise to
-    the seasons it played, and current is the current season.
+    a season to its regular season's last week, team_counts a season to its
+    team count, played a franchise to the seasons it played, and current is
+    the current season.
     """
     regular = [(i, g) for i, g in enumerate(games, start=1)
                if g.phase == "regular" and g.status == "final"]
-    mine = {}                       # (franchise, season, week) -> (game id, result, scored)
+    results = {}                    # (franchise, season, week) -> (game id, result, scored)
     week_scores = defaultdict(list)  # (season, week) -> [(franchise, points)]
     for gid, g in regular:
         scored = g.home_points is not None and g.away_points is not None
         for me, other in ((g.home, g.away), (g.away, g.home)):
             result = "T" if g.winner is None else "W" if g.winner == me else "L"
-            mine[(me, g.season, g.week)] = (gid, result, scored)
+            results[(me, g.season, g.week)] = (gid, result, scored)
         if scored:
             week_scores[(g.season, g.week)] += [(g.home, g.home_points), (g.away, g.away_points)]
     # The current season stops at its latest week with a final game; later
@@ -79,11 +82,11 @@ def streak_rows(games, sets, regular_weeks, team_counts, played, current):
 
     rows = []
     for fid in sorted(played):
-        for key, seasons in sets.items():
+        for season_set, set_seasons in sets.items():
             events = []   # (game id or None, result, top half or None)
-            for season in sorted(s for s in played[fid] if s in seasons):
+            for season in sorted(s for s in played[fid] if s in set_seasons):
                 for week in range(1, last_week.get(season, 0) + 1):
-                    game = mine.get((fid, season, week))
+                    game = results.get((fid, season, week))
                     if game is None or not game[2]:
                         events.append((None, GAP, GAP))
                     else:
@@ -91,7 +94,7 @@ def streak_rows(games, sets, regular_weeks, team_counts, played, current):
             for record, hit in (("winning", lambda e: e[1] == "W"), ("losing", lambda e: e[1] == "L"),
                                 ("top_half", lambda e: e[2] is True)):
                 for first, last in _runs(events, hit):
-                    rows.append((record, key, fid, last - first + 1, events[first][0], events[last][0],
+                    rows.append((record, season_set, fid, last - first + 1, events[first][0], events[last][0],
                                  int(first > 0 and _gap(events[first - 1], record)),
                                  int(last + 1 < len(events) and _gap(events[last + 1], record))))
     return rows
@@ -126,6 +129,6 @@ def completed_rows(played, sets, finished):
     rows = []
     for fid in sorted(played):
         done = [s for s in played[fid] if s in finished]
-        for key, seasons in sets.items():
-            rows.append((fid, key, sum(1 for s in done if s in seasons)))
+        for season_set, set_seasons in sets.items():
+            rows.append((fid, season_set, sum(1 for s in done if s in set_seasons)))
     return rows
