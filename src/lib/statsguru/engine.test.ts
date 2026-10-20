@@ -115,6 +115,21 @@ describe('views', () => {
   });
 });
 
+describe('era and League size', () => {
+  const seasonsOf = (patch: Partial<Query>) => [...new Set(groups({ view: 'season', ...patch }).map((r) => r.season))];
+
+  test('16 teams over 2010–2018 searches 2015–2018', () => {
+    expect(seasonsOf({ size: 16, seasons: [2012, 2013, 2014, 2015, 2016, 2017, 2018] })).toEqual([2015, 2016, 2017, 2018]);
+    expect(seasonsOf({ size: 12 })).toEqual([2013, 2014]);
+    expect(seasonsOf({ era: 'nfl.com', size: 10 })).toEqual([2012]);
+  });
+
+  test('a combination with no seasons returns no results', () => {
+    expect(run({ era: 'sleeper', size: 10 }).rows).toEqual([]);
+    expect(run({ size: 16, seasons: [2012, 2013], view: 'games' }).rows).toEqual([]);
+  });
+});
+
 describe('who is counted', () => {
   test('active franchises only', () => {
     const ids = groups({ active: true }).map((r) => r.franchise.id);

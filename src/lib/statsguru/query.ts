@@ -24,6 +24,9 @@ export type Kept = 'kept' | 'drafted';
 /** Started or benched NFL players only. */
 export type Lineup = 'start' | 'bench';
 export type SortDir = 'asc' | 'desc';
+/** A platform era, as the seasons table names it. */
+export type Era = 'nfl.com' | 'sleeper';
+export const ERAS: Era[] = ['nfl.com', 'sleeper'];
 export interface Sort {
   key: string;
   dir: SortDir;
@@ -35,8 +38,12 @@ export interface Query {
   franchises: number[];
   /** Empty means any opposition. */
   opponents: number[];
-  /** Empty means every season. */
+  /** The from/to range; empty means every season. */
   seasons: number[];
+  /** Null means either era. Kept as the era, not its seasons, so a link covers seasons still to come. */
+  era: Era | null;
+  /** League size (franchises in the season); null means every size. Kept as the size, like the era. */
+  size: number | null;
   phases: Phase[];
   /** First and last week, inclusive; null means every week. */
   weeks: [number, number] | null;
@@ -156,6 +163,8 @@ export const DEFAULT_QUERY: Query = {
   franchises: [],
   opponents: [],
   seasons: [],
+  era: null,
+  size: null,
   phases: ['R'],
   weeks: null,
   result: null,
@@ -172,6 +181,21 @@ export const DEFAULT_QUERY: Query = {
   kept: null,
   sort: null,
 };
+
+/** A season as the query's season filters see it. */
+export interface SeasonScope {
+  year: number;
+  era: string;
+  /** League size: how many franchises played. */
+  size: number;
+}
+
+/** The seasons a query searches: its from/to range, era and League size, each narrowing the others. */
+export const searchedSeasons = (q: Pick<Query, 'seasons' | 'era' | 'size'>, seasons: SeasonScope[]): number[] =>
+  seasons
+    .filter((s) => (!q.seasons.length || q.seasons.includes(s.year)) && (!q.era || s.era === q.era) && (!q.size || s.size === q.size))
+    .map((s) => s.year)
+    .sort((a, b) => a - b);
 
 /** The order a query's rows come in. */
 export const sortOf = (q: Query): Sort => q.sort ?? viewSort(q);
@@ -205,6 +229,8 @@ export function encodeQuery(q: Query): string {
   if (pick && q.franchiseAs === 'slot') p.push('fby=slot');
   if (!pick && q.opponents.length) p.push(`opp=${ids(q.opponents).join(',')}`);
   if (q.seasons.length) p.push(`s=${seasonList(q.seasons)}`);
+  if (q.era) p.push(`era=${q.era}`);
+  if (q.size) p.push(`size=${q.size}`);
   if (pick && q.rounds) p.push(`rd=${span(q.rounds)}`);
   if (pick && q.picks) p.push(`pk=${span(q.picks)}`);
   if (!franchise && q.positions.length) p.push(`pos=${byPosition(q.positions).join(',')}`);
@@ -274,6 +300,9 @@ export function decodeQuery(search: string): Query {
   }
   q.franchises = idList(p.get('f'));
   q.seasons = seasonsOf(p.get('s'));
+  const era = p.get('era');
+  if (ERAS.includes(era as Era)) q.era = era as Era;
+  q.size = whole(p.get('size') ?? '') || null;
   if (!pick) {
     q.opponents = idList(p.get('opp'));
     const phases = (p.get('ph') ?? '').split(',');

@@ -116,6 +116,20 @@ describe('scoring', () => {
     for (const e of view('highest-score', 'nfl-com').entries) expect(e.at!.season).toBeLessThanOrEqual(2024);
     for (const e of view('highest-score', 'sleeper').entries) expect(e.at!.season).toBeGreaterThanOrEqual(2025);
   });
+  test("an era variant's full list in Statsguru names the era, not its seasons", () => {
+    for (const [slug, era, name] of [
+      ['highest-score', 'nfl-com', 'nfl.com'],
+      ['highest-score', 'sleeper', 'sleeper'],
+      ['career-win-pct', 'nfl-com', 'nfl.com'],
+      ['most-wins', 'nfl-com', 'nfl.com'],
+    ]) {
+      const search = encodeQuery({ ...DEFAULT_QUERY, ...view(slug, era).statsguru! });
+      expect(search, `${slug} ${era}`).toContain(`era=${name}`);
+      expect(search, `${slug} ${era}`).not.toMatch(/(^|&)s=/);
+    }
+    expect(encodeQuery({ ...DEFAULT_QUERY, ...view('highest-score').statsguru! })).not.toContain('era=');
+  });
+
   test('a game left out of the records is in no game-based record, and each says why', () => {
     const x = one(`select g.season, g.week, g.home_franchise_id as h, g.away_franchise_id as a, e.reason
                    from record_exclusions e join games g on g.id = e.game_id`);

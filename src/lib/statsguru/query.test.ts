@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { DEFAULT_QUERY, decodeQuery, encodeQuery, type Query } from './query';
+import { DEFAULT_QUERY, decodeQuery, encodeQuery, searchedSeasons, type Query } from './query';
 
 const q = (patch: Partial<Query>): Query => ({ ...DEFAULT_QUERY, ...patch });
 
@@ -52,7 +52,41 @@ describe('a Statsguru query in the URL', () => {
   });
 
   test('nonsense in the URL falls back to the defaults', () => {
-    expect(decodeQuery('?f=x&ph=Q&res=Z&view=nope&sort=zz.up&wk=9&min=-3')).toEqual(DEFAULT_QUERY);
+    expect(decodeQuery('?f=x&ph=Q&res=Z&view=nope&sort=zz.up&wk=9&min=-3&era=myspace&size=x')).toEqual(DEFAULT_QUERY);
+  });
+
+  test('era and League size are their own parameters, written only when set', () => {
+    expect(encodeQuery(q({ era: 'sleeper' }))).toBe('era=sleeper');
+    expect(encodeQuery(q({ size: 16, seasons: [2012, 2013, 2014, 2015, 2016, 2017, 2018] }))).toBe('s=2012-2018&size=16');
+    expect(encodeQuery(q({ era: 'nfl.com', size: 12 }))).toBe('era=nfl.com&size=12');
+    for (const search of ['era=nfl.com', 'era=sleeper', 'size=10', 's=2012-2018&size=16', 'era=nfl.com&size=12'])
+      expect(encodeQuery(decodeQuery(search)), search).toBe(search);
+  });
+});
+
+describe('the seasons a query searches', () => {
+  const SEASONS = [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026].map((year) => ({
+    year,
+    era: year < 2025 ? 'nfl.com' : 'sleeper',
+    size: year === 2012 ? 10 : year < 2015 ? 12 : 16,
+  }));
+
+  test('the from/to range, era and League size narrow each other', () => {
+    expect(searchedSeasons(q({}), SEASONS)).toEqual(SEASONS.map((s) => s.year));
+    expect(searchedSeasons(q({ size: 12 }), SEASONS)).toEqual([2013, 2014]);
+    expect(searchedSeasons(q({ size: 16, seasons: [2012, 2013, 2014, 2015, 2016, 2017, 2018] }), SEASONS)).toEqual([2015, 2016, 2017, 2018]);
+    expect(searchedSeasons(q({ era: 'sleeper', size: 16 }), SEASONS)).toEqual([2025, 2026]);
+  });
+
+  test('a combination with no seasons searches none', () => {
+    expect(searchedSeasons(q({ era: 'sleeper', size: 10 }), SEASONS)).toEqual([]);
+    expect(searchedSeasons(q({ size: 16, seasons: [2012, 2013] }), SEASONS)).toEqual([]);
+  });
+
+  test('a League size link covers seasons played after it was made', () => {
+    const later = [...SEASONS, { year: 2027, era: 'sleeper', size: 16 }];
+    expect(searchedSeasons(decodeQuery('size=16'), later)).toContain(2027);
+    expect(searchedSeasons(decodeQuery('era=sleeper'), later)).toEqual([2025, 2026, 2027]);
   });
 });
 
