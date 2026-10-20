@@ -9,8 +9,11 @@ import {
   PICK_VIEWS,
   PLAYER_VIEWS,
   RESULTS,
+  CHART_FIELDS,
   chartChoiceOf,
   columnsOf,
+  rawChartChoice,
+  readChartChoice,
   defaultView,
   viewOf,
   sortOf,
@@ -19,6 +22,7 @@ import {
   type PickView,
   type PlayerView,
   type Query,
+  type RawChartChoice,
   type Result,
   type Subject,
 } from './query';
@@ -73,12 +77,12 @@ export function formValues(q: Query, ctx: FormContext): Fields {
     sort: [sort.key],
     dir: [sort.dir],
     chart: [q.chart ? '1' : ''],
-    mark: [q.chartChoice.mark ?? ''],
-    x: [q.chartChoice.x ?? ''],
-    y: [q.chartChoice.y ?? ''],
-    series: [q.chartChoice.series === null ? 'none' : (q.chartChoice.series ?? '')],
+    ...chartFields(rawChartChoice(q.chartChoice)),
   };
 }
+
+const chartFields = (raw: RawChartChoice): Fields =>
+  Object.fromEntries(CHART_FIELDS.map((name) => [name, [raw[name] ?? '']]));
 
 const one = (fields: Fields, name: string) => fields[name]?.[0] ?? '';
 const num = (s: string) => (/^\d+$/.test(s.trim()) ? Number(s) : null);
@@ -143,7 +147,7 @@ export function queryFromForm(fields: Fields, ctx: FormContext): Query {
     chartChoice: {},
   };
   // Kept through a change of view as far as the new view can draw them.
-  q.chartChoice = chartChoiceOf(q, { mark: one(fields, 'mark'), x: one(fields, 'x'), y: one(fields, 'y'), series: one(fields, 'series') });
+  q.chartChoice = chartChoiceOf(q, readChartChoice((name) => one(fields, name)));
   if (columnsOf(q).includes(key)) {
     const sort = { key, dir } as const;
     const own = sortOf({ ...q, sort: null });

@@ -98,6 +98,22 @@ export interface ChartChoice {
   series?: string | null;
 }
 
+/** The chart builder's fields, by the names the URL, the form and the builder all give them. */
+export const CHART_FIELDS = ['mark', 'x', 'y', 'series'] as const;
+export type ChartField = (typeof CHART_FIELDS)[number];
+/** A chart choice as text, unchecked, the way the URL, the form and the builder carry it: series=none is no series. */
+export type RawChartChoice = Partial<Record<ChartField, string | null>>;
+
+/** The raw chart choice in any named fields: URL params, form fields or the builder's selects. */
+export const readChartChoice = (field: (name: ChartField) => string | null | undefined): RawChartChoice =>
+  Object.fromEntries(CHART_FIELDS.map((name) => [name, field(name) ?? null]));
+
+/** A chart choice back as text, as readChartChoice reads it. */
+export const rawChartChoice = (choice: ChartChoice): RawChartChoice => ({
+  ...choice,
+  series: choice.series === null ? 'none' : choice.series,
+});
+
 export const PHASES: Phase[] = ['R', 'P', 'C'];
 export const RESULTS: Result[] = ['W', 'L', 'T'];
 export const FRANCHISE_VIEWS: FranchiseView[] = ['totals', 'season', 'opp', 'phase', 'pos', 'games'];
@@ -269,7 +285,7 @@ export function chartSpecOf(q: Query): ChartSpec | null {
 /** Raw choices (from the URL or the form) the query's view can draw and that differ from its own chart. */
 export function chartChoiceOf(
   q: Pick<Query, 'subject' | 'view' | 'grouping' | 'chart'>,
-  raw: { mark?: string | null; x?: string | null; y?: string | null; series?: string | null },
+  raw: RawChartChoice,
 ): ChartChoice {
   const own = q.chart ? defaultChart(q) : null;
   if (!own) return {};
@@ -342,12 +358,8 @@ export function encodeQuery(q: Query): string {
   if (q.chart) {
     p.push('chart=1');
     // Through the same check as a decoded URL, so a choice that is the view's own (or no use to it) isn't written.
-    const raw = q.chartChoice;
-    const choice = chartChoiceOf(q, { ...raw, series: raw.series === null ? 'none' : raw.series });
-    if (choice.mark) p.push(`mark=${choice.mark}`);
-    if (choice.x) p.push(`x=${choice.x}`);
-    if (choice.y) p.push(`y=${choice.y}`);
-    if (choice.series !== undefined) p.push(`series=${choice.series ?? 'none'}`);
+    const written = rawChartChoice(chartChoiceOf(q, rawChartChoice(q.chartChoice)));
+    for (const name of CHART_FIELDS) if (written[name]) p.push(`${name}=${written[name]}`);
   }
   return p.join('&');
 }
@@ -427,6 +439,6 @@ export function decodeQuery(search: string): Query {
   if (columnsOf(q).includes(key) && (dir === 'asc' || dir === 'desc') && !sameSort({ key, dir }, viewSort(q)))
     q.sort = { key, dir };
   q.chart = p.get('chart') === '1';
-  q.chartChoice = chartChoiceOf(q, { mark: p.get('mark'), x: p.get('x'), y: p.get('y'), series: p.get('series') });
+  q.chartChoice = chartChoiceOf(q, readChartChoice((name) => p.get(name)));
   return q;
 }
