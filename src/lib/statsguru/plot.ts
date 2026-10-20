@@ -61,6 +61,7 @@ function drawBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
     marginLeft,
     x: axis,
     y: yAxis(chart),
+    caption: chart.note,
     marks: [
       Plot.barY(chart.points, {
         x: (p) => value(p.x, chart.x),
@@ -96,11 +97,11 @@ function drawShares(chart: Chart, width: number): SVGSVGElement | HTMLElement {
     marginLeft,
     x: { ...axis, padding: 0.2 },
     y: { label: `Share of ${chart.y.label}`, percent: true },
+    caption: chart.note,
     ...(chart.series
       ? {
           // Colours go to the segments in turn; any past the chart's colours are grey.
           color: { domain: series, range: series.map((s, i) => (coloured.has(s) ? `var(--series-${i + 1})` : 'var(--quiet)')), legend: true },
-          caption: chart.note,
         }
       : {}),
     marks: [

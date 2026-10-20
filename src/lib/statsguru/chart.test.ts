@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import type { GameRow, GapRow, GroupRow, QueryResult } from './engine';
-import type { PositionRow } from './lineups';
+import type { GameRow, GapRow, GroupRow, PickGroupRow, PickPlayerRow, PickRow, QueryResult } from './engine';
+import type { NflPlayer, PerformanceRow, PlayerRow, PositionRow } from './lineups';
 import { chartOf } from './chart';
 import { DEFAULT_QUERY, type Query } from './query';
 
@@ -22,6 +22,12 @@ const reported = (season: number): GapRow => ({
 const position = (pos: string | null, spts: number, franchise = SERP): PositionRow => ({
   kind: 'position', franchise, pos, gp: 17, st: spts ? 17 : 0, spts, ppg: spts / 17, avg: spts ? spts / 17 : null,
   share: null, rank: 1, bpts: pos === 'FLEX' ? null : 0, best: null,
+});
+const MAHOMES: NflPlayer = { id: '4046', name: 'Patrick Mahomes', position: 'QB' };
+const CHASE: NflPlayer = { id: '7564', name: "Ja'Marr Chase", position: 'WR' };
+const player = (patch: Partial<PlayerRow>): PlayerRow => ({
+  kind: 'player', player: MAHOMES, franchise: null, season: null,
+  ro: 17, st: 16, spts: 350.5, avg: 21.91, bpts: 18.2, best: 38.1, nfr: 1, dr: 1, kc: 0, ...patch,
 });
 const result = (rows: QueryResult['rows']): QueryResult => ({ rows, notes: [] });
 
@@ -237,12 +243,156 @@ describe('the chart above the results', () => {
     expect(chartOf(before, q({ view: 'pos', seasons: [2015] }))).toBeNull();
   });
 
-  test('views without a chart yet draw none', () => {
-    expect(chartOf(result([]), q({ subject: 'player', view: 'totals' }))).toBeNull();
-    expect(chartOf(result([]), q({ subject: 'pick', view: 'list' }))).toBeNull();
-  });
-
   test('no rows, no chart', () => {
     expect(chartOf(result([]), q({}))).toBeNull();
+  });
+});
+
+describe('the chart of NFL players', () => {
+  const nfl = (patch: Partial<Query>) => q({ subject: 'player', ...patch });
+
+  test('totals per NFL player opens on points started, a bar per NFL player', () => {
+    const rows = [player({}), player({ player: CHASE, spts: 280 })];
+    expect(chartOf(result(rows), nfl({ view: 'totals' }))).toEqual({
+      mark: 'bar',
+      x: { key: 'pl', label: 'NFL player' },
+      y: { key: 'spts', label: 'Pts started' },
+      points: [
+        { x: 'Patrick Mahomes', y: 350.5 },
+        { x: "Ja'Marr Chase", y: 280 },
+      ],
+    });
+  });
+
+  test('past 30 bars, only the first 30 in the table’s order are drawn, and a note says how to see others', () => {
+    // Hundreds of NFL players get rostered in a season; the table is sorted by points.
+    const rows = Array.from({ length: 35 }, (_, i) =>
+      player({ player: { id: `${i}`, name: `Player ${i}`, position: 'RB' }, spts: 400 - i }),
+    );
+    const chart = chartOf(result(rows), nfl({ view: 'totals' }))!;
+    expect(chart.points.map((p) => p.x)).toEqual(Array.from({ length: 30 }, (_, i) => `Player ${i}`));
+    expect(chart.note).toBe('Only the first 30 of 35 NFL players are drawn, in the table’s order: sort or filter the table to chart others.');
+  });
+
+  test('per NFL player per franchise opens on each NFL player’s points as a 100% bar split into the franchises that started them', () => {
+    const rows = [player({ franchise: SERP, spts: 300 }), player({ player: CHASE, franchise: CATS, spts: 280 }), player({ franchise: CATS, spts: 100 })];
+    const chart = chartOf(result(rows), nfl({ view: 'fr' }))!;
+    expect(chart.mark).toBe('share');
+    expect(chart.x).toEqual({ key: 'pl', label: 'NFL player' });
+    expect(chart.series).toEqual({ key: 'f', label: 'Franchise' });
+    expect(chart.points).toEqual([
+      { x: 'Patrick Mahomes', y: 0.75, series: 'SERPION', value: 300 },
+      { x: 'Patrick Mahomes', y: 0.25, series: 'Not Enough Cooks', value: 100 },
+      { x: "Ja'Marr Chase", y: 1, series: 'Not Enough Cooks', value: 280 },
+    ]);
+  });
+
+  test('season by season draws a line of points started per NFL player, and past 8 the note points to the NFL player filter', () => {
+    const rows = [2025, 2026].flatMap((season) =>
+      Array.from({ length: 9 }, (_, i) => player({ player: { id: `${i}`, name: `Player ${i}`, position: 'WR' }, season, spts: 100 - i })),
+    );
+    const chart = chartOf(result(rows), nfl({ view: 'season' }))!;
+    expect(chart.mark).toBe('line');
+    expect([chart.x.key, chart.y.key, chart.series?.key]).toEqual(['s', 'spts', 'pl']);
+    expect(chart.points.slice(0, 2)).toEqual([
+      { x: 2025, y: 100, series: 'Player 0' },
+      { x: 2025, y: 99, series: 'Player 1' },
+    ]);
+    expect(chart.note).toBe('Only the 8 biggest of 9 NFL players are in colour. Choose the NFL players to compare with the NFL player filter.');
+  });
+
+  test('the performance log lines up each NFL player’s points game by game, leaving out weeks with no points', () => {
+    const played = (season: number, week: number, points: number | null, p = MAHOMES): PerformanceRow => ({
+      kind: 'performance', season, week, phase: 'R', player: p, franchise: SERP, opponent: CATS,
+      slot: p.position!, starter: true, points,
+    });
+    const rows = [played(2025, 1, 20.5), played(2025, 1, 14, CHASE), played(2025, 2, null), played(2025, 3, 31.2)];
+    const chart = chartOf(result(rows), nfl({ view: 'log' }))!;
+    expect(chart.mark).toBe('line');
+    expect(chart.y).toEqual({ key: 'pts', label: 'Points' });
+    expect(chart.series).toEqual({ key: 'pl', label: 'NFL player' });
+    expect(chart.points).toEqual([
+      { x: 0, y: 20.5, series: 'Patrick Mahomes', at: '2025 week 1' },
+      { x: 0, y: 14, series: "Ja'Marr Chase", at: '2025 week 1' },
+      { x: 1, y: 31.2, series: 'Patrick Mahomes', at: '2025 week 3' },
+    ]);
+    expect(chart.ticks).toEqual([{ x: 0, label: '2025' }]);
+  });
+
+  test('before 2025 no NFL-player view draws a chart, leaving the view’s message', () => {
+    const before: QueryResult = { rows: [], notes: [{ kind: 'beforeLineups', firstSeason: 2025 }] };
+    for (const view of ['totals', 'fr', 'season', 'log'] as const) {
+      expect(chartOf(before, nfl({ view, seasons: [2015] }))).toBeNull();
+    }
+  });
+});
+
+describe('the chart of draft picks', () => {
+  const picks = (patch: Partial<Query>) => q({ subject: 'pick', ...patch });
+  const pick = (season: number, no: number, value: number, p = MAHOMES): PickRow => ({
+    kind: 'pick', season, pick: no, round: Math.ceil(no / 12), franchise: SERP, slotFranchise: SERP, player: p, kept: false, value,
+  });
+  const pickGroup = (group: string | number | null, n: number, franchise = SERP): PickGroupRow => ({
+    kind: 'pickGroup', franchise, group, n, dr: n, kc: 0, top: 1, value: 100,
+  });
+
+  test('the pick list opens on each pick’s value against where it went, a dot per pick coloured by position', () => {
+    const rows = [pick(2025, 1, 350.5), pick(2025, 2, 120, CHASE), pick(2026, 1, 80, CHASE)];
+    expect(chartOf(result(rows), picks({ view: 'list' }))).toEqual({
+      mark: 'scatter',
+      x: { key: 'pk', label: 'Pick' },
+      y: { key: 'val', label: 'Value' },
+      series: { key: 'pos', label: 'Position' },
+      points: [
+        { x: 1, y: 350.5, series: 'QB' },
+        { x: 2, y: 120, series: 'WR' },
+        { x: 1, y: 80, series: 'WR' },
+      ],
+      coloured: ['QB', 'WR'],
+    });
+  });
+
+  test('per franchise opens on each franchise’s picks as a 100% bar split into positions, in lineup order', () => {
+    const rows = [pickGroup('WR', 3), pickGroup('QB', 1), pickGroup(null, 1), pickGroup('RB', 3)];
+    const chart = chartOf(result(rows), picks({ view: 'fr' }))!;
+    expect(chart.mark).toBe('share');
+    expect([chart.x.key, chart.y.key, chart.series?.key]).toEqual(['f', 'n', 'pos']);
+    expect(chart.points.map((p) => [p.series, p.y, p.value])).toEqual([
+      ['QB', 0.125, 1], ['RB', 0.375, 3], ['WR', 0.375, 3], ['Unknown', 0.125, 1],
+    ]);
+  });
+
+  test('per franchise by round splits each bar into rounds, first round first', () => {
+    // CATS have no first-round pick, so rounds first come out of order.
+    const rows = [pickGroup(2, 1, CATS), pickGroup(10, 1, CATS), pickGroup(1, 1), pickGroup(2, 1), pickGroup(10, 2)];
+    const chart = chartOf(result(rows), picks({ view: 'fr', grouping: 'round' }))!;
+    expect(chart.series).toEqual({ key: 'rd', label: 'Round' });
+    expect(chart.coloured).toEqual(['1', '2', '10']);
+    expect(chart.points.map((p) => [p.x, p.series, p.y])).toEqual([
+      ['Not Enough Cooks', '2', 0.5], ['Not Enough Cooks', '10', 0.5],
+      ['SERPION', '1', 0.25], ['SERPION', '2', 0.25], ['SERPION', '10', 0.5],
+    ]);
+  });
+
+  test('per NFL player opens on times drafted, a bar per NFL player', () => {
+    const drafted = (p: NflPlayer, n: number): PickPlayerRow => ({
+      kind: 'pickPlayer', player: p, n, dr: n, kc: 0, top: { season: 2025, pick: 1 }, franchises: [SERP], value: 100,
+    });
+    expect(chartOf(result([drafted(CHASE, 2), drafted(MAHOMES, 1)]), picks({ view: 'pl' }))).toEqual({
+      mark: 'bar',
+      x: { key: 'pl', label: 'NFL player' },
+      y: { key: 'n', label: 'Picks' },
+      points: [
+        { x: "Ja'Marr Chase", y: 2 },
+        { x: 'Patrick Mahomes', y: 1 },
+      ],
+    });
+  });
+
+  test('before the first draft no draft-pick view draws a chart, leaving the view’s message', () => {
+    const before: QueryResult = { rows: [], notes: [{ kind: 'beforeDrafts', firstSeason: 2025 }] };
+    for (const view of ['list', 'fr', 'pl'] as const) {
+      expect(chartOf(before, picks({ view, seasons: [2015] }))).toBeNull();
+    }
   });
 });

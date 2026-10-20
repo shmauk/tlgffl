@@ -208,8 +208,9 @@ export const DEFAULT_QUERY: Query = {
 };
 
 /** A view's own chart, or null for a view with none (yet). */
-export function defaultChart(q: Pick<Query, 'subject' | 'view'>): ChartSpec | null {
-  if (q.subject !== 'franchise') return null;
+export function defaultChart(q: Pick<Query, 'subject' | 'view'> & { grouping?: Grouping }): ChartSpec | null {
+  if (q.subject === 'player') return playerChart(viewOf(q) as PlayerView);
+  if (q.subject === 'pick') return pickChart(viewOf(q) as PickView, q.grouping);
   switch (viewOf(q) as FranchiseView) {
     case 'totals': return { mark: 'bar', x: 'f', y: 'w' };
     case 'season': return { mark: 'line', x: 's', y: 'apf', series: 'f' };
@@ -219,6 +220,29 @@ export function defaultChart(q: Pick<Query, 'subject' | 'view'>): ChartSpec | nu
     // Each franchise's starter points split into positions (or lineup slots).
     case 'pos': return { mark: 'share', x: 'f', y: 'spts', series: 'pos' };
     case 'games': return { mark: 'line', x: 'wk', y: 'pf', series: 'f' };
+    default: return null;
+  }
+}
+
+function playerChart(view: PlayerView): ChartSpec | null {
+  switch (view) {
+    case 'totals': return { mark: 'bar', x: 'pl', y: 'spts' };
+    // Each NFL player's points started split into the franchises that started them
+    // (grouped bars would give every bar a slot for every franchise, nearly all empty).
+    case 'fr': return { mark: 'share', x: 'pl', y: 'spts', series: 'f' };
+    case 'season': return { mark: 'line', x: 's', y: 'spts', series: 'pl' };
+    case 'log': return { mark: 'line', x: 'wk', y: 'pts', series: 'pl' };
+    default: return null;
+  }
+}
+
+function pickChart(view: PickView, grouping?: Grouping): ChartSpec | null {
+  switch (view) {
+    // What each pick went on to score, by where it went.
+    case 'list': return { mark: 'scatter', x: 'pk', y: 'val', series: 'pos' };
+    // Each franchise's picks split into positions (or rounds).
+    case 'fr': return { mark: 'share', x: 'f', y: 'n', series: grouping === 'round' ? 'rd' : 'pos' };
+    case 'pl': return { mark: 'bar', x: 'pl', y: 'n' };
     default: return null;
   }
 }
