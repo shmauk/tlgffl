@@ -101,9 +101,79 @@ describe('the chart above the results', () => {
     ]);
   });
 
+  test('a line or bar with more than one row per point draws nothing, and names the view that groups that way', () => {
+    // The game log by season: several games per franchise each season.
+    const rows = [game(2012, 1, 100), game(2012, 2, 120), game(2013, 1, 90)];
+    const chart = chartOf(result(rows), q({ view: 'games', chartChoice: { x: 's' } }))!;
+    expect(chart.points).toEqual([]);
+    expect(chart.note).toBe(
+      'More than one row per season and franchise, and a line chart doesn’t add rows up. Use Season by season instead, or a scatter, which draws every row.',
+    );
+    // Bars of franchises from Season by season: the totals are a view of their own.
+    const seasons = [group({ season: 2012 }), group({ season: 2013 })];
+    expect(chartOf(result(seasons), q({ view: 'season', chartChoice: { mark: 'bar', x: 'f', series: null } }))!.note).toBe(
+      'More than one row per franchise, and a bar chart doesn’t add rows up. Use Totals per franchise instead, or a scatter, which draws every row.',
+    );
+  });
+
+  test('with no view grouping that way, the note says what to change', () => {
+    // Opponents only, but By opponent has a row per franchise and opponent.
+    const rows = [group({ opponent: CATS }), group({ franchise: CATS, opponent: SERP }), group({ franchise: { id: 3, name: 'Hogs' }, opponent: CATS })];
+    expect(chartOf(result(rows), q({ view: 'opp', chartChoice: { series: null } }))!.note).toBe(
+      'More than one row per opponent, and a bar chart doesn’t add rows up. Use a franchise series, or a scatter, which draws every row.',
+    );
+    // Wins on x: nothing groups by a figure.
+    const totals = [group({}), group({ franchise: CATS })];
+    expect(chartOf(result(totals), q({ chartChoice: { x: 'w', y: 'pf' } }))!.note).toBe(
+      'More than one row per W, and a bar chart doesn’t add rows up. Use a scatter, which draws every row.',
+    );
+  });
+
+  test('a scatter draws every row, even many to a point', () => {
+    const rows = [group({ season: 2012, pf: 1400, pa: 1300 }), group({ season: 2013, pf: 1400, pa: 1300 })];
+    const chart = chartOf(result(rows), q({ view: 'season', chartChoice: { mark: 'scatter', x: 'pf', y: 'pa', series: null } }))!;
+    expect(chart).toEqual({
+      mark: 'scatter',
+      x: { key: 'pf', label: 'PF' },
+      y: { key: 'pa', label: 'PA' },
+      points: [
+        { x: 1400, y: 1300 },
+        { x: 1400, y: 1300 },
+      ],
+    });
+  });
+
+  test('by opponent opens on win % against each opponent, a bar per franchise in each group', () => {
+    const rows = [
+      group({ opponent: CATS, pct: 0.75 }),
+      group({ franchise: CATS, opponent: SERP, pct: 0.25 }),
+    ];
+    expect(chartOf(result(rows), q({ view: 'opp' }))).toEqual({
+      mark: 'bar',
+      x: { key: 'o', label: 'Opponent' },
+      y: { key: 'pct', label: 'Win %', percent: true },
+      series: { key: 'f', label: 'Franchise' },
+      points: [
+        { x: 'Not Enough Cooks', y: 0.75, series: 'SERPION' },
+        { x: 'SERPION', y: 0.25, series: 'Not Enough Cooks' },
+      ],
+      coloured: ['SERPION', 'Not Enough Cooks'],
+    });
+  });
+
+  test('by phase opens on win % per franchise, a bar per phase in each group', () => {
+    const rows = [group({ phase: 'R', pct: 0.6 }), group({ phase: 'P', pct: 0.8 })];
+    const chart = chartOf(result(rows), q({ view: 'phase' }))!;
+    expect(chart.x.key).toBe('f');
+    expect(chart.series).toEqual({ key: 'ph', label: 'Phase' });
+    expect(chart.points).toEqual([
+      { x: 'SERPION', y: 0.6, series: 'Regular season' },
+      { x: 'SERPION', y: 0.8, series: 'Playoffs' },
+    ]);
+  });
+
   test('views without a chart yet draw none', () => {
-    for (const view of ['opp', 'phase', 'pos'] as const)
-      expect(chartOf(result([group({})]), q({ view })), view).toBeNull();
+    expect(chartOf(result([group({})]), q({ view: 'pos' }))).toBeNull();
     expect(chartOf(result([]), q({ subject: 'player', view: 'totals' }))).toBeNull();
     expect(chartOf(result([]), q({ subject: 'pick', view: 'list' }))).toBeNull();
   });

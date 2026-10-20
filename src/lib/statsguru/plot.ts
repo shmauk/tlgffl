@@ -3,37 +3,69 @@
 // currentColor, so a theme change recolours the SVG with no redraw; the page's
 // style gives it the site's font.
 import * as Plot from '@observablehq/plot';
-import type { Chart, Point } from './chart';
+import type { Channel, Chart, Point } from './chart';
 
 /** Roughly how wide a label is at the chart's 12px. */
 const textWidth = (label: string) => [...label].length * 6.5;
 
 export function drawChart(chart: Chart, width: number): SVGSVGElement | HTMLElement {
-  return chart.mark === 'line' ? drawLines(chart, width) : drawBars(chart, width);
+  if (chart.mark === 'line') return drawLines(chart, width);
+  if (chart.mark === 'scatter') return drawDots(chart, width);
+  return chart.series ? drawGroupedBars(chart, width) : drawBars(chart, width);
+}
+
+/** A figure as the table shows it: counts whole, points to two places, fractions as percentages. */
+const figure = (y: number, c: Channel) =>
+  c.percent ? `${(y * 100).toFixed(1)}%` : Number.isInteger(y) ? String(y) : y.toFixed(2);
+const value = (v: Point['x'], c: Channel) => (typeof v === 'number' ? figure(v, c) : String(v ?? ''));
+/** An x of names or labels, in the order the rows bring them, rather than A-Z. */
+const xAxis = (chart: Chart) =>
+  chart.points.every((p) => typeof p.x === 'number')
+    ? { label: chart.x.label, percent: chart.x.percent }
+    : { label: chart.x.label, type: 'point' as const, domain: [...new Set(chart.points.map((p) => value(p.x, chart.x)))] };
+const yAxis = (chart: Chart) => ({ label: chart.y.label, grid: true, percent: chart.y.percent });
+
+/** The series in colour, each its own; the rest are one grey, drawn under them. */
+function colours(chart: Chart) {
+  if (!chart.series) return { grey: [], bright: chart.points, color: undefined };
+  const coloured = new Set(chart.coloured);
+  return {
+    grey: chart.points.filter((p) => !coloured.has(p.series!)),
+    bright: chart.points.filter((p) => coloured.has(p.series!)),
+    color: { domain: chart.coloured, range: (chart.coloured ?? []).map((_, i) => `var(--series-${i + 1})`), legend: true },
+  };
+}
+
+/** Labels slant under wide bars and stand upright under narrow ones (phones), so they never overlap. */
+function barLabels(labels: string[], width: number) {
+  const upright = width / Math.max(1, labels.length) < 28;
+  const slant = upright ? 1 : Math.SQRT1_2;
+  const longest = Math.max(0, ...labels.map(textWidth));
+  return {
+    marginBottom: Math.round(longest * slant) + 16,
+    // A slanted first label reaches left of its bar.
+    marginLeft: upright ? 40 : Math.max(40, Math.round(textWidth(labels[0] ?? '') * slant)),
+    axis: { domain: labels, label: null, tickRotate: upright ? -90 : -45, tickSize: 0 },
+  };
 }
 
 function drawBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
-  const labels = chart.points.map((p) => String(p.x ?? ''));
-  // Labels slant under wide bars and stand upright under narrow ones (phones), so they never overlap.
-  const upright = width / Math.max(1, labels.length) < 28;
-  const rotate = upright ? -90 : -45;
-  const slant = upright ? 1 : Math.SQRT1_2;
-  const longest = Math.max(0, ...labels.map(textWidth));
+  const labels = chart.points.map((p) => value(p.x, chart.x));
+  const { marginBottom, marginLeft, axis } = barLabels(labels, width);
   return Plot.plot({
     className: 'sg-plot',
     width,
     height: 320,
-    marginBottom: Math.round(longest * slant) + 16,
-    // A slanted first label reaches left of its bar.
-    marginLeft: upright ? 40 : Math.max(40, Math.round(textWidth(labels[0] ?? '') * slant)),
-    x: { domain: labels, label: null, tickRotate: rotate, tickSize: 0 },
-    y: { label: chart.y.label, grid: true },
+    marginBottom,
+    marginLeft,
+    x: axis,
+    y: yAxis(chart),
     marks: [
       Plot.barY(chart.points, {
-        x: (p) => String(p.x ?? ''),
+        x: (p) => value(p.x, chart.x),
         y: 'y',
         fill: 'var(--accent)',
-        title: (p) => `${chart.x.label}: ${p.x ?? ''}\n${chart.y.label}: ${p.y}`,
+        title: (p) => `${chart.x.label}: ${value(p.x, chart.x)}\n${chart.y.label}: ${figure(p.y, chart.y)}`,
         tip: true,
       }),
       Plot.ruleY([0]),
@@ -41,38 +73,91 @@ function drawBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   });
 }
 
-/** A figure as the table shows it: counts whole, points to two places. */
-const figure = (y: number) => (Number.isInteger(y) ? String(y) : y.toFixed(2));
+/** A group of bars at each x, in the table's order; a bar per series in each, in the order they first come. */
+function drawGroupedBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
+  const groups = [...new Set(chart.points.map((p) => value(p.x, chart.x)))];
+  const series = [...new Set(chart.points.map((p) => p.series!))];
+  const { marginBottom, marginLeft, axis } = barLabels(groups, width);
+  const { grey, bright, color } = colours(chart);
+  const bar = { fx: (p: Point) => value(p.x, chart.x), x: 'series', y: 'y' };
+  const title = (p: Point) => `${p.series}\n${chart.x.label}: ${value(p.x, chart.x)}\n${chart.y.label}: ${figure(p.y, chart.y)}`;
+  return Plot.plot({
+    className: 'sg-plot',
+    width,
+    height: 320,
+    marginBottom,
+    marginLeft,
+    fx: { ...axis, padding: 0.2 },
+    x: { domain: series, axis: null, padding: 0.05 },
+    y: yAxis(chart),
+    color,
+    caption: chart.note,
+    marks: [
+      Plot.barY(grey, { ...bar, fill: 'var(--quiet)' }),
+      Plot.barY(bright, { ...bar, fill: 'series' }),
+      Plot.ruleY([0]),
+      Plot.tip(chart.points, Plot.pointer({ ...bar, title })),
+    ],
+  });
+}
+
+/** Every row a dot; coloured by the series if there is one. */
+function drawDots(chart: Chart, width: number): SVGSVGElement | HTMLElement {
+  const { grey, bright, color } = colours(chart);
+  const dotX = (p: Point) => (typeof p.x === 'number' ? p.x : value(p.x, chart.x));
+  const title = (p: Point) =>
+    [p.series, `${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`].filter(Boolean).join('\n');
+  return Plot.plot({
+    className: 'sg-plot',
+    width,
+    height: 360,
+    marginLeft: 48,
+    // Room for the x label at the axis's end.
+    marginRight: 28,
+    marginBottom: 40,
+    x: { ...xAxis(chart), grid: true },
+    y: yAxis(chart),
+    ...(chart.series ? { color, caption: chart.note } : {}),
+    marks: [
+      Plot.dot(grey, { x: dotX, y: 'y', fill: 'var(--quiet)', r: 2.5 }),
+      Plot.dot(bright, { x: dotX, y: 'y', fill: chart.series ? 'series' : 'var(--accent)', r: 3 }),
+      Plot.tip(chart.points, Plot.pointer({ x: dotX, y: 'y', title })),
+    ],
+  });
+}
 
 /** Season labels at least this far apart, so they never overlap on a phone. */
 const TICK_GAP = 40;
 
 function drawLines(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   // Colours go to this chart's biggest series in turn; the rest are thin grey lines under them.
-  const coloured = new Set(chart.coloured);
-  const range = (chart.coloured ?? []).map((_, i) => `var(--series-${i + 1})`);
-  const grey = chart.points.filter((p) => !coloured.has(p.series!));
-  const bright = chart.points.filter((p) => coloured.has(p.series!));
+  const { grey, bright, color } = colours(chart);
   const title = (p: Point) =>
-    `${p.series}\n${p.at ?? `${chart.x.label} ${p.x}`}\n${chart.y.label}: ${figure(p.y)}`;
+    [p.series, p.at ?? `${chart.x.label} ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`]
+      .filter(Boolean)
+      .join('\n');
   const marginLeft = 40;
+  const line = { x: (p: Point) => (typeof p.x === 'number' ? p.x : value(p.x, chart.x)), y: 'y', z: 'series' };
   return Plot.plot({
     className: 'sg-plot',
     width,
     height: 320,
     marginLeft,
-    x: chart.ticks ? gameAxis(chart, width - marginLeft - 20) : { label: chart.x.label, tickFormat: 'd' },
-    y: { label: chart.y.label, grid: true },
-    color: { domain: chart.coloured, range, legend: true },
-    caption: chart.note,
+    x: chart.ticks
+      ? gameAxis(chart, width - marginLeft - 20)
+      : { ...xAxis(chart), ...(chart.x.key === 's' ? { tickFormat: 'd' } : {}) },
+    y: yAxis(chart),
+    ...(chart.series ? { color, caption: chart.note } : {}),
     marks: [
-      Plot.lineY(grey, { x: 'x', y: 'y', z: 'series', stroke: 'var(--quiet)', strokeWidth: 1 }),
+      Plot.lineY(grey, { ...line, stroke: 'var(--quiet)', strokeWidth: 1 }),
       Plot.lineY(bright, {
-        x: 'x', y: 'y', z: 'series', stroke: 'series', strokeWidth: 2,
+        ...line,
+        stroke: chart.series ? 'series' : 'var(--accent)',
+        strokeWidth: 2,
         // Seasons are few enough to mark each one, so a lone season still shows.
         marker: chart.ticks ? 'none' : 'circle',
       }),
-      Plot.tip(chart.points, Plot.pointer({ x: 'x', y: 'y', title })),
+      Plot.tip(chart.points, Plot.pointer({ x: line.x, y: 'y', title })),
     ],
   });
 }

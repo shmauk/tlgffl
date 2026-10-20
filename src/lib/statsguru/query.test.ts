@@ -69,6 +69,27 @@ describe('a Statsguru query in the URL', () => {
     expect(decodeQuery('f=5&sort=w.desc&chart=1')).toEqual(q({ chart: true, franchises: [5], sort: { key: 'w', dir: 'desc' } }));
     expect(decodeQuery('chart=yes').chart).toBe(false);
   });
+
+  test('a built chart writes only the choices that differ from the view’s own chart', () => {
+    const scatter = q({ chart: true, view: 'season', chartChoice: { mark: 'scatter', x: 'pf', y: 'pa', series: null } });
+    expect(encodeQuery(scatter)).toBe('view=season&chart=1&mark=scatter&x=pf&y=pa&series=none');
+    expect(decodeQuery('view=season&chart=1&mark=scatter&x=pf&y=pa&series=none')).toEqual(scatter);
+    // Season by season's own chart is a line of Avg PF over seasons, one per franchise.
+    expect(encodeQuery(q({ chart: true, view: 'season', chartChoice: { mark: 'line', x: 's', y: 'w', series: 'f' } }))).toBe(
+      'view=season&chart=1&y=w',
+    );
+    expect(decodeQuery('view=season&chart=1&mark=line&x=s&y=w&series=f').chartChoice).toEqual({ y: 'w' });
+  });
+
+  test('chart choices the view can’t draw fall back to its own chart', () => {
+    // y takes figures only; x and series only the view's columns; the series only a column that names things.
+    expect(decodeQuery('chart=1&mark=pie&x=o&y=f&series=pf').chartChoice).toEqual({});
+    expect(decodeQuery('view=games&chart=1&x=o&y=mar&series=res').chartChoice).toEqual({ x: 'o', y: 'mar', series: 'res' });
+    // Only with the chart on, and only for a view that has one.
+    expect(decodeQuery('mark=scatter').chartChoice).toEqual({});
+    expect(decodeQuery('view=pos&chart=1&mark=scatter').chartChoice).toEqual({});
+    expect(encodeQuery(q({ chartChoice: { mark: 'scatter' } }))).toBe('');
+  });
 });
 
 describe('the seasons a query searches', () => {

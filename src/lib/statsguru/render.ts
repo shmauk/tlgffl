@@ -39,7 +39,7 @@ export const PICK_VIEW_NAMES: Record<PickView, string> = {
   fr: 'Per franchise',
   pl: 'Per NFL player',
 };
-const viewName = (q: Query) =>
+export const viewName = (q: Query) =>
   q.subject === 'pick'
     ? viewOf(q) === 'fr'
       ? `Per franchise by ${q.grouping === 'round' ? 'round' : 'position'}`

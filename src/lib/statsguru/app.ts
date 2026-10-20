@@ -8,8 +8,8 @@ import { esc } from '../html';
 import { chartOf, defaultChart, type Chart } from './chart';
 import { runQuery } from './engine';
 import { formValues, queryFromForm, type Fields, type FormContext } from './form';
-import { DEFAULT_QUERY, decodeQuery, encodeQuery } from './query';
-import { renderResults, summary, type Context } from './render';
+import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, encodeQuery, type Query } from './query';
+import { HEADINGS, renderResults, summary, type Context } from './render';
 import { sqlJsDb } from './sqljs';
 
 let database: Promise<Db> | undefined;
@@ -53,7 +53,26 @@ export function start(root: HTMLElement) {
   const chartSwitch = root.querySelector<HTMLElement>('#sg-chart-switch')!;
   const chartOn = chartSwitch.querySelector<HTMLInputElement>('input')!;
   const chartBox = root.querySelector<HTMLElement>('#sg-chart')!;
+  const builder = root.querySelector<HTMLElement>('#sg-chart-build')!;
+  const choose = (name: string) => builder.querySelector<HTMLSelectElement>(`select[name="${name}"]`)!;
   let drawn: Chart | null = null;
+
+  // The builder offers only the view's own columns, and shows the chart as it is drawn.
+  const options = (keys: string[], none = false) =>
+    [...(none ? ['<option value="none">none</option>'] : []), ...keys.map((k) => `<option value="${k}">${esc(HEADINGS[k])}</option>`)].join('');
+  function showBuilder(q: Query) {
+    const spec = q.chart ? chartSpecOf(q) : null;
+    builder.hidden = !spec;
+    if (!spec) return;
+    const columns = chartColumns(q);
+    choose('x').innerHTML = options(columns.x);
+    choose('y').innerHTML = options(columns.y);
+    choose('series').innerHTML = options(columns.series.filter((k) => k !== spec.x), true);
+    choose('mark').value = spec.mark;
+    choose('x').value = spec.x;
+    choose('y').value = spec.y;
+    choose('series').value = spec.series ?? 'none';
+  }
 
   // Each subject shows only its own views and filters (data-subject lists the subjects a field is for).
   const subject = () => (form.querySelector<HTMLInputElement>('input[name="subject"]:checked')?.value ?? 'franchise');
@@ -78,6 +97,7 @@ export function start(root: HTMLElement) {
       results.innerHTML = renderResults(result, q);
       chartSwitch.hidden = !defaultChart(q);
       chartOn.checked = q.chart;
+      showBuilder(q);
       drawn = q.chart ? chartOf(result, q) : null;
       void draw();
     } catch (e) {
@@ -93,6 +113,11 @@ export function start(root: HTMLElement) {
       return;
     }
     const chart = drawn;
+    // A line or bar that would need rows added up is only its note.
+    if (!chart.points.length) {
+      chartBox.innerHTML = `<p class="sub">${esc(chart.note ?? '')}</p>`;
+      return;
+    }
     try {
       const { drawChart } = await loadPlot();
       if (chart !== drawn) return;
@@ -108,7 +133,7 @@ export function start(root: HTMLElement) {
   new ResizeObserver(() => {
     clearTimeout(settle);
     settle = setTimeout(() => {
-      if (drawn && results.clientWidth !== width) void draw();
+      if (drawn?.points.length && results.clientWidth !== width) void draw();
     }, 150);
   }).observe(results);
 
@@ -144,6 +169,11 @@ export function start(root: HTMLElement) {
     go(a.search.slice(1));
   });
   chartOn.addEventListener('change', () => go(encodeQuery({ ...decodeQuery(location.search), chart: chartOn.checked })));
+  builder.addEventListener('change', () => {
+    const q = decodeQuery(location.search);
+    const raw = { mark: choose('mark').value, x: choose('x').value, y: choose('y').value, series: choose('series').value };
+    go(encodeQuery({ ...q, chartChoice: chartChoiceOf(q, raw) }));
+  });
   addEventListener('popstate', () => void render());
   void render();
 }
