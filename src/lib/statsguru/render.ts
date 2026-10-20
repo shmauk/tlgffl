@@ -6,7 +6,7 @@ import { weekList } from '../format';
 import { franchiseUrl, nflPlayerName, nflPlayerUrl, seasonUrl } from '../urls';
 import type { GameRow, GapRow, Named, NflPlayer, PerformanceRow, PickPlayerRow, PickRow, QueryResult, Row } from './engine';
 import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView, type PickView, type PlayerView, type Query } from './query';
-import { columnValue, PHASE_NAMES } from './values';
+import { ascendingFirst, columnKind, columnValue, isText, isWhole, PHASE_NAMES } from './values';
 import type { Era } from '../season-sets';
 
 export { PHASE_NAMES };
@@ -60,11 +60,6 @@ export const HEADINGS: Record<string, string> = {
   pk: 'Pick', rd: 'Round', sf: 'From', kd: 'Kept or drafted', val: 'Value', n: 'Picks', dr: 'Drafted', kc: 'Kept',
   top: 'Top pick', frs: 'Picked by',
 };
-/** Columns that read A-Z (or oldest first, or best first) before they read the other way. */
-const ASCENDING_FIRST = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 'slot', 'rank', 'pk', 'rd', 'sf', 'top']);
-const TEXT_COLUMNS = new Set(['f', 'o', 'ph', 'res', 'pl', 'pos', 'slot', 'sf', 'kd', 'frs']);
-/** Figures that count something, shown as whole numbers; the others are points, to two places. */
-const COUNTS = new Set(['w', 'l', 't', 'st', 'rank', 'ro', 'dr', 'kc', 'nfr', 'n', 'pk', 'rd']);
 /** A column's heading in the query's view: By lineup slot's pos is the Slot. */
 export const heading = (key: string, q: Query) => (key === 'pos' && q.view === 'pos' && q.grouping === 'slot' ? 'Slot' : HEADINGS[key]);
 
@@ -160,15 +155,15 @@ export function renderResults(result: QueryResult, q: Query): string {
   const head = cols
     .map((key) => {
       const sorted = sort.key === key;
-      const dir = sorted ? (sort.dir === 'asc' ? 'desc' : 'asc') : ASCENDING_FIRST.has(key) ? 'asc' : 'desc';
+      const dir = sorted ? (sort.dir === 'asc' ? 'desc' : 'asc') : ascendingFirst(key) ? 'asc' : 'desc';
       const href = `?${encodeQuery({ ...q, sort: { key, dir } })}`;
-      const cls = [TEXT_COLUMNS.has(key) ? '' : 'num', sorted ? 'sorted' : ''].filter(Boolean).join(' ');
+      const cls = [isText(key) ? '' : 'num', sorted ? 'sorted' : ''].filter(Boolean).join(' ');
       const arrow = sorted ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
       return `<th${cls ? ` class="${cls}"` : ''}${sorted ? ` aria-sort="${sort.dir}ending"` : ''}><a href="${esc(href)}">${heading(key, q)}${arrow}</a></th>`;
     })
     .join('');
 
-  const td = (key: string, html: string) => `<td${TEXT_COLUMNS.has(key) ? '' : ' class="num"'}>${html}</td>`;
+  const td = (key: string, html: string) => `<td${isText(key) ? '' : ' class="num"'}>${html}</td>`;
   /** A cell: the column's value, from the one accessor charts read too, linked and marked by its row. */
   const cell = (r: Row, key: string) => {
     const v = columnValue(r, key);
@@ -189,8 +184,6 @@ export function renderResults(result: QueryResult, q: Query): string {
       case 'frs': return (r as PickPlayerRow).franchises.map(fr).join(', ');
       case 'top': return r.kind === 'pickPlayer' ? `${v} (${season(r.top.season)})` : String(v);
       case 'val': return `<span title="${esc(VALUE)}">${fixed(v as number)}</span>`;
-      case 'pct':
-      case 'share': return v == null ? '' : ((v as number) * 100).toFixed(1);
       case 'mar': return v == null ? '' : `${(v as number) > 0 ? '+' : ''}${(v as number).toFixed(2)}`;
       case 'gp': return `${v}${group?.unchecked ? mk('§') : ''}`;
       case 'hi':
@@ -202,7 +195,10 @@ export function renderResults(result: QueryResult, q: Query): string {
         // A game whose score is lost shows only its marker.
         if (r.kind === 'game' && v == null) return mk('‡');
         return `${fixed(v as number | null)}${group?.reported ? mk('†') : ''}${group?.lostScores ? mk('‡') : ''}`;
-      default: return COUNTS.has(key) ? (v == null ? '' : String(v)) : fixed(v as number | null);
+      default:
+        if (v == null) return '';
+        if (columnKind(key) === 'fraction') return ((v as number) * 100).toFixed(1);
+        return isWhole(key) ? String(v) : fixed(v as number);
     }
   };
   const gapRow = (r: GapRow) => {
