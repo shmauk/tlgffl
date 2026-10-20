@@ -70,8 +70,31 @@ export interface Query {
   kept: Kept | null;
   /** Null means the view's own default order. */
   sort: Sort | null;
-  /** A chart above the results table (ADR 0006); the view's own default chart. */
+  /** A chart above the results table (ADR 0006): the view's own chart, changed by chartChoice. */
   chart: boolean;
+  /** The chart builder's choices that differ from the view's own chart. */
+  chartChoice: ChartChoice;
+}
+
+/** How a chart's points are drawn; a bar with a series is a grouped bar. */
+export type Mark = 'bar' | 'line' | 'scatter';
+export const MARKS: Mark[] = ['bar', 'line', 'scatter'];
+
+/** What a chart shows, by column sort key, before any rows. */
+export interface ChartSpec {
+  mark: Mark;
+  /** A line over 'wk' runs through the games in order, season after season. */
+  x: string;
+  y: string;
+  series?: string;
+}
+
+/** Changes to a view's own chart, each one missing left as the view's; a null series is none. */
+export interface ChartChoice {
+  mark?: Mark;
+  x?: string;
+  y?: string;
+  series?: string | null;
 }
 
 export const PHASES: Phase[] = ['R', 'P', 'C'];
@@ -181,7 +204,59 @@ export const DEFAULT_QUERY: Query = {
   kept: null,
   sort: null,
   chart: false,
+  chartChoice: {},
 };
+
+/** A view's own chart, or null for a view with none (yet). */
+export function defaultChart(q: Pick<Query, 'subject' | 'view'>): ChartSpec | null {
+  if (q.subject !== 'franchise') return null;
+  switch (viewOf(q) as FranchiseView) {
+    case 'totals': return { mark: 'bar', x: 'f', y: 'w' };
+    case 'season': return { mark: 'line', x: 's', y: 'apf', series: 'f' };
+    // Win % against each opponent, a bar per franchise; one franchise's record when filtered to it.
+    case 'opp': return { mark: 'bar', x: 'o', y: 'pct', series: 'f' };
+    case 'phase': return { mark: 'bar', x: 'f', y: 'pct', series: 'ph' };
+    case 'games': return { mark: 'line', x: 'wk', y: 'pf', series: 'f' };
+    default: return null;
+  }
+}
+
+/** Columns that name or place a row rather than count something: a chart's series, never its y. */
+const LABELS = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 'slot', 'sf', 'kd', 'frs', 'pk', 'rd']);
+/** The columns a query's chart can take on each axis: any of the view's on x, figures on y, labels as the series. */
+export const chartColumns = (q: Pick<Query, 'subject' | 'view' | 'grouping'>) => {
+  const columns = columnsOf(q);
+  return { x: columns, y: columns.filter((k) => !LABELS.has(k)), series: columns.filter((k) => LABELS.has(k)) };
+};
+
+/** The query's chart: the view's own with the builder's choices over it, or null for a view with none. */
+export function chartSpecOf(q: Query): ChartSpec | null {
+  const own = defaultChart(q);
+  if (!own) return null;
+  const { series, ...choice } = q.chartChoice;
+  const spec: ChartSpec = { ...own, ...choice };
+  if (series !== undefined) spec.series = series ?? undefined;
+  // A series of x's own values would be one point per line.
+  if (!spec.series || spec.series === spec.x) delete spec.series;
+  return spec;
+}
+
+/** Raw choices (from the URL or the form) the query's view can draw and that differ from its own chart. */
+export function chartChoiceOf(
+  q: Pick<Query, 'subject' | 'view' | 'grouping' | 'chart'>,
+  raw: { mark?: string | null; x?: string | null; y?: string | null; series?: string | null },
+): ChartChoice {
+  const own = q.chart ? defaultChart(q) : null;
+  if (!own) return {};
+  const columns = chartColumns(q);
+  const choice: ChartChoice = {};
+  if (MARKS.includes(raw.mark as Mark) && raw.mark !== own.mark) choice.mark = raw.mark as Mark;
+  if (raw.x && columns.x.includes(raw.x) && raw.x !== own.x) choice.x = raw.x;
+  if (raw.y && columns.y.includes(raw.y) && raw.y !== own.y) choice.y = raw.y;
+  if (raw.series === 'none' && own.series) choice.series = null;
+  else if (raw.series && columns.series.includes(raw.series) && raw.series !== own.series) choice.series = raw.series;
+  return choice;
+}
 
 /** The seasons a query searches: its from/to range, era and League size, each narrowing the others. */
 export const searchedSeasons = (q: SeasonScope & Pick<Query, 'seasons'>, seasons: ScopedSeason[]): number[] =>
@@ -239,7 +314,16 @@ export function encodeQuery(q: Query): string {
   if (franchise && view === 'pos' && q.grouping === 'slot') p.push('by=slot');
   if (pick && view === 'fr' && q.grouping === 'round') p.push('by=round');
   if (q.sort && !sameSort(q.sort, viewSort(q))) p.push(`sort=${q.sort.key}.${q.sort.dir}`);
-  if (q.chart) p.push('chart=1');
+  if (q.chart) {
+    p.push('chart=1');
+    // Through the same check as a decoded URL, so a choice that is the view's own (or no use to it) isn't written.
+    const raw = q.chartChoice;
+    const choice = chartChoiceOf(q, { ...raw, series: raw.series === null ? 'none' : raw.series });
+    if (choice.mark) p.push(`mark=${choice.mark}`);
+    if (choice.x) p.push(`x=${choice.x}`);
+    if (choice.y) p.push(`y=${choice.y}`);
+    if (choice.series !== undefined) p.push(`series=${choice.series ?? 'none'}`);
+  }
   return p.join('&');
 }
 
@@ -318,5 +402,6 @@ export function decodeQuery(search: string): Query {
   if (columnsOf(q).includes(key) && (dir === 'asc' || dir === 'desc') && !sameSort({ key, dir }, viewSort(q)))
     q.sort = { key, dir };
   q.chart = p.get('chart') === '1';
+  q.chartChoice = chartChoiceOf(q, { mark: p.get('mark'), x: p.get('x'), y: p.get('y'), series: p.get('series') });
   return q;
 }

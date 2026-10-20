@@ -1,27 +1,29 @@
 // A query's results as a chart (ADR 0006): which mark, which columns on x and
-// y (and which names a line's series), and one point per row: in the table's
-// order for bars, along x for lines. Pure, like the table
-// renderer; plot.ts turns it into an Observable Plot SVG in the browser.
-// Values come from the one accessor the table reads (values.ts), so a chart
-// only ever shows figures the view already computes.
+// y (and which names the series), and one point per row: in the table's order
+// for bars, along x for lines. Pure, like the table renderer; plot.ts turns it
+// into an Observable Plot SVG in the browser. Values come from the one accessor
+// the table reads (values.ts), so a chart only ever shows figures the view
+// already computes, and never adds rows up: a line or bar with more than one
+// row to a point draws nothing and says which view groups that way.
 import type { QueryResult } from './engine';
-import { viewOf, type Query } from './query';
-import { HEADINGS } from './render';
+import { chartSpecOf, viewOf, viewsOf, type Mark, type Query, type View } from './query';
+import { HEADINGS, viewName } from './render';
 import { columnValue, type Value } from './values';
 
-/** How the points are drawn. */
-export type Mark = 'bar' | 'line';
+export { defaultChart, type ChartSpec, type Mark } from './query';
 
 /** A results column on one of the chart's axes, by its sort key. */
 export interface Channel {
   key: string;
   label: string;
+  /** A fraction shown as a percentage (Win %, Share %). */
+  percent?: true;
 }
 
 export interface Point {
   x: Value;
   y: number;
-  /** The line the point is on, for a chart with series. */
+  /** The line, bar in its group or dot colour the point has, for a chart with series. */
   series?: string;
   /** When x is a game's place in order: which game it is. */
   at?: string;
@@ -37,44 +39,38 @@ export interface Chart {
   mark: Mark;
   x: Channel;
   y: Channel;
-  /** One line per value of this column, for a line chart. */
+  /** One line, bar in each group, or dot colour per value of this column. */
   series?: Channel;
-  /** One per row with a y value: bars in the rows' order, so they follow the table's sort; lines along x. */
+  /** One per row with a y value: bars in the rows' order, so they follow the table's sort; lines along x. None when a line or bar would need rows added up. */
   points: Point[];
   /** The series drawn in colour, biggest first; each takes the next of the chart's colours. The rest are grey. */
   coloured?: string[];
   /** For games in order: a label at each season's first game. */
   ticks?: Tick[];
-  /** Said under the chart, when some series are grey. */
+  /** Said under the chart when some series are grey, or instead of it when it can't be drawn. */
   note?: string;
 }
 
 /** How many series a chart can tell apart by colour. */
 export const COLOURS = 8;
 
-/** What a chart shows, by column sort key, before any rows. */
-export interface ChartSpec {
-  mark: Mark;
-  /** A line over 'wk' runs through the games in order, season after season. */
-  x: string;
-  y: string;
-  series?: string;
-}
+const PERCENTS = new Set(['pct', 'share']);
+const channel = (key: string): Channel => (PERCENTS.has(key) ? { key, label: HEADINGS[key], percent: true } : { key, label: HEADINGS[key] });
+/** A heading inside a sentence: "franchise", but "W" and "PF" as they are. */
+const inWords = (label: string) => label.replace(/^.(?=[a-z])/, (c) => c.toLowerCase());
 
-/** A view's own chart, or null for a view with none (yet). */
-export function defaultChart(q: Query): ChartSpec | null {
-  const view = viewOf(q);
-  if (q.subject === 'franchise' && view === 'totals') return { mark: 'bar', x: 'f', y: 'w' };
-  if (q.subject === 'franchise' && view === 'season') return { mark: 'line', x: 's', y: 'apf', series: 'f' };
-  if (q.subject === 'franchise' && view === 'games') return { mark: 'line', x: 'wk', y: 'pf', series: 'f' };
-  return null;
-}
-
-const channel = (key: string): Channel => ({ key, label: HEADINGS[key] });
+/** The columns each view has one row per, so a chart of exactly those adds nothing up. */
+const ROW_PER: Record<Query['subject'], Partial<Record<View, string[]>>> = {
+  franchise: { totals: ['f'], season: ['f', 's'], opp: ['f', 'o'], phase: ['f', 'ph'], pos: ['f', 'pos'], games: ['s', 'wk', 'f'] },
+  player: { totals: ['pl'], fr: ['pl', 'f'], season: ['pl', 's'], log: ['s', 'wk', 'pl'] },
+  pick: { list: ['s', 'pk'], fr: ['f', 'pos'], pl: ['pl'] },
+};
+const rowPer = (q: Query, view: View) =>
+  (ROW_PER[q.subject][view] ?? []).map((k) => (k === 'pos' && q.subject === 'pick' && q.grouping === 'round' ? 'rd' : k));
 
 /** The chart of a query's results, or null when there is nothing to draw. */
 export function chartOf(result: QueryResult, q: Query): Chart | null {
-  const spec = defaultChart(q);
+  const spec = chartSpecOf(q);
   if (!spec) return null;
   const games = spec.mark === 'line' && spec.x === 'wk';
   // Games with no score (or no one week, like reported totals) have no y, so they're skipped.
@@ -90,10 +86,16 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
   if (!drawn.length) return null;
   const points = drawn.map((d) => d.point);
   const chart: Chart = { mark: spec.mark, x: channel(spec.x), y: channel(spec.y), points };
+  if (spec.series) chart.series = channel(spec.series);
   if (games) chart.ticks = inGameOrder(drawn);
+  if (spec.mark !== 'scatter' && !onePerPoint(points)) {
+    chart.points = [];
+    delete chart.ticks;
+    chart.note = groupedElsewhere(q, chart, games ? ['s', 'wk'] : [spec.x]);
+    return chart;
+  }
   if (spec.mark === 'line') points.sort((a, b) => Number(a.x) - Number(b.x));
-  if (spec.series) {
-    chart.series = channel(spec.series);
+  if (chart.series) {
     const all = biggest(points);
     chart.coloured = all.slice(0, COLOURS);
     if (all.length > COLOURS) {
@@ -102,6 +104,37 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     }
   }
   return chart;
+}
+
+/** Whether no two points share an x and a series. */
+function onePerPoint(points: Point[]): boolean {
+  const seen = new Set<string>();
+  for (const p of points) {
+    const key = JSON.stringify([p.x, p.series ?? null]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
+/**
+ * Why a line or bar can't be drawn, and what to use instead: the view with a
+ * row per the chart's x and series (the fewest other columns), this view's
+ * other column as the series, or else a scatter.
+ */
+function groupedElsewhere(q: Query, chart: Chart, x: string[]): string {
+  const chosen = [...x, ...(chart.series ? [chart.series.key] : [])];
+  const per = [chart.x, ...(chart.series ? [chart.series] : [])].map((c) => inWords(c.label));
+  const said = `More than one row per ${per.join(' and ')}, and a ${chart.mark} chart doesn’t add rows up.`;
+  const scatter = 'a scatter, which draws every row.';
+  const best = viewsOf(q.subject)
+    .map((view) => ({ view, keys: rowPer(q, view) }))
+    .filter((v) => chosen.every((k) => v.keys.includes(k)))
+    .sort((a, b) => a.keys.length - b.keys.length)[0];
+  if (best && best.view !== viewOf(q)) return `${said} Use ${viewName({ ...q, view: best.view })} instead, or ${scatter}`;
+  const extra = best?.keys.filter((k) => !chosen.includes(k)) ?? [];
+  if (chart.series || extra.length !== 1) return `${said} Use ${scatter}`;
+  return `${said} Use a ${inWords(HEADINGS[extra[0]])} series, or ${scatter}`;
 }
 
 /**

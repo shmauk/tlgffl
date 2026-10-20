@@ -37,10 +37,18 @@ describe('the query form', () => {
       's=2012-2018&size=16',
       'era=nfl.com&size=12&view=season',
       'f=5&sort=w.desc&chart=1',
+      'view=season&chart=1&mark=scatter&x=pf&y=pa&series=none',
+      'view=games&chart=1&mark=bar&x=o&series=res',
     ]) {
       const q = decodeQuery(search);
       expect(queryFromForm(formValues(q, CTX), CTX), search).toEqual(q);
     }
+  });
+
+  test("a new view keeps the chart choices it can draw and drops the rest", () => {
+    const built = formValues(decodeQuery('view=season&chart=1&x=pf&y=pa&series=none'), CTX);
+    expect(queryFromForm({ ...built, view: ['totals'] }, CTX).chartChoice).toEqual({ x: 'pf', y: 'pa' });
+    expect(queryFromForm({ ...built, view: ['games'] }, CTX).chartChoice).toEqual({ x: 'pf', y: 'pa', series: null });
   });
 
   test('era and League size are kept as chosen, not as their seasons, and the span narrows them', () => {

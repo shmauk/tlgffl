@@ -199,13 +199,19 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
           <select name="sort">{Object.entries(HEADINGS).map(([k, label]) => <option value={k}>{label}</option>)}</select>
           <select name="dir"><option value="desc">highest first</option><option value="asc">lowest first</option></select>
         </fieldset>
-        <input type="hidden" name="chart" />
+        <input type="hidden" name="chart" /><input type="hidden" name="mark" /><input type="hidden" name="x" /><input type="hidden" name="y" /><input type="hidden" name="series" />
         <p><button type="submit">Submit query</button> <button type="button" id="sg-reset">Reset form</button></p>
       </form>
     </Row>
     </div>
     <Row label="Results">
       <p id="sg-chart-switch" hidden><label><input type="checkbox" /> Chart</label></p>
+      <p id="sg-chart-build" hidden>
+        <label>Mark <select name="mark"><option value="bar">bars</option><option value="line">lines</option><option value="scatter">scatter</option></select></label>
+        <label>x <select name="x"></select></label>
+        <label>y <select name="y"></select></label>
+        <label>Series <select name="series"></select></label>
+      </p>
       <div id="sg-chart"></div>
       <div id="sg-results" aria-live="polite"><p class="sub">Loading the record book…</p></div>
     </Row>
@@ -232,6 +238,9 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
   #sg-edit { margin-left: 12px; color: var(--accent); font-weight: 700; text-decoration: none; }
   table.sg td { white-space: nowrap; }
   #sg-chart-switch { margin: 0 0 8px; font-weight: 700; font-size: 13px; }
+  #sg-chart-build { margin: 0 0 8px; font-size: 13px; }
+  #sg-chart-build label { margin-right: 12px; white-space: nowrap; font-weight: 700; }
+  #sg-chart-build select { font: inherit; font-weight: 400; }
   #sg-chart { color: var(--fg); margin-bottom: 16px; }
   #sg-chart svg { font: inherit; font-size: 12px; }
   .sg-plot { --plot-background: var(--bg); }
