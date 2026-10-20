@@ -246,17 +246,6 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
   .sg-plot { --plot-background: var(--bg); }
   .sg-plot-swatches { font: inherit; font-size: 12px; }
   #sg-chart figcaption { color: var(--notes); font-size: 12px; }
-  /* A line chart's series colours, in turn. */
-  #sg-chart {
-    --series-1: #4e79a7; --series-2: #e15759; --series-3: #59a14f; --series-4: #f28e2b;
-    --series-5: #b07aa1; --series-6: #76b7b2; --series-7: #9c755f; --series-8: #e377c2;
-  }
-  @media (prefers-color-scheme: dark) {
-    #sg-chart {
-      --series-1: #79a6d6; --series-2: #ff7b7d; --series-3: #7fcf72; --series-4: #ffaa55;
-      --series-5: #d4a2c6; --series-6: #9ad9d3; --series-7: #c9a07f; --series-8: #ff9fdc;
-    }
-  }
   @media (max-width: 720px) {
     .sg-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   }
