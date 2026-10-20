@@ -8,7 +8,7 @@ import { awardLeaders, awardValue, awards, awardWinners } from './awards';
 import { bracketColumns, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
 import { buildDate, current } from './current';
 import { BRACKET_ORDER, type BracketKey } from './brackets';
-import type { HomeData, Matchup } from './home';
+import type { HomeData } from './home';
 import { predictorSeason } from './predictor-db';
 import { figureText, holders, recordsThisSeason } from './records/held';
 import { seasonPicture } from './seeding-db';
@@ -63,6 +63,14 @@ function bracketsOf(db: Db, season: number) {
       homePoints: g.homePoints, awayPoints: g.awayPoints, winner: g.winnerId,
     }));
   return { specs, played };
+}
+
+/** A pairing of a week still to come, as the season page lists it: never a score. */
+export interface Matchup {
+  /** Null for a regular-season game. */
+  bracket: BracketKey | null;
+  home: SeasonFranchise;
+  away: SeasonFranchise;
 }
 
 /**
