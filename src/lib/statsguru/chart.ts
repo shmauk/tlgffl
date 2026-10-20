@@ -115,7 +115,13 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
   if (spec.mark === 'share') {
     const { scaled, segments } = shares(chart.points, spec.series === 'pos');
     chart.points = scaled;
-    if (chart.series) chart.coloured = segments.slice(0, COLOURS);
+    if (chart.series) {
+      chart.coloured = segments.slice(0, COLOURS);
+      if (segments.length > COLOURS) {
+        const label = inWords(chart.series.label);
+        notes.push(`Only the first ${COLOURS} of ${segments.length} ${label}s, in the legend’s order, are in colour; the rest are grey.`);
+      }
+    }
   } else if (chart.series) {
     const all = biggest(chart.points, spec.y);
     chart.coloured = all.slice(0, COLOURS);
