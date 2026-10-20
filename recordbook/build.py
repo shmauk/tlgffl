@@ -26,6 +26,7 @@ from recordbook import lineup_records
 from recordbook import profiles
 from recordbook import records
 from recordbook import season_records
+from recordbook import season_sets
 from recordbook import sleeper as sleeperlib
 
 LEAGUE = "1078038"
@@ -642,14 +643,16 @@ def write_profiles(con, franchises, played, season_lines, winners, current, done
 
 def write_records(con, games, seasons, formats, played, current, done):
     """The candidates for the records Statsguru can't express (#30)."""
-    eras = {year: era for year, era, _ in seasons}
+    sets = season_sets.season_sets(seasons)
+    con.executescript(season_sets.SCHEMA)
+    con.executemany("insert into season_sets values (?, ?)", season_sets.rows(sets))
     con.executescript(records.SCHEMA)
     con.executemany("insert into record_streaks values (?, ?, ?, ?, ?, ?, ?, ?)", records.streak_rows(
-        games, eras, {y: f.regular_season[1] for y, f in formats.items()},
+        games, sets, {y: f.regular_season[1] for y, f in formats.items()},
         {year: count for year, _, count in seasons}, played, current))
     con.executemany("insert into combined_scores values (?, ?)", records.combined_rows(games))
     con.executemany("insert into completed_seasons values (?, ?, ?)",
-                    records.completed_rows(played, eras, done))
+                    records.completed_rows(played, sets, done))
 
 
 def season_states(formats, games, winners, calendar, reported):

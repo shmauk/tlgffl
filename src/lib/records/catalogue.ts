@@ -4,16 +4,34 @@
 // tables recordbook/records.py writes.
 import type { GameRow, GroupRow } from '../statsguru/engine';
 import type { Query } from '../statsguru/query';
-import { SEASONS_URL } from '../urls';
+import { recordUrl, SEASONS_URL } from '../urls';
 
-/** The era filter, as it appears in a record's URL. */
-export type Era = 'all' | 'nfl-com' | 'sleeper';
+/**
+ * A season set (#54): a named set of seasons a record can be ranked over, as it
+ * appears in a record's URL. The build keeps its figures per season set under
+ * the same keys (recordbook/season_sets.py), and the season_sets table lists
+ * each one's seasons. No season set is named like a phase.
+ */
+export type SeasonSet = 'all-seasons' | 'nfl-com' | 'sleeper';
 /** The phase filter: the Playoffs alone, the regular season alone, or every game. */
 export type PhaseFilter = 'all' | 'regular' | 'playoffs';
 
-export const ERAS: Era[] = ['all', 'nfl-com', 'sleeper'];
+/** The eras' season sets: every season, or one era's. */
+export const ERAS: SeasonSet[] = ['all-seasons', 'nfl-com', 'sleeper'];
+export const SEASON_SETS: SeasonSet[] = [...ERAS];
 export const PHASES: PhaseFilter[] = ['all', 'regular', 'playoffs'];
-export const ERA_NAMES: Record<Era, string> = { all: 'All eras', 'nfl-com': 'NFL.com era', sleeper: 'Sleeper era' };
+export const SEASON_SET_NAMES: Record<SeasonSet, string> = {
+  'all-seasons': 'All eras', 'nfl-com': 'NFL.com era', sleeper: 'Sleeper era',
+};
+/**
+ * Each season set as Statsguru names it (#55): by era and League size, not
+ * its seasons, so a record's full list keeps up with seasons to come.
+ */
+export const SEASON_SET_QUERY: Record<SeasonSet, Pick<Query, 'era' | 'size'>> = {
+  'all-seasons': { era: null, size: null },
+  'nfl-com': { era: 'nfl.com', size: null },
+  sleeper: { era: 'sleeper', size: null },
+};
 export const PHASE_NAMES: Record<PhaseFilter, string> = { all: 'All games', regular: 'Regular season', playoffs: 'Playoffs' };
 
 /** What a record ranks, which decides how its entries read. */
@@ -40,7 +58,7 @@ export interface RecordDef {
   /** Highest first ('desc') or lowest first. */
   dir: 'asc' | 'desc';
   /** The filters that make sense for it; the first of each is the default. */
-  eras: Era[];
+  seasonSets: SeasonSet[];
   phases: PhaseFilter[];
   /** The fixed footnote saying what qualifies. */
   qualification: string;
@@ -77,31 +95,31 @@ const GAMES = 'Every final game with a score, from each franchise’s side.';
 const game = (
   slug: string, name: string, dir: 'asc' | 'desc', key: 'pf' | 'mar', result: 'W' | 'L' | null, qualification = GAMES,
 ): RecordDef => ({
-  slug, name, category: 'scoring', kind: 'game', unit: 'points', dir, eras: ERAS, phases: PHASES, qualification,
+  slug, name, category: 'scoring', kind: 'game', unit: 'points', dir, seasonSets: ERAS, phases: PHASES, qualification,
   statsguru: { view: 'games', result, sort: { key, dir } },
   figure: (r) => (r.kind === 'game' ? r[key === 'pf' ? 'pf' : 'margin'] : null),
 });
 const pair = (slug: string, name: string, dir: 'asc' | 'desc', table: 'combined' | 'ties', qualification: string): RecordDef => ({
-  slug, name, category: 'scoring', kind: 'pair', unit: 'points', dir, eras: ERAS, phases: PHASES, qualification,
+  slug, name, category: 'scoring', kind: 'pair', unit: 'points', dir, seasonSets: ERAS, phases: PHASES, qualification,
   figure: none, table, all: table === 'ties',
 });
 const career = (
   slug: string, name: string, key: 'w' | 'pct' | 'apf' | 'apa', unit: Unit, qualification: string, category = 'results',
 ): RecordDef => ({
-  slug, name, category, kind: 'career', unit, dir: 'desc', eras: ERAS, phases: PHASES, qualification,
+  slug, name, category, kind: 'career', unit, dir: 'desc', seasonSets: ERAS, phases: PHASES, qualification,
   statsguru: { view: 'totals', sort: { key, dir: 'desc' } },
   figure: (r) => (r.kind === 'group' ? r[key] : null),
   rate: key !== 'w',
 });
 const STREAKS = 'Consecutive regular-season games, carried across seasons. NFL.com-era Shit Bowl and Mediocre Bowl games were never recorded, so bracket games don’t count.';
 const streak = (slug: string, name: string, table: 'winning' | 'losing' | 'top_half', qualification: string): RecordDef => ({
-  slug, name, category: 'results', kind: 'streak', unit: 'count', dir: 'desc', eras: ERAS, phases: ['regular'],
+  slug, name, category: 'results', kind: 'streak', unit: 'count', dir: 'desc', seasonSets: ERAS, phases: ['regular'],
   qualification, figure: none, table,
 });
 
 const rivalry = (slug: string, name: string, key: 'pct' | 'gp', qualification: string): RecordDef => ({
   slug, name, category: 'head-to-head', kind: 'rivalry', unit: key === 'pct' ? 'pct' : 'count', dir: 'desc',
-  eras: ERAS, phases: PHASES, qualification, heading: key === 'pct' ? 'Win %' : 'Games',
+  seasonSets: ERAS, phases: PHASES, qualification, heading: key === 'pct' ? 'Win %' : 'Games',
   statsguru: { view: 'opp', minGames: key === 'pct' ? 6 : 0, sort: { key, dir: 'desc' } },
   // Reported games have no known opponent: they aren't anyone's rivalry.
   figure: (r) => (r.kind === 'group' && r.opponent ? r[key] : null),
@@ -110,12 +128,12 @@ const rivalry = (slug: string, name: string, key: 'pct' | 'gp', qualification: s
 const DIVISIONS = 'Each completed season’s divisions since 2015, their franchises’ regular-season lines summed.';
 const division = (slug: string, name: string, measure: 'points_for' | 'wins', dir: 'asc' | 'desc'): RecordDef => ({
   slug, name, category: 'divisions', kind: 'division', unit: measure === 'wins' ? 'count' : 'points', dir,
-  eras: ERAS, phases: ['regular'], measure, heading: measure === 'wins' ? 'Wins' : 'Points for',
+  seasonSets: ERAS, phases: ['regular'], measure, heading: measure === 'wins' ? 'Wins' : 'Points for',
   qualification: `${DIVISIONS}${measure === 'wins' ? ' A tie isn’t a win.' : ''}`, figure: none,
 });
-const SLEEPER: Era[] = ['sleeper'];
+const SLEEPER: SeasonSet[] = ['sleeper'];
 const lineup = (slug: string, name: string, measure: 'player' | 'bench', qualification: string): RecordDef => ({
-  slug, name, category: 'sleeper', kind: 'lineup', unit: 'points', dir: 'desc', eras: SLEEPER, phases: PHASES,
+  slug, name, category: 'sleeper', kind: 'lineup', unit: 'points', dir: 'desc', seasonSets: SLEEPER, phases: PHASES,
   measure, qualification, figure: none, heading: measure === 'bench' ? 'Bench points' : 'Points',
 });
 const SEASON_LINES = 'Every season line, NFL.com’s reported ones filling the seasons with games missing (ADR 0001).';
@@ -129,7 +147,7 @@ const season = (
   slug: string, name: string, dir: 'asc' | 'desc', column: string, unit: Unit, alongside: Alongside[],
   qualification = SEASON_LINES, category = 'seasons',
 ): RecordDef => ({
-  slug, name, category, kind: 'season', unit, dir, eras: ERAS, phases: ['regular'], qualification, figure: none, column,
+  slug, name, category, kind: 'season', unit, dir, seasonSets: ERAS, phases: ['regular'], qualification, figure: none, column,
   alongside, seasonSort: SEASON_SORT[column],
 });
 const PF_GAME: Alongside = { label: 'PF per game', column: 'points_for_per_game', unit: 'points' };
@@ -138,12 +156,12 @@ const WIN_PCT: Alongside = { label: 'Win %', column: 'win_pct', unit: 'pct' };
 const BREAKDOWN_PCT: Alongside = { label: 'Breakdown %', column: 'breakdown_pct', unit: 'pct' };
 
 const FINISHED = 'Every finished season.';
-const tally = (slug: string, name: string, record: string, qualification: string, eras: Era[] = ERAS): RecordDef => ({
-  slug, name, category: 'brackets', kind: 'tally', unit: 'count', dir: 'desc', eras, phases: ['all'], qualification,
+const tally = (slug: string, name: string, record: string, qualification: string, seasonSets: SeasonSet[] = ERAS): RecordDef => ({
+  slug, name, category: 'brackets', kind: 'tally', unit: 'count', dir: 'desc', seasonSets, phases: ['all'], qualification,
   figure: none, record,
 });
 const run = (slug: string, name: string, record: string, qualification: string): RecordDef => ({
-  slug, name, category: 'brackets', kind: 'run', unit: 'count', dir: 'desc', eras: ERAS, phases: ['all'], qualification,
+  slug, name, category: 'brackets', kind: 'run', unit: 'count', dir: 'desc', seasonSets: ERAS, phases: ['all'], qualification,
   figure: none, record,
 });
 
@@ -208,7 +226,7 @@ export const RECORDS: RecordDef[] = [
     'Every final game: the points of the NFL players a franchise had on its roster but didn’t start.'),
   {
     slug: 'most-bench-points-in-a-season', name: 'Most bench points in a season', category: 'sleeper',
-    kind: 'lineup-season', unit: 'points', dir: 'desc', eras: SLEEPER, phases: ['regular'], measure: 'bench',
+    kind: 'lineup-season', unit: 'points', dir: 'desc', seasonSets: SLEEPER, phases: ['regular'], measure: 'bench',
     heading: 'Bench points', figure: none,
     qualification: 'Each completed season’s regular season: the points of the NFL players a franchise had on its roster but didn’t start.',
   },
@@ -248,6 +266,25 @@ export const CATEGORIES: Category[] = [
 export const recordDef = (slug: string) => RECORDS.find((r) => r.slug === slug);
 export const categoryOf = (def: RecordDef) => CATEGORIES.find((c) => c.slug === def.category)!;
 
-/** Every era and phase a record is shown for; the first is its own page. */
-export const variants = (def: RecordDef) =>
-  def.eras.flatMap((era) => def.phases.map((phase) => ({ era, phase })));
+/** One of a record's pages: the seasons it ranks over and the games it counts. */
+export interface Variant {
+  seasonSet: SeasonSet;
+  phase: PhaseFilter;
+}
+
+/** Every season set and phase a record is shown for; the first is its own page. */
+export const variants = (def: RecordDef): Variant[] =>
+  def.seasonSets.flatMap((seasonSet) => def.phases.map((phase) => ({ seasonSet, phase })));
+
+/**
+ * A variant's path below its record's own page (#54): its season set, then its
+ * phase, each left out where it is the record's default, so every variant has
+ * exactly one URL.
+ */
+export const variantPath = (def: RecordDef, { seasonSet, phase }: Variant): string[] => [
+  ...(seasonSet === def.seasonSets[0] ? [] : [seasonSet]),
+  ...(phase === def.phases[0] ? [] : [phase]),
+];
+
+/** A variant's one URL. */
+export const variantUrl = (def: RecordDef, variant: Variant) => recordUrl(def.slug, variantPath(def, variant));

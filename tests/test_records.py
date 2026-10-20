@@ -12,11 +12,11 @@ from tests.archive import write_games
 from tests.test_games import REGULAR, POSTSEASON, data, built, query  # noqa: F401 (fixture)
 
 
-def streaks(db, record, era="all"):
+def streaks(db, record, season_set="all-seasons"):
     return query(db, "select s.franchise_id, s.length, f.week, l.week, s.gap_before, s.gap_after "
                      "from record_streaks s join games f on f.id = s.first_game_id "
-                     "join games l on l.id = s.last_game_id where s.record = ? and s.era = ? "
-                     "order by s.franchise_id, f.week", record, era)
+                     "join games l on l.id = s.last_game_id where s.record = ? and s.season_set = ? "
+                     "order by s.franchise_id, f.week", record, season_set)
 
 
 def test_winning_streaks_are_runs_of_regular_season_wins(data, tmp_path):
@@ -55,9 +55,9 @@ def test_a_streak_after_a_week_with_no_score_may_have_begun_earlier(data, tmp_pa
     assert streaks(db, "winning") == [(1, 1, 2, 2, 1, 0), (2, 1, 3, 3, 0, 0), (4, 1, 3, 3, 0, 0)]
 
 
-def test_streaks_are_also_kept_per_era(data, tmp_path):
+def test_streaks_are_also_kept_per_season_set(data, tmp_path):
     db = built(data, tmp_path)
-    assert streaks(db, "winning", "nfl.com") == streaks(db, "winning")
+    assert streaks(db, "winning", "nfl-com") == streaks(db, "winning")
     assert streaks(db, "winning", "sleeper") == []
 
 
@@ -74,9 +74,19 @@ def test_completed_seasons_leave_out_a_season_not_yet_finished(archive, tmp_path
     from recordbook.build import build
     build(archive, db)
     # 2012 and 2013 are over; 2025 has not finished (nor, here, begun).
-    assert query(db, "select franchise_id, era, seasons from completed_seasons order by 1, 2") == [
-        (1, "all", 2), (1, "nfl.com", 2), (1, "sleeper", 0),
-        (2, "all", 1), (2, "nfl.com", 1), (2, "sleeper", 0),
-        (3, "all", 1), (3, "nfl.com", 1), (3, "sleeper", 0),
-        (4, "all", 0), (4, "nfl.com", 0), (4, "sleeper", 0),
+    assert query(db, "select franchise_id, season_set, seasons from completed_seasons order by 1, 2") == [
+        (1, "all-seasons", 2), (1, "nfl-com", 2), (1, "sleeper", 0),
+        (2, "all-seasons", 1), (2, "nfl-com", 1), (2, "sleeper", 0),
+        (3, "all-seasons", 1), (3, "nfl-com", 1), (3, "sleeper", 0),
+        (4, "all-seasons", 0), (4, "nfl-com", 0), (4, "sleeper", 0),
+    ]
+
+
+def test_each_season_set_lists_its_seasons(archive, tmp_path):
+    db = tmp_path / "league.sqlite"
+    from recordbook.build import build
+    build(archive, db)
+    assert query(db, "select season_set, season from season_sets order by 1, 2") == [
+        ("all-seasons", 2012), ("all-seasons", 2013), ("all-seasons", 2025),
+        ("nfl-com", 2012), ("nfl-com", 2013), ("sleeper", 2025),
     ]

@@ -77,9 +77,9 @@ def three_seasons(data):
                           (2016, "Dog", "recalled")])
 
 
-def tallies(db, record, era="all"):
-    return query(db, "select franchise_id, count, seasons from record_tallies where record = ? and era = ? "
-                     "order by franchise_id", record, era)
+def tallies(db, record, season_set="all-seasons"):
+    return query(db, "select franchise_id, count, seasons from record_tallies where record = ? and season_set = ? "
+                     "order by franchise_id", record, season_set)
 
 
 def test_bracket_tallies_count_each_franchises_seasons(data, tmp_path):
@@ -101,7 +101,7 @@ def test_shit_bowl_appearances_come_from_the_sleeper_eras_bracket_games(sleeper,
     db = built(sleeper, tmp_path)
     assert tallies(db, "shit_bowl") == [(12, 1, "2025"), (13, 1, "2025")]
     assert tallies(db, "playoffs", "sleeper") == [(11, 1, "2025"), (16, 1, "2025")]
-    assert tallies(db, "shit_bowl", "nfl.com") == []
+    assert tallies(db, "shit_bowl", "nfl-com") == []
 
 
 def test_brackets_in_a_season_with_no_champion_yet_count_for_nobody(sleeper, tmp_path):
@@ -113,9 +113,9 @@ def test_brackets_in_a_season_with_no_champion_yet_count_for_nobody(sleeper, tmp
     assert query(db, "select count(*) from record_tallies") == [(0,)]
 
 
-def runs(db, record, era="all"):
+def runs(db, record, season_set="all-seasons"):
     return query(db, "select franchise_id, length, first_season, last_season, ongoing from record_runs "
-                     "where record = ? and era = ? order by franchise_id, first_season", record, era)
+                     "where record = ? and season_set = ? order by franchise_id, first_season", record, season_set)
 
 
 def test_playoff_droughts_and_appearance_streaks_run_over_finished_seasons(data, tmp_path):

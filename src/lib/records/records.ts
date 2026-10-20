@@ -1,4 +1,4 @@
-// One record, filtered by era and phase, ready to show (#7, #30). Records
+// One record, filtered by season set and phase, ready to show (#7, #30). Records
 // Statsguru can express run their saved query through Statsguru's own engine,
 // so a record and its "full list in Statsguru" can't disagree (ADR 0002). The
 // rest read what recordbook/records.py wrote. Nothing here derives a figure:
@@ -9,7 +9,7 @@ import { runQuery, type GameRow, type GroupRow } from '../statsguru/engine';
 import type { Db } from '../database';
 import { DEFAULT_QUERY, type Phase, type Query } from '../statsguru/query';
 import type { Glyph } from '../../components/Marker.astro';
-import type { Era, PhaseFilter, RecordDef } from './catalogue';
+import { SEASON_SET_QUERY, type PhaseFilter, type RecordDef, type SeasonSet } from './catalogue';
 import { topTen } from './rank';
 import { lineupEntries, divisionEntries } from './rivalries-divisions-sleeper';
 
@@ -38,7 +38,7 @@ export interface Entry {
   /** A streak's first and last games. */
   from?: Moment;
   to?: Moment;
-  /** A career's first and last seasons within the era. */
+  /** A career's first and last seasons within the season set. */
   seasons?: [number, number];
   games?: number;
   wlt?: [number, number, number];
@@ -70,7 +70,7 @@ export interface Entry {
 
 export interface RecordView {
   def: RecordDef;
-  era: Era;
+  seasonSet: SeasonSet;
   phase: PhaseFilter;
   entries: Entry[];
   /** True when every entry is listed, unranked. */
@@ -85,6 +85,8 @@ export interface RecordView {
 interface Context {
   franchises: Map<number, { name: string; active: boolean; first: number; last: number }>;
   eraOf: Map<number, 'nfl.com' | 'sleeper'>;
+  /** Each season set's seasons, in order. */
+  seasonSets: Map<string, number[]>;
   current: number | null;
   /** The current season's phase. */
   phase: string | null;
@@ -118,6 +120,10 @@ function context(db: Db): Context {
       ]),
     ),
     eraOf: new Map(db.all('select year, era from seasons').map((r) => [r.year, r.era])),
+    seasonSets: db.all('select season_set, season from season_sets order by season_set, season').reduce(
+      (sets, r) => sets.set(r.season_set, [...(sets.get(r.season_set) ?? []), r.season]),
+      new Map<string, number[]>(),
+    ),
     // The current season, as the build chose it (recordbook/current.py); null before any has started.
     current: db.all('select season from current_season')[0]?.season ?? null,
     phase: db.all('select phase from current_season')[0]?.phase ?? null,
@@ -134,7 +140,7 @@ function context(db: Db): Context {
          order by b.season`,
       )
       .map((r) => r.season),
-    completed: new Map(db.all('select franchise_id, era, seasons from completed_seasons').map((r) => [`${r.franchise_id}|${r.era}`, r.seasons])),
+    completed: new Map(db.all('select franchise_id, season_set, seasons from completed_seasons').map((r) => [`${r.franchise_id}|${r.season_set}`, r.seasons])),
     gamesMissing: new Set(
       db.all('select lo_franchise_id as lo, hi_franchise_id as hi from head_to_head where games_missing = 1').map((r) => `${r.lo}-${r.hi}`),
     ),
@@ -143,7 +149,6 @@ function context(db: Db): Context {
   return c;
 }
 
-const DB_ERA = { all: 'all', 'nfl-com': 'nfl.com', sleeper: 'sleeper' } as const;
 const SG_PHASES: Record<PhaseFilter, Phase[]> = { all: ['R', 'P', 'C'], regular: ['R'], playoffs: ['P'] };
 const SQL_PHASE: Record<PhaseFilter, string> = {
   all: '1',
@@ -154,10 +159,12 @@ const SQL_PHASE: Record<PhaseFilter, string> = {
 const and = (parts: string[]) =>
   parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? '');
 
-export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter): RecordView {
+export function recordView(db: Db, def: RecordDef, seasonSet: SeasonSet, phase: PhaseFilter): RecordView {
   const c = context(db);
-  const inEra = (season: number) => era === 'all' || c.eraOf.get(season) === DB_ERA[era];
-  const seasons = [...c.eraOf.keys()].filter(inEra).sort((a, b) => a - b);
+  const seasons = c.seasonSets.get(seasonSet) ?? [];
+  const inSet = (season: number) => seasons.includes(season);
+  // Pairs may have met unseen only in NFL.com-era weeks with no game record.
+  const nflCom = seasons.some((s) => c.eraOf.get(s) === 'nfl.com');
   const franchise = (id: number): RecordFranchise => {
     const f = c.franchises.get(id)!;
     return { id, name: f.name, departed: !f.active };
@@ -174,16 +181,16 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
                   e.franchise_id as f, e.reason
            from record_exclusions e join games g on g.id = e.game_id where ${SQL_PHASE[phase]} order by g.season, g.week`,
         )
-        .filter((x) => inEra(x.season))
+        .filter((x) => inSet(x.season))
     : [];
   const isExcluded = (season: number, week: number, f: number) =>
     excluded.some((x) => x.season === season && x.week === week && (x.h === f || x.a === f));
 
   const seen = new Set<string>();
-  // Statsguru links name the era (era=), not its seasons, so they keep up with seasons to come.
-  const sgEra = era === 'all' ? null : DB_ERA[era];
+  // Statsguru links name the season set (era=, size=), not its seasons, so they keep up with seasons to come.
+  const scope = SEASON_SET_QUERY[seasonSet];
   if (def.statsguru) {
-    statsguru = { ...def.statsguru, seasons: [], era: sgEra, phases: SG_PHASES[phase] };
+    statsguru = { ...def.statsguru, seasons: [], ...scope, phases: SG_PHASES[phase] };
     const rows = runQuery(db, { ...DEFAULT_QUERY, ...statsguru }).rows as (GameRow & GroupRow)[];
     for (const r of rows) {
       const value = def.figure(r);
@@ -196,7 +203,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
         entries.push({
           rank: null, value, franchise: franchise(r.franchise.id), opponent: franchise(r.opponent!.id), games: r.gp,
           wlt: [r.w, r.l, r.t], thisSeason: false,
-          gamesMissing: phase !== 'playoffs' && era !== 'sleeper' && c.gamesMissing.has(key),
+          gamesMissing: phase !== 'playoffs' && nflCom && c.gamesMissing.has(key),
         });
       } else if (def.kind === 'game') {
         if (isExcluded(r.season!, r.week, r.franchise.id)) continue;
@@ -205,7 +212,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
           score: [r.pf!, r.pa!], at: { season: r.season!, week: r.week }, thisSeason: r.season === c.current,
         });
       } else {
-        if (def.rate && (c.completed.get(`${r.franchise.id}|${DB_ERA[era]}`) ?? 0) < 2) continue;
+        if (def.rate && (c.completed.get(`${r.franchise.id}|${seasonSet}`) ?? 0) < 2) continue;
         const f = c.franchises.get(r.franchise.id)!;
         const span = seasons.filter((s) => s >= f.first && s <= f.last);
         entries.push({
@@ -216,7 +223,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
       }
     }
   } else if (def.kind === 'division') {
-    entries = divisionEntries(db, def, inEra, franchise, c.current);
+    entries = divisionEntries(db, def, inSet, franchise, c.current);
   } else if (def.kind === 'lineup' || def.kind === 'lineup-season') {
     entries = lineupEntries(db, def, SQL_PHASE[phase], franchise, c.current);
   } else if (def.kind === 'pair') {
@@ -230,7 +237,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
        order by g.season ${ties ? 'desc' : ''}, g.week ${ties ? 'desc' : ''}, g.id`,
     );
     entries = rows
-      .filter((r) => inEra(r.season) && !isExcluded(r.season, r.week, r.h))
+      .filter((r) => inSet(r.season) && !isExcluded(r.season, r.week, r.h))
       .map((r) => {
         const homeFirst = r.w === null || r.w === r.h;
         return {
@@ -240,7 +247,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
         };
       });
   } else if (def.kind === 'season') {
-    entries = seasonEntries(db, def, inEra, franchise, c.current);
+    entries = seasonEntries(db, def, inSet, franchise, c.current);
     notes.push(...seasonNotes(db, def, seasons, c.current));
     if (def.seasonSort) {
       // The full list: Statsguru's per-season view over the same seasons, so the season
@@ -249,19 +256,19 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
       statsguru = {
         view: 'season', phases: ['R'], sort: { key: def.seasonSort, dir: def.dir },
         seasons: listed.length === seasons.length ? [] : listed,
-        era: sgEra,
+        ...scope,
       };
     }
   } else if (def.kind === 'tally' || def.kind === 'run') {
-    entries = bracketEntries(db, def, DB_ERA[era], franchise, c.current);
+    entries = bracketEntries(db, def, seasonSet, franchise, c.current);
     notes.push(...bracketNotes(db, def, seasons, c.current, c.phase));
   } else {
     const rows = db.all(
       `select s.franchise_id as f, s.length, s.gap_before, s.gap_after, a.season as fs, a.week as fw,
               b.season as ls, b.week as lw
        from record_streaks s join games a on a.id = s.first_game_id join games b on b.id = s.last_game_id
-       where s.record = ? and s.era = ? order by s.first_game_id`,
-      [def.table!, DB_ERA[era]],
+       where s.record = ? and s.season_set = ? order by s.first_game_id`,
+      [def.table!, seasonSet],
     );
     entries = rows.map((r) => ({
       rank: null, value: r.length, franchise: franchise(r.f), from: { season: r.fs, week: r.fw },
@@ -282,7 +289,7 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
     });
     notes.push({ glyph: '*', text: `Ranks only games with a score: there are none for ${and(parts)}.` });
   }
-  const lost = c.lostScores.filter(inEra);
+  const lost = c.lostScores.filter(inSet);
   if (gameBased && phase !== 'regular' && lost.length)
     notes.push({ glyph: '‡', text: `Bracket games whose score is lost are left out (${and(lost.map(String))}).` });
   for (const x of excluded) {
@@ -300,11 +307,11 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
       glyph: '*',
       text: 'The run reaches a week with no scores, so it may continue into weeks with no scores (* after it) or may have begun in them (* before it).',
     });
-  const unrecorded = c.unrecorded.filter(inEra);
+  const unrecorded = c.unrecorded.filter(inSet);
   if (phase === 'all' && (gameBased || def.kind === 'career') && unrecorded.length)
     notes.push({ text: `Shit Bowl and Mediocre Bowl games were never recorded for ${seasonSpan(unrecorded)}.` });
 
-  return { def, era, phase, entries, all: !!def.all, star, notes, statsguru };
+  return { def, seasonSet, phase, entries, all: !!def.all, star, notes, statsguru };
 }
 
 /** Seasons as runs: [2014, 2015, 2016, 2018] -> "2014–2016 and 2018". */
@@ -363,12 +370,12 @@ function seasonNotes(db: Db, def: RecordDef, seasons: number[], current: number 
 
 // Bracket records (#31): tallies and runs, from record_tallies and record_runs.
 function bracketEntries(
-  db: Db, def: RecordDef, era: string, franchise: (id: number) => RecordFranchise, current: number | null,
+  db: Db, def: RecordDef, seasonSet: SeasonSet, franchise: (id: number) => RecordFranchise, current: number | null,
 ): Entry[] {
   if (def.kind === 'tally')
     return db
-      .all('select franchise_id as f, count, seasons from record_tallies where record = ? and era = ? order by franchise_id',
-        [def.record!, era])
+      .all('select franchise_id as f, count, seasons from record_tallies where record = ? and season_set = ? order by franchise_id',
+        [def.record!, seasonSet])
       .map((r) => {
         const list = String(r.seasons).split(',').map(Number);
         return { rank: null, value: r.count, franchise: franchise(r.f), list, thisSeason: list.includes(current) };
@@ -376,8 +383,8 @@ function bracketEntries(
   return db
     .all(
       `select franchise_id as f, length, first_season, last_season, ongoing from record_runs
-       where record = ? and era = ? order by first_season, franchise_id`,
-      [def.record!, era],
+       where record = ? and season_set = ? order by first_season, franchise_id`,
+      [def.record!, seasonSet],
     )
     .map((r) => ({
       rank: null, value: r.length, franchise: franchise(r.f), span: [r.first_season, r.last_season] as [number, number],

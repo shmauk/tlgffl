@@ -1,0 +1,24 @@
+---
+// /records/<slug>/[<season-set>/][<phase>/] (#14, #30, #54): a record over each
+// season set and phase that makes sense for it, pre-rendered, one URL each.
+// Its default season set and phase are left out, so /records/<slug>/ is its
+// own page.
+import RecordPage from '../../../components/RecordPage.astro';
+import { RECORDS, variantPath, variants, type RecordDef, type Variant } from '../../../lib/records/catalogue';
+import { recordView } from '../../../lib/records/records';
+import { open } from '../../../lib/database';
+
+export function getStaticPaths() {
+  return RECORDS.flatMap((def) =>
+    variants(def).map((variant) => ({
+      params: { slug: def.slug, variant: variantPath(def, variant).join('/') || undefined },
+      props: { def, variant },
+    })),
+  );
+}
+
+const db = open();
+const { def, variant } = Astro.props as { def: RecordDef; variant: Variant };
+---
+
+<RecordPage view={recordView(db, def, variant.seasonSet, variant.phase)} />
