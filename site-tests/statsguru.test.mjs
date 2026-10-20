@@ -59,6 +59,18 @@ test('other pages download neither SQLite nor WebAssembly', () => {
   }
 });
 
+test('Observable Plot ships with Statsguru and no other page loads it', () => {
+  // Plot's own default class name, which only its code contains.
+  assert.ok(files.some((f) => f.endsWith('.js') && readFileSync(f, 'utf8').includes('plot-d6a7b5')));
+  for (const page of files.filter((f) => f.endsWith('.html') && f !== STATSGURU))
+    for (const src of scripts(readFileSync(page, 'utf8')))
+      assert.ok(!readFileSync(join(DIST, src), 'utf8').includes('plot-d6a7b5'), `${page} loads ${src}`);
+});
+
+test('the franchises page opens wins per franchise as a chart in Statsguru', () => {
+  assert.match(read('franchises/index.html'), /href="\/statsguru\/\?chart=1"[^>]*>Wins per franchise, charted, in Statsguru/);
+});
+
 test('the form lists every franchise for both franchise and opposition, and every season', () => {
   const html = read('statsguru/index.html');
   for (const { id, name } of db.prepare('select id, name from franchises').all()) {

@@ -199,11 +199,14 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
           <select name="sort">{Object.entries(HEADINGS).map(([k, label]) => <option value={k}>{label}</option>)}</select>
           <select name="dir"><option value="desc">highest first</option><option value="asc">lowest first</option></select>
         </fieldset>
+        <input type="hidden" name="chart" />
         <p><button type="submit">Submit query</button> <button type="button" id="sg-reset">Reset form</button></p>
       </form>
     </Row>
     </div>
     <Row label="Results">
+      <p id="sg-chart-switch" hidden><label><input type="checkbox" /> Chart</label></p>
+      <div id="sg-chart"></div>
       <div id="sg-results" aria-live="polite"><p class="sub">Loading the record book…</p></div>
     </Row>
   </div>
@@ -228,6 +231,10 @@ const lastNfl = years.filter((s) => s.era === 'nfl.com').at(-1)?.year;
   .sg-form button[type='submit'] { background: var(--fg); color: var(--bg); }
   #sg-edit { margin-left: 12px; color: var(--accent); font-weight: 700; text-decoration: none; }
   table.sg td { white-space: nowrap; }
+  #sg-chart-switch { margin: 0 0 8px; font-weight: 700; font-size: 13px; }
+  #sg-chart { color: var(--fg); margin-bottom: 16px; }
+  #sg-chart svg { font: inherit; font-size: 12px; }
+  .sg-plot { --plot-background: var(--bg); }
   @media (max-width: 720px) {
     .sg-field { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   }

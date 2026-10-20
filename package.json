@@ -13,6 +13,7 @@
     "test:components": "vitest run"
   },
   "dependencies": {
+    "@observablehq/plot": "0.6.17",
     "astro": "7.3.8",
     "sql.js": "1.14.2"
   },
