@@ -14,7 +14,7 @@ const rows = (html) => [...(html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? '')
 const figures = (html) => rows(html).map((r) => r.match(/<td class="num fig">([^<]*)/)?.[1]);
 const current = db.prepare('select season as y from current_season').get().y;
 
-const ERAS = ['all', 'nfl-com', 'sleeper'];
+const ERAS = ['nfl-com', 'sleeper'];
 const SEASONS = ['most-wins', 'fewest-wins', 'most-points-for', 'fewest-points-for', 'most-points-against',
   'fewest-points-against', 'best-points-per-game', 'worst-points-per-game', 'best-breakdown-pct', 'worst-breakdown-pct',
   'luckiest-season', 'unluckiest-season'];
@@ -24,8 +24,9 @@ const BRACKETS = ['championships', 'finals-reached', 'playoff-appearances', 'shi
 test('season records are pre-rendered for each era, regular season only', () => {
   for (const slug of SEASONS) {
     assert.ok(existsSync(join(DIST, 'records', slug, 'index.html')), slug);
-    for (const era of ERAS.slice(1)) assert.ok(existsSync(join(DIST, 'records', slug, era, 'regular', 'index.html')), slug);
-    assert.ok(!existsSync(join(DIST, 'records', slug, 'all', 'all')), slug);
+    for (const era of ERAS) assert.ok(existsSync(join(DIST, 'records', slug, era, 'index.html')), slug);
+    for (const era of ERAS) assert.ok(!existsSync(join(DIST, 'records', slug, era, 'regular')), slug);
+    assert.ok(!existsSync(join(DIST, 'records', slug, 'regular')), slug);
   }
 });
 
@@ -37,7 +38,7 @@ test('season records Statsguru can list link their full list per season; Breakdo
 
 test('bracket records are pre-rendered for each era with no phase filter; Shit Bowl appearances only for Sleeper', () => {
   for (const slug of BRACKETS) {
-    for (const era of ERAS.slice(1)) assert.ok(existsSync(join(DIST, 'records', slug, era, 'all', 'index.html')), slug);
+    for (const era of ERAS) assert.ok(existsSync(join(DIST, 'records', slug, era, 'index.html')), slug);
     assert.doesNotMatch(read(`records/${slug}`), /Regular season|All games/, slug);
   }
   assert.ok(existsSync(join(DIST, 'records', 'shit-bowl-appearances', 'index.html')));

@@ -12,10 +12,10 @@ import { recordView } from './records';
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
 const db = open();
 const one = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql).get(...params) as any;
-const view = (slug: string, era?: string) => {
+const view = (slug: string, seasonSet?: string) => {
   const def = recordDef(slug)!;
   expect(def, slug).toBeDefined();
-  return recordView(db, def, (era ?? def.eras[0]) as any, def.phases[0]);
+  return recordView(db, def, (seasonSet ?? def.seasonSets[0]) as any, def.phases[0]);
 };
 const current = one('select season as y from current_season').y;
 
@@ -55,9 +55,9 @@ describe('the full list in Statsguru', () => {
   });
 
   for (const slug of LINKED)
-    for (const era of ['all', 'nfl-com', 'sleeper'])
-      test(`${slug} ${era}: the link’s rows give the record’s figures, the season in progress left out`, () => {
-        const v = view(slug, era);
+    for (const seasonSet of ['all-seasons', 'nfl-com', 'sleeper'])
+      test(`${slug} ${seasonSet}: the link’s rows give the record’s figures, the season in progress left out`, () => {
+        const v = view(slug, seasonSet);
         const q = decodeQuery(encodeQuery({ ...DEFAULT_QUERY, ...v.statsguru! }));
         expect(q.view).toBe('season');
         expect(q.phases).toEqual(['R']);
@@ -162,12 +162,12 @@ describe('brackets', () => {
   });
 
   test('Shit Bowl appearances are Sleeper era only', () => {
-    expect(recordDef('shit-bowl-appearances')!.eras).toEqual(['sleeper']);
+    expect(recordDef('shit-bowl-appearances')!.seasonSets).toEqual(['sleeper']);
     for (const e of view('shit-bowl-appearances').entries) for (const s of e.list!) expect(s).toBeGreaterThanOrEqual(2025);
   });
 
   test('the longest Playoff drought is the longest run in the runs table', () => {
-    const top = one(`select max(length) as n from record_runs where record = 'drought' and era = 'all'`).n;
+    const top = one(`select max(length) as n from record_runs where record = 'drought' and season_set = 'all-seasons'`).n;
     const e = view('longest-playoff-drought').entries[0];
     expect(e.value).toBe(top);
     expect(e.span![1] - e.span![0] + 1).toBe(top);
@@ -180,5 +180,5 @@ describe('brackets', () => {
 
 test('every new record renders for every variant', () => {
   for (const def of RECORDS.filter((r) => [...SEASONS, ...LUCK, ...BRACKETS].includes(r.slug)))
-    for (const { era, phase } of variants(def)) expect(() => recordView(db, def, era, phase), def.slug).not.toThrow();
+    for (const { seasonSet, phase } of variants(def)) expect(() => recordView(db, def, seasonSet, phase), def.slug).not.toThrow();
 });

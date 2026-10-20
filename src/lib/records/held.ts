@@ -1,10 +1,10 @@
 // Records held (#7's franchise profile, item 7): every top-10 entry a
 // franchise holds, with its rank, across every record of the catalogue. Each
-// record counts once, over its own page's era and phase (its first ones);
+// record counts once, over its own page's season set and phase (its first ones);
 // entries listed unranked (all ties) aren't top-10 entries.
 import { figure } from '../figures';
 import type { Db } from '../database';
-import { ERA_NAMES, RECORDS, type RecordDef } from './catalogue';
+import { RECORDS, SEASON_SET_NAMES, type RecordDef } from './catalogue';
 import { recordView, type Entry, type RecordFranchise } from './records';
 
 /** Who holds an entry: a division's franchises, both of a shared pair, or its franchise. */
@@ -26,7 +26,7 @@ function everyHolding(db: Db): Map<number, Held[]> {
   if (byFranchise) return byFranchise;
   byFranchise = new Map();
   for (const def of RECORDS) {
-    for (const entry of recordView(db, def, def.eras[0], def.phases[0]).entries) {
+    for (const entry of recordView(db, def, def.seasonSets[0], def.phases[0]).entries) {
       if (entry.rank === null) continue;
       for (const f of holders(def, entry)) {
         const list = byFranchise.get(f.id) ?? [];
@@ -53,11 +53,11 @@ export function recordsHeld(db: Db, franchiseId: number): Held[] {
 const PHASE_WORDS = { all: 'all games', regular: 'regular season', playoffs: 'Playoffs' } as const;
 
 /**
- * Which era and games a held entry is over: its record's own page's ("All
+ * Which seasons and games a held entry is over: its record's own page's ("All
  * eras, all games"). A career win % over every game isn't the career
  * summary's regular-season one, so a profile says which it is.
  */
-export const heldOver = (def: RecordDef) => `${ERA_NAMES[def.eras[0]]}, ${PHASE_WORDS[def.phases[0]]}`;
+export const heldOver = (def: RecordDef) => `${SEASON_SET_NAMES[def.seasonSets[0]]}, ${PHASE_WORDS[def.phases[0]]}`;
 
 /** An entry's figure as it reads on its own (src/lib/figures.ts). */
 export const figureText = (def: RecordDef, value: number) => figure(def.unit, value);

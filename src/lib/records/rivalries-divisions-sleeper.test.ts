@@ -13,8 +13,8 @@ const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', 
 const db = open();
 const all = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql).all(...params) as any[];
 const one = (sql: string, ...params: (number | string)[]) => sqlite.prepare(sql).get(...params) as any;
-const view = (slug: string, era?: string, phase?: string) =>
-  recordView(db, recordDef(slug)!, (era ?? recordDef(slug)!.eras[0]) as any, (phase ?? recordDef(slug)!.phases[0]) as any);
+const view = (slug: string, seasonSet?: string, phase?: string) =>
+  recordView(db, recordDef(slug)!, (seasonSet ?? recordDef(slug)!.seasonSets[0]) as any, (phase ?? recordDef(slug)!.phases[0]) as any);
 const current = one('select season as y from current_season').y;
 const crowned = one(`select count(*) as n from bracket_winners where season = ? and bracket = 'playoffs' and franchise_id is not null`, current).n > 0;
 const completed = (season: number) => season !== current || crowned;
@@ -41,7 +41,7 @@ describe('the catalogue', () => {
 
   test('Sleeper-era records have no era filter, and season records no phase filter', () => {
     for (const slug of ['best-nfl-player-score', 'most-bench-points-in-a-game', 'most-bench-points-in-a-season'])
-      expect(recordDef(slug)!.eras, slug).toEqual(['sleeper']);
+      expect(recordDef(slug)!.seasonSets, slug).toEqual(['sleeper']);
     expect(recordDef('most-bench-points-in-a-season')!.phases).toEqual(['regular']);
     for (const slug of ['group-of-death', 'weakest-division-by-wins']) expect(recordDef(slug)!.phases).toEqual(['regular']);
   });
@@ -74,7 +74,7 @@ describe('head-to-head', () => {
     const sleeper = pairs("season >= 2025 and phase = 'regular'");
     expect(view('most-played-pairing', 'sleeper', 'regular').entries[0].value).toBe(Math.max(...sleeper.map((p) => p.games)));
     const playoffs = pairs("bracket = 'playoffs'");
-    expect(view('most-played-pairing', 'all', 'playoffs').entries[0].value).toBe(Math.max(...playoffs.map((p) => p.games)));
+    expect(view('most-played-pairing', 'all-seasons', 'playoffs').entries[0].value).toBe(Math.max(...playoffs.map((p) => p.games)));
   });
 
   test('pairs who may have met in weeks with no game record carry †', () => {
@@ -90,8 +90,8 @@ describe('head-to-head', () => {
 
   test('the full list in Statsguru gives the same figures', () => {
     for (const slug of ['most-lopsided-rivalry', 'most-played-pairing'])
-      for (const { era, phase } of variants(recordDef(slug)!)) {
-        const v = recordView(db, recordDef(slug)!, era, phase);
+      for (const { seasonSet, phase } of variants(recordDef(slug)!)) {
+        const v = recordView(db, recordDef(slug)!, seasonSet, phase);
         const rows = runQuery(db, decodeQuery(encodeQuery({ ...DEFAULT_QUERY, ...v.statsguru! }))).rows as any[];
         const seen = new Set<string>();
         const figures: number[] = [];
@@ -102,7 +102,7 @@ describe('head-to-head', () => {
           seen.add(k);
           figures.push(slug === 'most-played-pairing' ? r.gp : r.pct);
         }
-        expect(v.entries.map((e) => e.value), `${slug} ${era} ${phase}`).toEqual(figures.slice(0, v.entries.length));
+        expect(v.entries.map((e) => e.value), `${slug} ${seasonSet} ${phase}`).toEqual(figures.slice(0, v.entries.length));
       }
   });
 });

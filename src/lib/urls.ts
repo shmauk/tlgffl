@@ -13,9 +13,12 @@ export const seasonUrl = (season: number, week?: number) =>
 export const predictorUrl = (season: number) => `/seasons/${season}/predictor/`;
 /** A pair page always puts the lower franchise id first (#14). */
 export const headToHeadUrl = (a: number, b: number) => `/head-to-head/${Math.min(a, b)}-${Math.max(a, b)}/`;
-/** A record's own page, or one of its pre-rendered era and phase variants (#14). */
-export const recordUrl = (slug: string, variant?: { era: string; phase: string }) =>
-  `/records/${slug}/${variant ? `${variant.era}/${variant.phase}/` : ''}`;
+/**
+ * A record's own page, or one of its pre-rendered variants below it (#14, #54):
+ * its season set, then its phase, defaults left out (variantUrl() in
+ * src/lib/records/catalogue.ts picks them).
+ */
+export const recordUrl = (slug: string, path: string[] = []) => `/records/${[slug, ...path].join('/')}/`;
 export const awardUrl = (slug: string) => `${AWARDS_URL}${slug}/`;
 /** The league database file Statsguru loads (ADR 0002). */
 export const dataFileUrl = (name: string) => `/data/${name}`;

@@ -4,6 +4,7 @@ site only ranks and shows them (ADR 0004).
 Season-line records leave out the season in progress until its regular season
 ends (#16).
 """
+from recordbook import season_sets
 from recordbook.games import win_pct
 
 SCHEMA = """
@@ -29,7 +30,8 @@ create table record_seasons (
     primary key (franchise_id, season)
 );
 -- Each franchise's bracket tallies (#31) over the finished seasons (all but
--- the current season before its off-season), over all eras or one: championships,
+-- the current season before its off-season), in each season set
+-- (recordbook/season_sets.py): championships,
 -- finals reached, Playoff appearances, Shit Bowl winner titles, Shit Bowl
 -- appearances (Sleeper era only: NFL.com never recorded who played in it)
 -- and Mediocre Bowl titles. A disputed or unknown winner counts for nobody.
@@ -37,18 +39,18 @@ create table record_seasons (
 create table record_tallies (
     record text not null check (record in ('championships', 'finals', 'playoffs',
         'shit_bowl_titles', 'shit_bowl', 'mediocre_bowl_titles')),
-    era text not null check (era in ('all', 'nfl.com', 'sleeper')),
+    season_set text not null,
     franchise_id integer not null references franchises(id),
     count integer not null,
     seasons text not null
 );
 -- Every maximal run of a franchise's consecutive finished seasons with a
--- Playoff appearance ('appearances') or without one ('drought'), over all
--- eras or one. ongoing is 1 where the run reaches the franchise's latest
+-- Playoff appearance ('appearances') or without one ('drought'), in each
+-- season set. ongoing is 1 where the run reaches the franchise's latest
 -- finished season and it plays the current season, so the run may go on.
 create table record_runs (
     record text not null check (record in ('appearances', 'drought')),
-    era text not null check (era in ('all', 'nfl.com', 'sleeper')),
+    season_set text not null,
     franchise_id integer not null references franchises(id),
     length integer not null,
     first_season integer not null,
@@ -108,23 +110,21 @@ def bracket_seasons(season_lines, games, winners, formats, done):
 TALLIES = ("championships", "finals", "playoffs", "shit_bowl_titles", "shit_bowl", "mediocre_bowl_titles")
 
 
-def tally_rows(by_record, season_eras):
-    """record_tallies rows (record, era, franchise, count, seasons)."""
+def tally_rows(by_record, sets):
+    """record_tallies rows (record, season set, franchise, count, seasons);
+    sets maps each season set to its seasons."""
     rows = []
     for record in TALLIES:
         for fid, seasons in sorted(by_record[record].items()):
-            for era in ERAS:
-                mine = sorted(s for s in seasons if era == "all" or season_eras[s] == era)
+            for key, members in sets.items():
+                mine = sorted(s for s in seasons if s in members)
                 if mine:
-                    rows.append((record, era, fid, len(mine), ",".join(map(str, mine))))
+                    rows.append((record, key, fid, len(mine), ",".join(map(str, mine))))
     return rows
 
 
-ERAS = ("all", "nfl.com", "sleeper")
-
-
-def run_rows(appeared, played, season_eras, current, done):
-    """record_runs rows (record, era, franchise, length, first, last, ongoing):
+def run_rows(appeared, played, sets, current, done):
+    """record_runs rows (record, season set, franchise, length, first, last, ongoing):
     every maximal run of a franchise's finished seasons with a Playoff
     appearance ('appearances') or without one ('drought'). appeared maps a
     franchise to its Playoffs seasons, played to every season it played. A
@@ -136,8 +136,8 @@ def run_rows(appeared, played, season_eras, current, done):
         if not mine:
             continue
         active = current in played[fid]
-        for era in ERAS:
-            seasons = [s for s in mine if era == "all" or season_eras[s] == era]
+        for key, members in sets.items():
+            seasons = [s for s in mine if s in members]
             runs = []   # (appeared, [seasons])
             for s in seasons:
                 hit = s in appeared.get(fid, ())
@@ -146,7 +146,7 @@ def run_rows(appeared, played, season_eras, current, done):
                 else:
                     runs.append((hit, [s]))
             for hit, run in runs:
-                rows.append(("appearances" if hit else "drought", era, fid, len(run), run[0], run[-1],
+                rows.append(("appearances" if hit else "drought", key, fid, len(run), run[0], run[-1],
                              int(active and run[-1] == mine[-1])))
     return rows
 
@@ -154,12 +154,12 @@ def run_rows(appeared, played, season_eras, current, done):
 def write(con, *, season_lines, coverage, games, winners, formats, seasons, played, current, done):
     """Write the tables, from what build.py has built. current is the
     current season (recordbook/current.py) or None, done the finished seasons."""
-    eras = {year: era for year, era, _ in seasons}
+    sets = season_sets.season_sets(seasons)
     regular_on = current.season if current and current.phase == "regular" else None
     con.executescript(SCHEMA)
     con.executemany(f"insert into record_seasons values ({', '.join('?' * 14)})",
                     season_rows(season_lines, regular_on))
     by_record = bracket_seasons(season_lines, games, winners, formats, done)
-    con.executemany("insert into record_tallies values (?, ?, ?, ?, ?)", tally_rows(by_record, eras))
+    con.executemany("insert into record_tallies values (?, ?, ?, ?, ?)", tally_rows(by_record, sets))
     con.executemany("insert into record_runs values (?, ?, ?, ?, ?, ?, ?)",
-                    run_rows(by_record["playoffs"], played, eras, current and current.season, done))
+                    run_rows(by_record["playoffs"], played, sets, current and current.season, done))

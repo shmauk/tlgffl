@@ -24,7 +24,7 @@ const section = (html, label) => {
 const H2H = ['most-lopsided-rivalry', 'most-played-pairing'];
 const DIVISIONS = ['group-of-death', 'winningest-division', 'weakest-division-by-points-for', 'weakest-division-by-wins'];
 const SLEEPER = ['best-nfl-player-score', 'most-bench-points-in-a-game', 'most-bench-points-in-a-season'];
-const ERAS = ['all', 'nfl-com', 'sleeper'];
+const SEASON_SETS = ['all-seasons', 'nfl-com', 'sleeper'];
 const PHASES = ['all', 'regular', 'playoffs'];
 const current = db.prepare('select season as y from current_season').get().y;
 const crowned = db.prepare("select count(*) as n from bracket_winners where season = ? and bracket = 'playoffs' and franchise_id is not null").get(current).n > 0;
@@ -35,18 +35,22 @@ test('all nine records have their pages, linked from the index, with their sensi
     assert.ok(index.includes(`href="/records/${slug}/"`), slug);
     assert.ok(existsSync(join(DIST, 'records', slug, 'index.html')), slug);
   }
-  for (const slug of H2H) for (const era of ERAS) for (const phase of PHASES)
-    assert.equal(existsSync(join(DIST, 'records', slug, era, phase, 'index.html')), !(era === 'all' && phase === 'all'), `${slug} ${era} ${phase}`);
-  for (const slug of DIVISIONS) {
-    assert.ok(existsSync(join(DIST, 'records', slug, 'nfl-com', 'regular', 'index.html')), slug);
-    assert.ok(!existsSync(join(DIST, 'records', slug, 'all', 'all')), slug);
+  // One URL per variant (#54): the season set, then the phase, defaults left out.
+  for (const slug of H2H) for (const set of SEASON_SETS) for (const phase of PHASES) {
+    const path = [set === 'all-seasons' ? [] : [set], phase === 'all' ? [] : [phase]].flat();
+    assert.ok(existsSync(join(DIST, 'records', slug, ...path, 'index.html')), `${slug} ${set} ${phase}`);
   }
-  // No era filter in the Sleeper era.
+  for (const slug of DIVISIONS) {
+    assert.ok(existsSync(join(DIST, 'records', slug, 'nfl-com', 'index.html')), slug);
+    assert.ok(!existsSync(join(DIST, 'records', slug, 'nfl-com', 'regular')), slug);
+    assert.ok(!existsSync(join(DIST, 'records', slug, 'regular')), slug);
+  }
+  // No era filter in the Sleeper era: the Sleeper era is these records' default.
   for (const slug of SLEEPER) {
-    assert.ok(!existsSync(join(DIST, 'records', slug, 'all')), slug);
+    assert.ok(!existsSync(join(DIST, 'records', slug, 'sleeper')), slug);
     assert.doesNotMatch(read(`records/${slug}`), />NFL\.com era</, slug);
   }
-  assert.ok(existsSync(join(DIST, 'records', 'best-nfl-player-score', 'sleeper', 'playoffs', 'index.html')));
+  assert.ok(existsSync(join(DIST, 'records', 'best-nfl-player-score', 'playoffs', 'index.html')));
 });
 
 test('rivalries link their pair pages', () => {
