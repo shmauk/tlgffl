@@ -84,6 +84,37 @@ describe('the chart above the results', () => {
     expect(chart.note).toBe('Only the 8 biggest of 10 franchises are in colour. Choose the franchises to compare with the Franchise filter.');
   });
 
+  test('an average ranks its series by their mean, so a franchise with more seasons isn’t bigger for it', () => {
+    // Franchise n averages n points a game; franchises 1 and 2 have played 10 seasons, the rest 1.
+    const fr = (n: number) => ({ id: n, name: `Franchise ${n}` });
+    const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].flatMap((n) =>
+      Array.from({ length: n <= 2 ? 10 : 1 }, (_, i) => group({ franchise: fr(n), season: 2012 + i, apf: 100 + n })),
+    );
+    const chart = chartOf(result(rows), q({ view: 'season' }))!;
+    expect(chart.coloured).toEqual([10, 9, 8, 7, 6, 5, 4, 3].map((n) => `Franchise ${n}`));
+  });
+
+  test('a figure that adds up ranks its series by their sum', () => {
+    // Franchise 1 wins little each season but has played many; franchise 2 wins more in one.
+    const fr = (n: number) => ({ id: n, name: `Franchise ${n}` });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, i) => group({ franchise: fr(1), season: 2012 + i, w: 4 })),
+      group({ franchise: fr(2), season: 2012, w: 10 }),
+    ];
+    const chart = chartOf(result(rows), q({ view: 'season', chartChoice: { y: 'w' } }))!;
+    expect(chart.coloured).toEqual(['Franchise 1', 'Franchise 2']);
+  });
+
+  test('a fraction ranks its series by their mean', () => {
+    const fr = (n: number) => ({ id: n, name: `Franchise ${n}` });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, i) => group({ franchise: fr(1), season: 2012 + i, pct: 0.4 })),
+      group({ franchise: fr(2), season: 2012, pct: 0.9 }),
+    ];
+    const chart = chartOf(result(rows), q({ view: 'season', chartChoice: { y: 'pct' } }))!;
+    expect(chart.coloured).toEqual(['Franchise 2', 'Franchise 1']);
+  });
+
   test('the game log lines up games in order, with no off-season gaps, labelled at each season start', () => {
     // Sorted by points, as the table might be; 2013 has only reported totals and 2014 a lost score.
     const rows = [

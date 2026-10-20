@@ -8,7 +8,7 @@
 import type { QueryResult } from './engine';
 import { chartSpecOf, positionRank, viewOf, viewsOf, type Mark, type Query, type View } from './query';
 import { HEADINGS, heading, viewName } from './render';
-import { columnKind, columnValue, type Value } from './values';
+import { addsUp, columnKind, columnValue, type Value } from './values';
 
 export { defaultChart, type ChartSpec, type Mark } from './query';
 
@@ -46,7 +46,7 @@ export interface Chart {
   series?: Channel;
   /** One per row with a y value: bars in the rows' order, so they follow the table's sort; lines along x. None when a line or bar would need rows added up. */
   points: Point[];
-  /** The series drawn in colour, biggest first; each takes the next of the chart's colours. The rest are grey. */
+  /** The series drawn in colour, biggest (by sum, or by mean for a figure that doesn't add up) first; each takes the next of the chart's colours. The rest are grey. */
   coloured?: string[];
   /** For games in order: a label at each season's first game. */
   ticks?: Tick[];
@@ -117,7 +117,7 @@ export function chartOf(result: QueryResult, q: Query): Chart | null {
     chart.points = scaled;
     if (chart.series) chart.coloured = segments.slice(0, COLOURS);
   } else if (chart.series) {
-    const all = biggest(chart.points);
+    const all = biggest(chart.points, spec.y);
     chart.coloured = all.slice(0, COLOURS);
     if (all.length > COLOURS) {
       const label = chart.series.label;
@@ -194,9 +194,17 @@ function inGameOrder(drawn: { point: Point; season: number; week: number }[]): T
   return order.flatMap((d, i) => (i === 0 || order[i - 1].season !== d.season ? [{ x: i, label: String(d.season) }] : []));
 }
 
-/** The series, biggest (most y in all) first. */
-function biggest(points: Point[]): string[] {
-  const totals = new Map<string, number>();
-  for (const p of points) totals.set(p.series!, (totals.get(p.series!) ?? 0) + p.y);
-  return [...totals].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+/**
+ * The series, biggest first: most y in all for a figure that adds up (wins,
+ * points), the highest mean for one that doesn't (an average, Win %), so a
+ * series isn't bigger only for having more rows.
+ */
+function biggest(points: Point[], y: string): string[] {
+  const sums = new Map<string, { sum: number; n: number }>();
+  for (const p of points) {
+    const s = sums.get(p.series!) ?? { sum: 0, n: 0 };
+    sums.set(p.series!, { sum: s.sum + p.y, n: s.n + 1 });
+  }
+  const size = ({ sum, n }: { sum: number; n: number }) => (addsUp(y) ? sum : sum / n);
+  return [...sums].sort((a, b) => size(b[1]) - size(a[1])).map(([name]) => name);
 }
