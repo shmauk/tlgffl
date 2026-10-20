@@ -36,6 +36,7 @@ describe('the query form', () => {
       'era=sleeper',
       's=2012-2018&size=16',
       'era=nfl.com&size=12&view=season',
+      'f=5&sort=w.desc&chart=1',
     ]) {
       const q = decodeQuery(search);
       expect(queryFromForm(formValues(q, CTX), CTX), search).toEqual(q);

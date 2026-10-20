@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Row from '../../components/Row.astro';
 import FranchiseLink from '../../components/FranchiseLink.astro';
 import SeasonLink from '../../components/SeasonLink.astro';
+import StatsguruLink from '../../components/StatsguruLink.astro';
 import { franchises } from '../../lib/db';
 import { open } from '../../lib/database';
 
@@ -47,5 +48,8 @@ const departed = all.filter((f) => !f.active);
         }
       </tbody>
     </table>
+  </Row>
+  <Row label="More">
+    <p><StatsguruLink query={{ chart: true }} label="Wins per franchise, charted, in Statsguru →" /></p>
   </Row>
 </Base>

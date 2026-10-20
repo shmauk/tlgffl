@@ -70,6 +70,8 @@ export interface Query {
   kept: Kept | null;
   /** Null means the view's own default order. */
   sort: Sort | null;
+  /** A chart above the results table (ADR 0006); the view's own default chart. */
+  chart: boolean;
 }
 
 export const PHASES: Phase[] = ['R', 'P', 'C'];
@@ -178,6 +180,7 @@ export const DEFAULT_QUERY: Query = {
   picks: null,
   kept: null,
   sort: null,
+  chart: false,
 };
 
 /** The seasons a query searches: its from/to range, era and League size, each narrowing the others. */
@@ -236,6 +239,7 @@ export function encodeQuery(q: Query): string {
   if (franchise && view === 'pos' && q.grouping === 'slot') p.push('by=slot');
   if (pick && view === 'fr' && q.grouping === 'round') p.push('by=round');
   if (q.sort && !sameSort(q.sort, viewSort(q))) p.push(`sort=${q.sort.key}.${q.sort.dir}`);
+  if (q.chart) p.push('chart=1');
   return p.join('&');
 }
 
@@ -313,5 +317,6 @@ export function decodeQuery(search: string): Query {
   const [key, dir] = (p.get('sort') ?? '').split('.');
   if (columnsOf(q).includes(key) && (dir === 'asc' || dir === 'desc') && !sameSort({ key, dir }, viewSort(q)))
     q.sort = { key, dir };
+  q.chart = p.get('chart') === '1';
   return q;
 }

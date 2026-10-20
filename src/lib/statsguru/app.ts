@@ -4,6 +4,8 @@
 import initSqlJs from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
 import type { Db } from '../database';
+import { esc } from '../html';
+import { chartOf, defaultChart, type Chart } from './chart';
 import { runQuery } from './engine';
 import { formValues, queryFromForm, type Fields, type FormContext } from './form';
 import { DEFAULT_QUERY, decodeQuery, encodeQuery } from './query';
@@ -18,6 +20,10 @@ function open(url: string): Promise<Db> {
   });
   return database;
 }
+
+// Observable Plot is fetched only once a chart is switched on, and only here.
+let plot: Promise<typeof import('./plot')> | undefined;
+const loadPlot = () => (plot ??= import('./plot'));
 
 function readForm(form: HTMLFormElement): Fields {
   const fields: Fields = {};
@@ -44,6 +50,10 @@ export function start(root: HTMLElement) {
   const edit = root.querySelector<HTMLAnchorElement>('#sg-edit')!;
   const results = root.querySelector<HTMLElement>('#sg-results')!;
   const said = root.querySelector<HTMLElement>('#sg-summary')!;
+  const chartSwitch = root.querySelector<HTMLElement>('#sg-chart-switch')!;
+  const chartOn = chartSwitch.querySelector<HTMLInputElement>('input')!;
+  const chartBox = root.querySelector<HTMLElement>('#sg-chart')!;
+  let drawn: Chart | null = null;
 
   // Each subject shows only its own views and filters (data-subject lists the subjects a field is for).
   const subject = () => (form.querySelector<HTMLInputElement>('input[name="subject"]:checked')?.value ?? 'franchise');
@@ -64,11 +74,44 @@ export function start(root: HTMLElement) {
     edit.textContent = 'Edit query';
     try {
       const db = await open(root.dataset.db!);
-      results.innerHTML = renderResults(runQuery(db, q), q);
+      const result = runQuery(db, q);
+      results.innerHTML = renderResults(result, q);
+      chartSwitch.hidden = !defaultChart(q);
+      chartOn.checked = q.chart;
+      drawn = q.chart ? chartOf(result, q) : null;
+      void draw();
     } catch (e) {
+      drawn = null;
+      chartBox.replaceChildren();
       results.innerHTML = `<p class="sub">Statsguru couldn't load the record book: ${String((e as Error).message ?? e)}</p>`;
     }
   }
+  // Above the table, never instead of it, as wide as the results.
+  async function draw() {
+    if (!drawn) {
+      chartBox.replaceChildren();
+      return;
+    }
+    const chart = drawn;
+    try {
+      const { drawChart } = await loadPlot();
+      if (chart !== drawn) return;
+      width = results.clientWidth;
+      chartBox.replaceChildren(drawChart(chart, width));
+    } catch (e) {
+      chartBox.innerHTML = `<p class="sub">The chart couldn't be drawn: ${esc(String((e as Error).message ?? e))}</p>`;
+    }
+  }
+  // Redrawn only once a resize settles on a new width, never for a theme change.
+  let width = 0;
+  let settle: ReturnType<typeof setTimeout> | undefined;
+  new ResizeObserver(() => {
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      if (drawn && results.clientWidth !== width) void draw();
+    }, 150);
+  }).observe(results);
+
   const go = (search: string) => {
     // The default query still gets a results page, not the blank form.
     history.pushState(null, '', `?${search || 'view=totals'}`);
@@ -100,6 +143,7 @@ export function start(root: HTMLElement) {
     e.preventDefault();
     go(a.search.slice(1));
   });
+  chartOn.addEventListener('change', () => go(encodeQuery({ ...decodeQuery(location.search), chart: chartOn.checked })));
   addEventListener('popstate', () => void render());
   void render();
 }

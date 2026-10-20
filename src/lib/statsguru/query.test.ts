@@ -62,6 +62,13 @@ describe('a Statsguru query in the URL', () => {
     for (const search of ['era=nfl.com', 'era=sleeper', 'size=10', 's=2012-2018&size=16', 'era=nfl.com&size=12'])
       expect(encodeQuery(decodeQuery(search)), search).toBe(search);
   });
+
+  test('the chart switch is written only when on, and keeps the rest of the query', () => {
+    expect(encodeQuery(q({ chart: true }))).toBe('chart=1');
+    expect(encodeQuery(q({ chart: true, franchises: [5], sort: { key: 'w', dir: 'desc' } }))).toBe('f=5&sort=w.desc&chart=1');
+    expect(decodeQuery('f=5&sort=w.desc&chart=1')).toEqual(q({ chart: true, franchises: [5], sort: { key: 'w', dir: 'desc' } }));
+    expect(decodeQuery('chart=yes').chart).toBe(false);
+  });
 });
 
 describe('the seasons a query searches', () => {

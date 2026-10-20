@@ -71,6 +71,7 @@ export function formValues(q: Query, ctx: FormContext): Fields {
     kd: [q.kept ?? ''],
     sort: [sort.key],
     dir: [sort.dir],
+    chart: [q.chart ? '1' : ''],
   };
 }
 
@@ -133,6 +134,7 @@ export function queryFromForm(fields: Fields, ctx: FormContext): Query {
     picks: pick ? spanFrom(fields, 'pkFrom', 'pkTo', ctx.lastPick) : null,
     kept: pick && (kd === 'kept' || kd === 'drafted') ? kd : null,
     sort: null,
+    chart: one(fields, 'chart') === '1',
   };
   if (columnsOf(q).includes(key)) {
     const sort = { key, dir } as const;
