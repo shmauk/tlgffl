@@ -27,6 +27,16 @@ describe('the one-line query summary', () => {
       'SERPION · v Not Enough Cooks · seasons 2012–2013 · regular season and Playoffs · weeks 1–9 · won · active franchises only · at least 5 games · game log',
     );
   });
+
+  test('names the era and League size, with the span only when one is set', () => {
+    expect(summary(q({ era: 'nfl.com', size: 16 }), CTX)).toBe(
+      'All franchises · NFL.com era · 16-team seasons · regular season · totals per franchise',
+    );
+    expect(summary(q({ size: 12, seasons: [2012, 2013] }), CTX)).toBe(
+      'All franchises · seasons 2012–2013 · 12-team seasons · regular season · totals per franchise',
+    );
+    expect(summary(q({ subject: 'pick', era: 'sleeper' }), CTX)).toBe('Draft picks · Sleeper era · pick list');
+  });
 });
 
 describe('the results table', () => {

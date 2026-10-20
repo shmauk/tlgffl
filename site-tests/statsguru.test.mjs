@@ -94,6 +94,20 @@ test('head-to-head pages open the pair in Statsguru', () => {
     assert.match(read(`head-to-head/${a}-${b}/index.html`), new RegExp(`href="/statsguru/\\?f=${a}&(amp;)?opp=${b}"[^>]*>Open in Statsguru`), `${a}-${b}`);
 });
 
+test('the form has an era and a League size choice beside the season span', () => {
+  const html = read('statsguru/index.html');
+  const options = (name) =>
+    [...(html.match(new RegExp(`<select[^>]*name="${name}"[^>]*>([\\s\\S]*?)</select>`))?.[1] ?? '').matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)]
+      .map((m) => [m[1], m[2].trim()]);
+  assert.deepEqual(options('era').map(([v]) => v), ['', 'nfl.com', 'sleeper']);
+  assert.deepEqual(options('size'), [
+    ['', 'all sizes'],
+    ['10', '10 teams (2012)'],
+    ['12', '12 teams (2013–14)'],
+    ['16', '16 teams (2015 on)'],
+  ]);
+});
+
 test('the form has all three subjects, each with its own views and filters', () => {
   const html = read('statsguru/index.html');
   assert.match(html, /<input[^>]*name="subject"[^>]*value="franchise"/);

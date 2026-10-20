@@ -180,8 +180,10 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
     excluded.some((x) => x.season === season && x.week === week && (x.h === f || x.a === f));
 
   const seen = new Set<string>();
+  // Statsguru links name the era (era=), not its seasons, so they keep up with seasons to come.
+  const sgEra = era === 'all' ? null : DB_ERA[era];
   if (def.statsguru) {
-    statsguru = { ...def.statsguru, seasons: era === 'all' ? [] : seasons, phases: SG_PHASES[phase] };
+    statsguru = { ...def.statsguru, seasons: [], era: sgEra, phases: SG_PHASES[phase] };
     const rows = runQuery(db, { ...DEFAULT_QUERY, ...statsguru }).rows as (GameRow & GroupRow)[];
     for (const r of rows) {
       const value = def.figure(r);
@@ -246,7 +248,8 @@ export function recordView(db: Db, def: RecordDef, era: Era, phase: PhaseFilter)
       const listed = seasons.filter((s) => !(s === c.current && c.phase === 'regular'));
       statsguru = {
         view: 'season', phases: ['R'], sort: { key: def.seasonSort, dir: def.dir },
-        seasons: era === 'all' && listed.length === seasons.length ? [] : listed,
+        seasons: listed.length === seasons.length ? [] : listed,
+        era: sgEra,
       };
     }
   } else if (def.kind === 'tally' || def.kind === 'run') {
