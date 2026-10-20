@@ -146,6 +146,7 @@ export function homeData(db: Db): HomeData | null {
       award: { slug: award.slug, name: award.name },
       franchises: won.map((w) => w.franchise),
       value: awardValue(award.unit, won[0].value),
+      measure: award.measure,
     }));
 
   const records = recordsThisSeason(db).map((h) => ({

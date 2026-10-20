@@ -18,12 +18,14 @@ PRECISION = 6
 SCHEMA = """
 -- The awards (#8), in the order the site lists them. unit says how a value
 -- reads: 'points', 'count', 'share' (a fraction) or 'dollars' (FAAB).
+-- measure says, in a few words and with its unit, what a value is.
 -- lowest_wins is 1 where the smallest value ranks first.
 create table awards (
     slug text primary key,
     position integer not null unique,
     name text not null,
     definition text not null,
+    measure text not null,
     unit text not null check (unit in ('points', 'count', 'share', 'dollars')),
     lowest_wins integer not null check (lowest_wins in (0, 1))
 );
@@ -64,6 +66,7 @@ class Award:
     name: str
     unit: str
     lowest_wins: bool
+    measure: str
     definition: str
 
 
@@ -71,29 +74,31 @@ GAMES_NOTE = ("Regular-season games only, and only in seasons where every one of
               "(no partial seasons).")
 SLEEPER_NOTE = "Sleeper era only (2025 on): no earlier data records it."
 AWARDS = [
-    Award("nail-biter", "Nail Biter", "points", True,
+    Award("nail-biter", "Nail Biter", "points", True, "Average margin (points)",
           f"The smallest average absolute margin over its games. {GAMES_NOTE}"),
-    Award("standard-deviation", "Standard Deviation", "points", False,
+    Award("standard-deviation", "Standard Deviation", "points", False, "Spread of scores (points)",
           f"The highest sample standard deviation (n−1) of its game scores. {GAMES_NOTE}"),
-    Award("heartbreaker", "Heartbreaker", "points", False,
+    Award("heartbreaker", "Heartbreaker", "points", False, "Average score in losses (points)",
           f"The highest average score in its losses, with at least 3 losses. {GAMES_NOTE}"),
-    Award("lucky-duck", "Lucky Duck", "points", True,
+    Award("lucky-duck", "Lucky Duck", "points", True, "Average score in wins (points)",
           f"The lowest average score in its wins, with at least 3 wins. {GAMES_NOTE}"),
-    Award("pick-a-lane", "Pick a Lane", "count", False,
+    Award("pick-a-lane", "Pick a Lane", "count", False, "Adds plus trades",
           "The most adds plus trades, each trade counting once for every franchise in it. "
           "Sleeper era: regular season only, adds being the NFL players gained by won waiver claims "
           "and free-agent pickups. NFL.com era: NFL.com's whole-season add and trade counts. "
           "The two eras' figures aren't compared."),
-    Award("one-man-army", "One-Man Army", "share", False,
+    Award("one-man-army", "One-Man Army", "share", False, "Best player's share of starters' points",
           "The highest share of its starters' points scored by its single best NFL player, summed "
           f"over the regular-season weeks it started them. {SLEEPER_NOTE}"),
-    Award("draft-dodger", "Draft Dodger", "count", True,
+    Award("draft-dodger", "Draft Dodger", "count", True, "Own draft picks still rostered",
           "The fewest NFL players it drafted that season with its own picks (traded-for picks "
           "included, keepers excluded) still on its roster at the end of the regular season. "
           f"{SLEEPER_NOTE}"),
     Award("highest-failed-bid", "Highest failed bid", "dollars", False,
+          "Biggest losing waiver bid (FAAB)",
           f"The biggest regular-season bid that lost a waiver claim. {SLEEPER_NOTE}"),
     Award("most-overpaid", "Most overpaid", "dollars", False,
+          "Winning bid over next-highest (FAAB)",
           "The biggest gap between a winning regular-season waiver bid and the next-highest bid "
           "for the same NFL player in the same waiver run ($0 if nobody else bid). "
           f"{SLEEPER_NOTE}"),
@@ -106,7 +111,7 @@ KEEPERS_UNKNOWN = "The season's keepers aren't recorded yet, so its draft picks 
 
 def award_rows():
     """Rows for the awards table."""
-    return [(a.slug, n, a.name, a.definition, a.unit, int(a.lowest_wins))
+    return [(a.slug, n, a.name, a.definition, a.measure, a.unit, int(a.lowest_wins))
             for n, a in enumerate(AWARDS, start=1)]
 
 

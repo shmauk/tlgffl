@@ -11,7 +11,7 @@ const DIST = 'dist';
 const db = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
 const decode = (s) => s.replace(/&#39;|&#x27;/g, "'").replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 const read = (...path) => decode(readFileSync(join(DIST, ...path, 'index.html'), 'utf8'));
-const awards = db.prepare('select slug, name, definition from awards order by position').all();
+const awards = db.prepare('select slug, name, definition, measure from awards order by position').all();
 const winners = db.prepare('select award, season, franchise_id as id from award_results where rank = 1').all();
 const unknowns = db.prepare('select award, season from award_unknowns').all();
 
@@ -63,6 +63,13 @@ test('an award page lists every season’s winners, co-winners included, linked'
   assert.equal(winners.filter((w) => w.award === 'highest-failed-bid' && w.season === 2025).length, 2);
 });
 
+test('an award page heads its values with what they measure', () => {
+  for (const a of awards) {
+    const html = section(read('seasons', 'awards', a.slug), 'By season');
+    assert.ok(html.includes(`<th class="num">${a.measure}</th>`), a.slug);
+  }
+});
+
 test('an award page has an all-time tally of every winner', () => {
   for (const a of awards) {
     const html = section(read('seasons', 'awards', a.slug), 'All-time tally');
@@ -92,6 +99,13 @@ test('a season page names each award’s winners and links the award', () => {
     }
   }
   assert.match(about(section(read('seasons', '2025'), 'Awards'), 'draft-dodger'), /Unknown/);
+});
+
+test('a season page’s award values say, on hover, what they measure', () => {
+  const html = section(read('seasons', '2025'), 'Awards');
+  for (const a of awards.filter((a) => seasonsOf(a.slug).includes(2025))) {
+    assert.ok(about(html, a.slug).includes(`<sup class="mk" title="${a.measure}">?</sup>`), a.slug);
+  }
 });
 
 test('a season without every regular-season game has no game awards', () => {

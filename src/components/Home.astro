@@ -7,6 +7,7 @@
 import Row from './Row.astro';
 import FranchiseLink from './FranchiseLink.astro';
 import AwardLink from './AwardLink.astro';
+import Marker from './Marker.astro';
 import Badge from './Badge.astro';
 import Notes from './Notes.astro';
 import StatsguruLink from './StatsguruLink.astro';
@@ -99,7 +100,7 @@ const CROWNS = BRACKET_ORDER.map((key) => ({ key, label: BRACKET_CROWNS[key] }))
               <FranchiseLink franchise={f} teamName={f.teamName} />
             </>
           ))}
-          , {a.value}
+          , {a.value}<Marker glyph="?" title={a.measure} />
         </p>
       ))}
     </Row>

@@ -10,6 +10,8 @@ export interface Award {
   slug: string;
   name: string;
   definition: string;
+  /** What a value is, in a few words with its unit: "Average margin (points)". */
+  measure: string;
   unit: AwardUnit;
   lowestWins: boolean;
 }
@@ -31,7 +33,7 @@ export interface AwardUnknown {
 /** The nine awards, in the order the site lists them. */
 export function awards(db: Db): Award[] {
   return db
-    .all('select slug, name, definition, unit, lowest_wins as lowestWins from awards order by position')
+    .all('select slug, name, definition, measure, unit, lowest_wins as lowestWins from awards order by position')
     .map((r: any) => ({ ...r, lowestWins: Boolean(r.lowestWins) }));
 }
 

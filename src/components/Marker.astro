@@ -1,7 +1,8 @@
 ---
 // A footnote marker: a small red superscript glyph. Its meaning is spelled out
-// in the Notes block under the table and repeated as a tooltip.
-export type Glyph = '†' | '‡' | '*' | '§' | '¶';
+// in the Notes block under the table and repeated as a tooltip. The ? is the
+// exception: an explainer, whose tooltip is its only text.
+export type Glyph = '†' | '‡' | '*' | '§' | '¶' | '?';
 interface Props {
   glyph: Glyph;
   title?: string;

@@ -22,6 +22,16 @@ def test_the_nine_awards_are_defined_in_order(data, tmp_path):
     assert all(d for (d,) in query(db, "select definition from awards"))
 
 
+def test_each_award_says_what_its_value_measures(data, tmp_path):
+    db = built(data, tmp_path)
+    assert query(db, "select measure from awards order by position") == [
+        ("Average margin (points)",), ("Spread of scores (points)",),
+        ("Average score in losses (points)",), ("Average score in wins (points)",),
+        ("Adds plus trades",), ("Best player's share of starters' points",),
+        ("Own draft picks still rostered",), ("Biggest losing waiver bid (FAAB)",),
+        ("Winning bid over next-highest (FAAB)",)]
+
+
 def report_moves(data, counts):
     """Give each NFL.com team its season's add and trade counts."""
     f = data / "nfl-api" / "standings-2014.json"

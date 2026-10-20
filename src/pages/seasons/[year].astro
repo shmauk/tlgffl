@@ -333,7 +333,7 @@ const opponent = (g: Game, id: number) => (g.home.id === id ? g.away : g.home);
                         </>
                       ))}
                 </td>
-                <td class="num">{won.length > 0 ? awardValue(award.unit, won[0].value) : ''}</td>
+                <td class="num">{won.length > 0 && <>{awardValue(award.unit, won[0].value)}<Marker glyph="?" title={award.measure} /></>}</td>
               </tr>
             ))}
           </tbody>
