@@ -20,7 +20,7 @@ const row = (html: string, label: string) => {
   const end = html.indexOf('<section', at);
   return html.slice(at, end < 0 ? undefined : end);
 };
-const SCORE = /\d+\.\d\d/;
+const WEEK_ROW = /<h2 class="lab"[^>]*>Week/;
 
 const base: HomeData = {
   season: 2026,
@@ -29,8 +29,6 @@ const base: HomeData = {
   playing: 5,
   updated: 'Updated 14 October 2026',
   names,
-  thisWeek: [],
-  lastWeek: null,
   picture: null,
   brackets: [],
   awards: [],
@@ -42,15 +40,6 @@ const base: HomeData = {
 
 const regular: HomeData = {
   ...base,
-  thisWeek: [{ bracket: null, home: fr(1), away: fr(2) }, { bracket: null, home: fr(3), away: fr(4) }],
-  lastWeek: {
-    results: [
-      { bracket: null, home: fr(1), away: fr(3), homePoints: 140.5, awayPoints: 88.25, winnerId: 1 },
-      { bracket: null, home: fr(2), away: fr(4), homePoints: 101, awayPoints: 99, winnerId: 2 },
-    ],
-    highest: { franchise: fr(1), points: 140.5 },
-    lowest: { franchise: fr(3), points: 88.25 },
-  },
   picture: [
     { franchise: fr(1), bracket: 'playoffs', seed: 1, shared: false, wins: 4, losses: 0, ties: 0, breakdown: 0.8125, marks: ['PLAYOFFS'] },
     { franchise: fr(2), bracket: 'playoffs', seed: 2, shared: false, wins: 3, losses: 1, ties: 0, breakdown: 0.6, marks: [] },
@@ -70,18 +59,6 @@ const brackets: HomeData = {
   through: 15,
   playing: 16,
   updated: 'Updated 22 December 2026',
-  thisWeek: [
-    { bracket: 'playoffs', home: fr(1), away: fr(2) },
-    { bracket: 'shit_bowl', home: fr(5), away: fr(6) },
-  ],
-  lastWeek: {
-    results: [
-      { bracket: 'playoffs', home: fr(2), away: fr(3), homePoints: 110, awayPoints: 100, winnerId: 2 },
-      { bracket: 'shit_bowl', home: fr(4), away: fr(5), homePoints: 90, awayPoints: 80, winnerId: 4 },
-    ],
-    highest: { franchise: fr(2), points: 110 },
-    lowest: { franchise: fr(5), points: 80 },
-  },
   brackets: [
     {
       key: 'playoffs',
@@ -130,15 +107,12 @@ describe('during the regular season', () => {
     expect(html).toContain('Updated 14 October 2026, through week 4');
   });
 
-  test('this week’s matchups have no scores; last week’s results do, with its highest and lowest', async () => {
+  test('has no row for the week being played or last week’s results: Sleeper shows those (#53)', async () => {
     const html = await render(regular);
-    const now = row(html, 'Week 5');
-    expect(now).toMatch(/Team 1[\s\S]*v[\s\S]*Team 2/);
-    expect(now).not.toMatch(SCORE);
-    const last = row(html, 'Week 4');
-    expect(last).toContain('140.50–88.25');
-    expect(last).toMatch(/Highest score[\s\S]*140\.50[\s\S]*Team 1/);
-    expect(last).toMatch(/Lowest score[\s\S]*88\.25[\s\S]*Team 3/);
+    expect(html).not.toMatch(WEEK_ROW);
+    expect(html).not.toContain('Being played');
+    expect(html).not.toMatch(/<small>Results<\/small>/);
+    expect(html).not.toMatch(/Highest score:|Lowest score:|Every week of/);
   });
 
   test('the compact playoff picture has seeds, a Breakdown % column and clinch marks', async () => {
@@ -169,12 +143,11 @@ describe('during the regular season', () => {
 });
 
 describe('during the brackets', () => {
-  test('matchups and results are grouped by bracket, and the playoff picture gives way to the brackets', async () => {
+  test('has no row for the week being played or last week’s results, and the playoff picture gives way to the brackets', async () => {
     const html = await render(brackets);
-    const now = row(html, 'Week 16');
-    expect(now).toMatch(/Playoffs[\s\S]*Team 1[\s\S]*Shit Bowl[\s\S]*Team 5/);
-    expect(now).not.toMatch(SCORE);
-    expect(row(html, 'Week 15')).toMatch(/Playoffs[\s\S]*110\.00–100\.00[\s\S]*Shit Bowl[\s\S]*90\.00–80\.00/);
+    expect(html).not.toMatch(WEEK_ROW);
+    expect(html).not.toContain('Being played');
+    expect(html).not.toMatch(/<small>Results<\/small>/);
     expect(row(html, 'Playoff picture')).toBe('');
   });
 
@@ -204,7 +177,7 @@ describe('in the off-season', () => {
     expect(wrap).toMatch(/Mediocre Bowl winner[\s\S]*Unknown/);
     expect(row(html, 'Award winners')).toContain('Nail Biter');
     expect(row(html, 'Records')).toMatch(/Most wins in a season[\s\S]*● This season/);
-    expect(html).not.toMatch(/<h2 class="lab"[^>]*>Week/);
+    expect(html).not.toMatch(WEEK_ROW);
   });
 
   test('says when next season drafts, once Sleeper has a date', async () => {

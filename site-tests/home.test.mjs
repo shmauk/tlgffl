@@ -24,10 +24,9 @@ test('the home page names the current season with its updated line and has no JS
   assert.doesNotMatch(home, /<script/i);
 });
 
-test('the week being played shows its matchups with no scores', () => {
-  const now = row(home, `Week ${(finalWeek ?? 0) + 1}`);
-  if (!now) return;
-  assert.doesNotMatch(now, /\d+\.\d\d/);
+test('the home page leaves the week being played and last week’s results to Sleeper (#53)', () => {
+  assert.doesNotMatch(home, /<h2 class="lab"[^>]*>Week/);
+  assert.doesNotMatch(home, /Being played|<small>Results<\/small>/);
 });
 
 test('no week still to be played shows a score on its season page', () => {

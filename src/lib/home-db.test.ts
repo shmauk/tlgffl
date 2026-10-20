@@ -31,24 +31,9 @@ describe('the regular season, week 3 final and week 4 being played', () => {
     expect(data).toMatchObject({ season: 2025, phase: 'regular', through: 3, playing: 4, updated: 'Updated 24 September 2025' });
   });
 
-  test('this week is week 4’s pairings, with no scores', () => {
-    expect(data.thisWeek).toEqual([
-      { bracket: null, home: team(1), away: team(3) },
-      { bracket: null, home: team(2), away: team(4) },
-      { bracket: null, home: team(5), away: team(6) },
-    ]);
-  });
-
-  test('last week is week 3’s results, with its highest and lowest scores', () => {
-    expect(data.lastWeek).toEqual({
-      results: [
-        { bracket: null, home: team(1), away: team(4), homePoints: 123, awayPoints: 93, winnerId: 1 },
-        { bracket: null, home: team(2), away: team(6), homePoints: 113, awayPoints: 73, winnerId: 2 },
-        { bracket: null, home: team(3), away: team(5), homePoints: 103, awayPoints: 83, winnerId: 3 },
-      ],
-      highest: { franchise: team(1), points: 123 },
-      lowest: { franchise: team(6), points: 73 },
-    });
+  test('has neither this week’s games nor last week’s results: Sleeper shows those (#53)', () => {
+    expect(data).not.toHaveProperty('thisWeek');
+    expect(data).not.toHaveProperty('lastWeek');
   });
 
   test('the playoff picture seeds the table and marks who is sure of a bracket', () => {
@@ -97,22 +82,12 @@ describe('the brackets, week 6 final and week 7 being played', () => {
     expect(data).toMatchObject({ season: 2025, phase: 'brackets', through: 6, playing: 7, updated: 'Updated 15 October 2025' });
   });
 
-  test('this week is the Playoffs final; filler is left out', () => {
-    expect(data.thisWeek).toEqual([{ bracket: 'playoffs', home: team(1), away: team(2) }]);
+  test('has neither this week’s games nor last week’s results', () => {
+    expect(data).not.toHaveProperty('thisWeek');
+    expect(data).not.toHaveProperty('lastWeek');
   });
 
-  test('last week is the Playoffs semi-finals and the Shit Bowl final', () => {
-    expect(data.lastWeek).toEqual({
-      results: [
-        { bracket: 'playoffs', home: team(1), away: team(4), homePoints: 126, awayPoints: 96, winnerId: 1 },
-        { bracket: 'playoffs', home: team(2), away: team(3), homePoints: 116, awayPoints: 106, winnerId: 2 },
-        { bracket: 'shit_bowl', home: team(5), away: team(6), homePoints: 86, awayPoints: 76, winnerId: 5 },
-      ],
-      highest: { franchise: team(1), points: 126 },
-      lowest: { franchise: team(6), points: 76 },
-    });
-  });
-
+  // The Playoffs final, week 7, is being played; filler is left out.
   test('each bracket’s columns name its rounds from the format, not the rounds played so far', () => {
     expect(data.brackets).toEqual([
       {
@@ -164,15 +139,11 @@ describe('the off-season, before 2026’s week 1', () => {
 
   test('is still 2025, through its last week, with nothing being played', () => {
     expect(data).toMatchObject({ season: 2025, phase: 'off-season', through: 7, playing: null, updated: 'Updated 1 August 2026' });
-    expect(data.thisWeek).toEqual([]);
   });
 
-  test('last week is the Playoffs final', () => {
-    expect(data.lastWeek).toEqual({
-      results: [{ bracket: 'playoffs', home: team(1), away: team(2), homePoints: 127, awayPoints: 117, winnerId: 1 }],
-      highest: { franchise: team(1), points: 127 },
-      lowest: { franchise: team(2), points: 117 },
-    });
+  test('has neither this week’s games nor last week’s results', () => {
+    expect(data).not.toHaveProperty('thisWeek');
+    expect(data).not.toHaveProperty('lastWeek');
   });
 
   test('honours who each bracket crowned', () => {

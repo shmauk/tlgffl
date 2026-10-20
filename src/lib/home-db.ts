@@ -8,7 +8,7 @@ import { awardLeaders, awardValue, awards, awardWinners } from './awards';
 import { bracketColumns, type BracketSpec, type Pairing, type PlayedGame } from './bracket-columns';
 import { buildDate, current } from './current';
 import { BRACKET_ORDER, type BracketKey } from './brackets';
-import type { HomeData, Matchup, Result } from './home';
+import type { HomeData, Matchup } from './home';
 import { predictorSeason } from './predictor-db';
 import { figureText, holders, recordsThisSeason } from './records/held';
 import { seasonPicture } from './seeding-db';
@@ -49,21 +49,20 @@ function bracketPairings(db: Db, season: number, week: number, specs: BracketSpe
   return placeOpeningPairings(rows, picture.places, specs);
 }
 
-/** A season's brackets as specs, its final bracket games, and all its games. */
+/** A season's brackets as specs, and its final bracket games. */
 function bracketsOf(db: Db, season: number) {
   const format = seasonFormats(db).find((f) => f.season === season)!;
   const specs: BracketSpec[] = BRACKET_ORDER.flatMap((key) => {
     const b = format.brackets.find((x) => x.bracket === key);
     return b ? [{ bracket: key, firstWeek: b.firstWeek, lastWeek: b.lastWeek, series: b.series }] : [];
   });
-  const games = seasonGames(db, season);
-  const played: PlayedGame[] = games
+  const played: PlayedGame[] = seasonGames(db, season)
     .filter((g) => g.phase === 'bracket')
     .map((g) => ({
       bracket: g.bracket!, week: g.week, round: g.round!, home: g.home.id, away: g.away.id,
       homePoints: g.homePoints, awayPoints: g.awayPoints, winner: g.winnerId,
     }));
-  return { specs, played, games };
+  return { specs, played };
 }
 
 /**
@@ -94,27 +93,7 @@ export function homeData(db: Db): HomeData | null {
   if (!now) return null;
   const { season, phase, through, playing } = now;
   const names = seasonNames(db, season);
-  const { specs, played, games } = bracketsOf(db, season);
-
-  let thisWeek: Matchup[] = [];
-  let placed: Pairing[] = [];
-  if (playing !== null && phase === 'regular') {
-    thisWeek = (
-      db
-        .all('select home_franchise_id as h, away_franchise_id as a from upcoming_games where season = ? and week = ? order by rowid', [season, playing]) as { h: number; a: number }[]
-    ).map((r) => ({ bracket: null, home: names[r.h], away: names[r.a] }));
-  } else if (playing !== null && phase === 'brackets') {
-    placed = bracketPairings(db, season, playing, specs);
-    thisWeek = placed.map((p) => ({ bracket: p.bracket, home: names[p.home], away: names[p.away] }));
-  }
-
-  const lastGames = games.filter((g) => g.week === through && g.homePoints !== null);
-  const results: Result[] = lastGames.map((g) => ({
-    bracket: g.bracket, home: g.home, away: g.away, homePoints: g.homePoints!, awayPoints: g.awayPoints!, winnerId: g.winnerId,
-  }));
-  const scores = results
-    .flatMap((r) => [{ franchise: r.home, points: r.homePoints }, { franchise: r.away, points: r.awayPoints }])
-    .sort((a, b) => b.points - a.points);
+  const { specs, played } = bracketsOf(db, season);
 
   let picture: HomeData['picture'] = null;
   if (phase === 'regular') {
@@ -139,6 +118,8 @@ export function homeData(db: Db): HomeData | null {
     return w.length === 1 ? w[0].franchise : null;
   };
   const places = phase === 'brackets' ? (seasonPicture(db, season)?.places ?? []) : [];
+  // The bracket pairings of the week being played fill each bracket's next column.
+  const placed = phase === 'brackets' && playing !== null ? bracketPairings(db, season, playing, specs) : [];
   const brackets: HomeData['brackets'] =
     phase === 'brackets'
       ? specs.map((spec) => ({
@@ -174,8 +155,6 @@ export function homeData(db: Db): HomeData | null {
     playing,
     updated: buildDate(db).text,
     names,
-    thisWeek,
-    lastWeek: results.length ? { results, highest: scores[0] ?? null, lowest: scores.at(-1) ?? null } : null,
     picture,
     brackets,
     awards: awardLines,
