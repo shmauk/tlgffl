@@ -76,9 +76,9 @@ export interface Query {
   chartChoice: ChartChoice;
 }
 
-/** How a chart's points are drawn; a bar with a series is a grouped bar. */
-export type Mark = 'bar' | 'line' | 'scatter';
-export const MARKS: Mark[] = ['bar', 'line', 'scatter'];
+/** How a chart's points are drawn; a bar with a series is a grouped bar, and a share bar is split by its series and scaled to 100%. */
+export type Mark = 'bar' | 'line' | 'scatter' | 'share';
+export const MARKS: Mark[] = ['bar', 'line', 'scatter', 'share'];
 
 /** What a chart shows, by column sort key, before any rows. */
 export interface ChartSpec {
@@ -216,6 +216,8 @@ export function defaultChart(q: Pick<Query, 'subject' | 'view'>): ChartSpec | nu
     // Win % against each opponent, a bar per franchise; one franchise's record when filtered to it.
     case 'opp': return { mark: 'bar', x: 'o', y: 'pct', series: 'f' };
     case 'phase': return { mark: 'bar', x: 'f', y: 'pct', series: 'ph' };
+    // Each franchise's starter points split into positions (or lineup slots).
+    case 'pos': return { mark: 'share', x: 'f', y: 'spts', series: 'pos' };
     case 'games': return { mark: 'line', x: 'wk', y: 'pf', series: 'f' };
     default: return null;
   }

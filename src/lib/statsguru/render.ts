@@ -65,7 +65,8 @@ const ASCENDING_FIRST = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 
 const TEXT_COLUMNS = new Set(['f', 'o', 'ph', 'res', 'pl', 'pos', 'slot', 'sf', 'kd', 'frs']);
 /** Figures that count something, shown as whole numbers; the others are points, to two places. */
 const COUNTS = new Set(['w', 'l', 't', 'st', 'rank', 'ro', 'dr', 'kc', 'nfr', 'n', 'pk', 'rd']);
-const heading = (key: string, q: Query) => (key === 'pos' && q.view === 'pos' && q.grouping === 'slot' ? 'Slot' : HEADINGS[key]);
+/** A column's heading in the query's view: By lineup slot's pos is the Slot. */
+export const heading = (key: string, q: Query) => (key === 'pos' && q.view === 'pos' && q.grouping === 'slot' ? 'Slot' : HEADINGS[key]);
 
 const MARKERS = {
   '†': 'Includes the season totals NFL.com reported for weeks with no game scores.',

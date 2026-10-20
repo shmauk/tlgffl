@@ -11,6 +11,7 @@ const textWidth = (label: string) => [...label].length * 6.5;
 export function drawChart(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   if (chart.mark === 'line') return drawLines(chart, width);
   if (chart.mark === 'scatter') return drawDots(chart, width);
+  if (chart.mark === 'share') return drawShares(chart, width);
   return chart.series ? drawGroupedBars(chart, width) : drawBars(chart, width);
 }
 
@@ -68,6 +69,53 @@ function drawBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
         title: (p) => `${chart.x.label}: ${value(p.x, chart.x)}\n${chart.y.label}: ${figure(p.y, chart.y)}`,
         tip: true,
       }),
+      Plot.ruleY([0]),
+    ],
+  });
+}
+
+/** Bars no wider than this, so a lone franchise's bar isn't the whole width. */
+const SHARE_BAR = 90;
+
+/** A bar at each x, in the table's order, split by the series in its order and scaled to 100%. */
+function drawShares(chart: Chart, width: number): SVGSVGElement | HTMLElement {
+  const labels = [...new Set(chart.points.map((p) => value(p.x, chart.x)))];
+  // The coloured segments come in the chart's order (the lineup's, for positions).
+  const series = [...new Set([...(chart.coloured ?? []), ...chart.points.map((p) => p.series ?? '')])];
+  const { marginBottom, marginLeft, axis } = barLabels(labels, width);
+  const coloured = new Set(chart.coloured);
+  const title = (p: Point) =>
+    [p.series, `${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.value ?? 0, chart.y)} (${figure(p.y, { ...chart.y, percent: true })})`]
+      .filter(Boolean)
+      .join('\n');
+  return Plot.plot({
+    className: 'sg-plot',
+    width: Math.min(width, marginLeft + 20 + labels.length * SHARE_BAR),
+    height: 320,
+    marginBottom,
+    marginLeft,
+    x: { ...axis, padding: 0.2 },
+    y: { label: `Share of ${chart.y.label}`, percent: true },
+    ...(chart.series
+      ? {
+          // Colours go to the segments in turn; any past the chart's colours are grey.
+          color: { domain: series, range: series.map((s, i) => (coloured.has(s) ? `var(--series-${i + 1})` : 'var(--quiet)')), legend: true },
+          caption: chart.note,
+        }
+      : {}),
+    marks: [
+      Plot.barY(
+        chart.points,
+        Plot.stackY({
+          x: (p: Point) => value(p.x, chart.x),
+          y: 'y',
+          fill: chart.series ? 'series' : 'var(--accent)',
+          order: series,
+          z: 'series',
+          title,
+          tip: true,
+        }),
+      ),
       Plot.ruleY([0]),
     ],
   });

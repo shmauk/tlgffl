@@ -79,6 +79,9 @@ describe('a Statsguru query in the URL', () => {
       'view=season&chart=1&y=w',
     );
     expect(decodeQuery('view=season&chart=1&mark=line&x=s&y=w&series=f').chartChoice).toEqual({ y: 'w' });
+    // A share bar is a mark like the others.
+    expect(decodeQuery('view=opp&chart=1&mark=share').chartChoice).toEqual({ mark: 'share' });
+    expect(encodeQuery(q({ chart: true, view: 'pos', chartChoice: { mark: 'share' } }))).toBe('view=pos&chart=1');
   });
 
   test('chart choices the view can’t draw fall back to its own chart', () => {
@@ -87,7 +90,7 @@ describe('a Statsguru query in the URL', () => {
     expect(decodeQuery('view=games&chart=1&x=o&y=mar&series=res').chartChoice).toEqual({ x: 'o', y: 'mar', series: 'res' });
     // Only with the chart on, and only for a view that has one.
     expect(decodeQuery('mark=scatter').chartChoice).toEqual({});
-    expect(decodeQuery('view=pos&chart=1&mark=scatter').chartChoice).toEqual({});
+    expect(decodeQuery('sub=player&chart=1&mark=scatter').chartChoice).toEqual({});
     expect(encodeQuery(q({ chartChoice: { mark: 'scatter' } }))).toBe('');
   });
 });

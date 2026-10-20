@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { GameRow, GapRow, GroupRow, QueryResult } from './engine';
+import type { PositionRow } from './lineups';
 import { chartOf } from './chart';
 import { DEFAULT_QUERY, type Query } from './query';
 
@@ -17,6 +18,10 @@ const game = (season: number, week: number, pf: number | null, franchise = SERP)
 });
 const reported = (season: number): GapRow => ({
   kind: 'reported', season, weeks: [1, 2], phase: 'R', franchise: SERP, gp: 2, w: 1, l: 1, t: 0, pf: 200, pa: 210,
+});
+const position = (pos: string | null, spts: number, franchise = SERP): PositionRow => ({
+  kind: 'position', franchise, pos, gp: 17, st: spts ? 17 : 0, spts, ppg: spts / 17, avg: spts ? spts / 17 : null,
+  share: null, rank: 1, bpts: pos === 'FLEX' ? null : 0, best: null,
 });
 const result = (rows: QueryResult['rows']): QueryResult => ({ rows, notes: [] });
 
@@ -172,8 +177,67 @@ describe('the chart above the results', () => {
     ]);
   });
 
+  test('by position opens on each franchise’s points as a 100% bar split into positions, in lineup order', () => {
+    // One franchise, one season, sorted by points as the table might be.
+    const rows = [position('WR', 500), position('QB', 300), position('DEF', 100), position('RB', 100)];
+    expect(chartOf(result(rows), q({ view: 'pos', seasons: [2025] }))).toEqual({
+      mark: 'share',
+      x: { key: 'f', label: 'Franchise' },
+      y: { key: 'spts', label: 'Pts started' },
+      series: { key: 'pos', label: 'Position' },
+      points: [
+        { x: 'SERPION', y: 0.3, series: 'QB', value: 300 },
+        { x: 'SERPION', y: 0.1, series: 'RB', value: 100 },
+        { x: 'SERPION', y: 0.5, series: 'WR', value: 500 },
+        { x: 'SERPION', y: 0.1, series: 'DEF', value: 100 },
+      ],
+      coloured: ['QB', 'RB', 'WR', 'DEF'],
+    });
+  });
+
+  test('grouped by lineup slot, FLEX is a segment of its own', () => {
+    const rows = [position('FLEX', 150), position('WR', 350), position('K', 100), position('RB', 200), position('QB', 200)];
+    const chart = chartOf(result(rows), q({ view: 'pos', grouping: 'slot' }))!;
+    expect(chart.series).toEqual({ key: 'pos', label: 'Slot' });
+    expect(chart.points.map((p) => [p.series, p.y])).toEqual([
+      ['QB', 0.2], ['RB', 0.2], ['WR', 0.35], ['FLEX', 0.15], ['K', 0.1],
+    ]);
+  });
+
+  test('each bar is scaled to its own franchise, and a position with no starts is 0% of it', () => {
+    const HOGS = { id: 3, name: 'Hogs' };
+    const rows = [
+      position('QB', 300, CATS),
+      position('RB', 100, CATS),
+      // Only benched NFL players at K: no starts, no points.
+      position('K', 0, CATS),
+      position('QB', 120),
+      position('WR', 40),
+      // An NFL player Sleeper knows no position for.
+      position(null, 40),
+      // Never started anyone: a bar of nothing.
+      position('QB', 0, HOGS),
+    ];
+    const chart = chartOf(result(rows), q({ view: 'pos' }))!;
+    // Colours go to the positions in lineup order, whichever franchise first has them.
+    expect(chart.coloured).toEqual(['QB', 'RB', 'WR', 'K', 'Unknown']);
+    expect(chart.points).toEqual([
+      { x: 'Not Enough Cooks', y: 0.75, series: 'QB', value: 300 },
+      { x: 'Not Enough Cooks', y: 0.25, series: 'RB', value: 100 },
+      { x: 'Not Enough Cooks', y: 0, series: 'K', value: 0 },
+      { x: 'SERPION', y: 0.6, series: 'QB', value: 120 },
+      { x: 'SERPION', y: 0.2, series: 'WR', value: 40 },
+      { x: 'SERPION', y: 0.2, series: 'Unknown', value: 40 },
+      { x: 'Hogs', y: 0, series: 'QB', value: 0 },
+    ]);
+  });
+
+  test('by position before 2025 draws no chart, leaving the view’s message', () => {
+    const before: QueryResult = { rows: [], notes: [{ kind: 'beforeLineups', firstSeason: 2025 }] };
+    expect(chartOf(before, q({ view: 'pos', seasons: [2015] }))).toBeNull();
+  });
+
   test('views without a chart yet draw none', () => {
-    expect(chartOf(result([group({})]), q({ view: 'pos' }))).toBeNull();
     expect(chartOf(result([]), q({ subject: 'player', view: 'totals' }))).toBeNull();
     expect(chartOf(result([]), q({ subject: 'pick', view: 'list' }))).toBeNull();
   });
