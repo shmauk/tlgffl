@@ -7,14 +7,6 @@ import type { Phase } from './current';
 import type { BracketKey } from './brackets';
 import type { Mark } from './seeding';
 
-/** A pairing of a week still to come (the season page): never a score. */
-export interface Matchup {
-  /** Null for a regular-season game. */
-  bracket: BracketKey | null;
-  home: SeasonFranchise;
-  away: SeasonFranchise;
-}
-
 /** One line of the compact playoff picture, in seed order. */
 export interface PictureLine {
   franchise: SeasonFranchise;
