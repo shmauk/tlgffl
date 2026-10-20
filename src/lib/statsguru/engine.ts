@@ -91,6 +91,8 @@ export type QueryNote =
   | { kind: 'beforeLineups'; firstSeason: number | null }
   /** Draft picks are only known from this season (null: no draft yet). */
   | { kind: 'drafts'; firstSeason: number | null }
+  /** The query's seasons all come before the first draft: there is nothing to show. */
+  | { kind: 'beforeDrafts'; firstSeason: number | null }
   /** Seasons in the query whose keepers aren't recorded: their keepers count as drafted. */
   | { kind: 'keepersUnrecorded'; seasons: number[] };
 
@@ -189,6 +191,7 @@ export function runQuery(db: Db, q: Query): QueryResult {
     const drafted = db.all('select distinct season, kept is null as unrecorded from draft_picks order by season');
     const first = drafted[0]?.season ?? null;
     const notes: QueryNote[] = [{ kind: 'drafts', firstSeason: first }];
+    if ([...seasons].every((y) => first == null || y < first)) return { rows: [], notes: [{ kind: 'beforeDrafts', firstSeason: first }] };
     if (!drafted.some((d) => seasons.has(d.season))) return { rows: [], notes };
     const unrecorded = [...new Set(drafted.filter((d) => d.unrecorded && seasons.has(d.season)).map((d) => d.season as number))];
     if (unrecorded.length) notes.push({ kind: 'keepersUnrecorded', seasons: unrecorded });

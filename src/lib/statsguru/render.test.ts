@@ -228,8 +228,8 @@ describe('the draft-picks subject', () => {
     expect(notes).toMatch(/Keepers not yet recorded for 2025, 2026/);
   });
 
-  test('a scope before the first draft explains itself', () => {
-    const out = html([], kq({ seasons: [2015] }), DRAFTS);
+  test('a scope before the first draft explains itself, however its seasons were chosen', () => {
+    const out = html([], kq({ era: 'nfl.com' }), [{ kind: 'beforeDrafts', firstSeason: 2025 }]);
     expect(out).not.toContain('<table');
     expect(out).toMatch(/drafts from 2025/);
   });

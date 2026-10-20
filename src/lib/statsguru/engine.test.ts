@@ -349,7 +349,11 @@ describe('the draft-picks subject (drafts from 2025)', () => {
   });
 
   test('an NFL.com-era scope has no picks, and explains why', () => {
-    expect(run({ subject: 'pick', seasons: [2015] })).toEqual({ rows: [], notes: [{ kind: 'drafts', firstSeason: 2025 }] });
+    const before = { rows: [], notes: [{ kind: 'beforeDrafts', firstSeason: 2025 }] };
+    expect(run({ subject: 'pick', seasons: [2015] })).toEqual(before);
+    // The seasons searched decide it, however they were chosen.
+    expect(run({ subject: 'pick', era: 'nfl.com' })).toEqual(before);
+    expect(run({ subject: 'pick', size: 12 })).toEqual(before);
   });
 
   test('the NFL-player subject counts drafted and kept', () => {

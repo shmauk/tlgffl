@@ -154,8 +154,8 @@ export function renderResults(result: QueryResult, q: Query): string {
     const first = result.notes.find((n) => n.kind === 'beforeLineups')!.firstSeason;
     return `<p class="sub">Lineups, and with them NFL player data, are only known from the Sleeper era: NFL player data starts in ${first ?? 'the Sleeper era'}. Choose a season from ${first ?? 'the Sleeper era'} on.</p>`;
   }
-  const drafts = result.notes.find((n) => n.kind === 'drafts');
-  if (drafts && !result.rows.length && q.seasons.length && q.seasons.every((y) => drafts.firstSeason == null || y < drafts.firstSeason))
+  const drafts = result.notes.find((n) => n.kind === 'beforeDrafts');
+  if (drafts)
     return `<p class="sub">Draft picks are only known from the Sleeper era: drafts from ${drafts.firstSeason ?? 'the first Sleeper draft'}. Choose a season from ${drafts.firstSeason ?? 'then'} on.</p>`;
   const cols = columnsOf(q);
   const sort = sortOf(q);
