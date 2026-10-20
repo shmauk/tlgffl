@@ -1,8 +1,8 @@
 ---
 // One record page (#14, #30): its era, League size (#56) and phase filters as
-// links to the pre-rendered variants (one URL each, #54), the top 10 (extended to anyone level with 10th),
-// the qualification footnote and markers, and the full list in Statsguru.
-// No JS (ADR 0002).
+// links to the pre-rendered variants (one URL each, #54), the top 10
+// (extended to anyone level with 10th), the qualification footnote and
+// markers, and the full list in Statsguru. No JS (ADR 0002).
 import Base from '../layouts/Base.astro';
 import Row from './Row.astro';
 import Badge from './Badge.astro';
@@ -13,7 +13,8 @@ import FranchiseLink from './FranchiseLink.astro';
 import SeasonLink from './SeasonLink.astro';
 import NflPlayerLink from './NflPlayerLink.astro';
 import { figure as figureOf } from '../lib/figures';
-import { categoryOf, filters, PHASE_NAMES, SEASON_SET_NAMES, variantUrl, type PhaseFilter, type SeasonSet, type Unit } from '../lib/records/catalogue';
+import { categoryOf, PHASE_NAMES, variantUrl, type PhaseFilter, type Unit } from '../lib/records/catalogue';
+import { seasonSetDef, type SeasonSet } from '../lib/season-sets';
 import type { Entry, RecordFranchise, RecordView } from '../lib/records/records';
 import { headToHeadUrl, statsguruUrl } from '../lib/urls';
 import { holders as holdersOf } from '../lib/records/held';
@@ -22,7 +23,7 @@ interface Props {
   view: RecordView;
 }
 const { view } = Astro.props;
-const { def, seasonSet, phase, entries } = view;
+const { def, seasonSet, phase, entries, choices } = view;
 
 const href = (s: SeasonSet, p: PhaseFilter) => variantUrl(def, { seasonSet: s, phase: p });
 // The column heading carries a rate's % sign, so the cells show the bare number.
@@ -49,10 +50,10 @@ const holders = (e: Entry): RecordFranchise[] => holdersOf(def, e);
 const empty =
   def.rate || def.kind === 'rivalry' ? 'No franchise qualifies yet.' : def.table === 'ties' ? 'No game has been tied.' : 'No entries yet.';
 const phaseName = def.phases.length > 1 ? PHASE_NAMES[phase] : phase === 'regular' ? 'Regular season only' : null;
-// A record kept in one era only (the Sleeper era's) has no era filter.
-const eraName = def.seasonSets.length > 1 ? SEASON_SET_NAMES[seasonSet] : `${SEASON_SET_NAMES[seasonSet]} only`;
-const variantName = phaseName ? `${eraName} · ${phaseName}` : eraName;
-const { eras, sizes } = filters(def, seasonSet);
+// A record kept in one season set only (the Sleeper era's) has no era or size filter.
+const setName = seasonSetDef(seasonSet).name;
+const seasonSetName = def.seasonSets.length > 1 ? setName : `${setName} only`;
+const variantName = phaseName ? `${seasonSetName} · ${phaseName}` : seasonSetName;
 ---
 
 <Base title={`${def.name}${seasonSet === 'all-seasons' && phase === def.phases[0] ? '' : ` (${variantName})`}`}>
@@ -60,7 +61,7 @@ const { eras, sizes } = filters(def, seasonSet);
     <h1>{def.name}</h1>
     <p class="sub">{variantName}</p>
     {
-      [eras, sizes].map((row) => row && (
+      [choices.eras, choices.sizes].map((row) => row && (
         <p class="filters">
           {row.map((f) => <a href={href(f.seasonSet, phase)} aria-current={f.current ? 'page' : undefined}>{f.name}</a>)}
         </p>

@@ -8,7 +8,8 @@ import type {
   GameRow, GapRow, GroupRow, Named, NflPlayer, PerformanceRow, PickGroupRow, PickPlayerRow, PickRow, PlayerRow, PositionRow,
   QueryResult, Row,
 } from './engine';
-import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type Era, type FranchiseView, type Phase, type PickView, type PlayerView, type Query } from './query';
+import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView, type Phase, type PickView, type PlayerView, type Query } from './query';
+import type { Era } from '../season-sets';
 
 export interface Context {
   franchises: Named[];
@@ -92,7 +93,7 @@ export function summary(q: Query, ctx: Context): string {
   const allSeasons = !q.seasons.length || ctx.seasons.every((y) => q.seasons.includes(y));
   const span = allSeasons ? 'all seasons' : seasons.length === 1 ? `season ${seasons[0]}` : `seasons ${years(seasons)}`;
   // An era or League size says which seasons on its own; "all seasons" would only contradict it.
-  const scope = [
+  const seasonWords = [
     allSeasons && (q.era || q.size) ? null : span,
     q.era ? ERA_NAMES[q.era] : null,
     q.size ? `${q.size}-team seasons` : null,
@@ -110,7 +111,7 @@ export function summary(q: Query, ctx: Context): string {
       q.franchises.length ? (q.franchiseAs === 'slot' ? `${franchises}'s slots` : `picked by ${franchises}`) : null,
       range('round', q.rounds),
       range('pick', q.picks),
-      ...scope,
+      ...seasonWords,
       viewName(q).replace(/^./, (c) => c.toLowerCase()),
     ]
       .filter(Boolean)
@@ -126,7 +127,7 @@ export function summary(q: Query, ctx: Context): string {
         ]
       : [q.franchises.length ? q.franchises.map(name).join(', ') : 'All franchises']),
     q.opponents.length ? `v ${q.opponents.map(name).join(', ')}` : null,
-    ...scope,
+    ...seasonWords,
     phases.length === 3 ? 'every phase' : and(phases),
     q.weeks ? (q.weeks[0] === q.weeks[1] ? `week ${q.weeks[0]}` : `weeks ${q.weeks[0]}–${q.weeks[1]}`) : null,
     q.result ? RESULT_NAMES[q.result] : null,

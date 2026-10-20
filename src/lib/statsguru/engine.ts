@@ -6,7 +6,8 @@
 // Nothing is estimated: games a filter can't check are left out and counted.
 import { playerRows, positionRows, type PerformanceRow, type PlayerRow, type PositionRow } from './lineups';
 import { groupRank, pickRows, type PickGroupRow, type PickPlayerRow, type PickRow } from './picks';
-import { positionRank, searchedSeasons, sortOf, viewOf, type Phase, type Query, type Result, type SeasonScope } from './query';
+import { positionRank, searchedSeasons, sortOf, viewOf, type Phase, type Query, type Result } from './query';
+import { scopedSeasons } from '../season-sets';
 import type { Db } from '../database';
 
 export type { NflPlayer, PerformanceRow, PlayerRow, PositionRow } from './lineups';
@@ -179,9 +180,7 @@ export function runQuery(db: Db, q: Query): QueryResult {
     db.all('select id, name, active from franchises').map((r) => [r.id, { id: r.id, name: r.name, active: !!r.active }]),
   );
   const named = (id: number): Named => ({ id, name: franchises.get(id)!.name });
-  const seasons = new Set(
-    searchedSeasons(q, db.all('select year, era, team_count as size from seasons') as SeasonScope[]),
-  );
+  const seasons = new Set(searchedSeasons(q, scopedSeasons(db)));
   const inWeeks = (w: number) => !q.weeks || (w >= q.weeks[0] && w <= q.weeks[1]);
   const okFranchise = (f: number) =>
     (!q.franchises.length || q.franchises.includes(f)) && (!q.active || franchises.get(f)!.active);

@@ -4,7 +4,8 @@
 // entries listed unranked (all ties) aren't top-10 entries.
 import { figure } from '../figures';
 import type { Db } from '../database';
-import { RECORDS, SEASON_SET_NAMES, type RecordDef } from './catalogue';
+import { RECORDS, type RecordDef } from './catalogue';
+import { seasonSetDef } from '../season-sets';
 import { recordView, type Entry, type RecordFranchise } from './records';
 
 /** Who holds an entry: a division's franchises, both of a shared pair, or its franchise. */
@@ -57,7 +58,7 @@ const PHASE_WORDS = { all: 'all games', regular: 'regular season', playoffs: 'Pl
  * eras, all games"). A career win % over every game isn't the career
  * summary's regular-season one, so a profile says which it is.
  */
-export const heldOver = (def: RecordDef) => `${SEASON_SET_NAMES[def.seasonSets[0]]}, ${PHASE_WORDS[def.phases[0]]}`;
+export const heldOver = (def: RecordDef) => `${seasonSetDef(def.seasonSets[0]).name}, ${PHASE_WORDS[def.phases[0]]}`;
 
 /** An entry's figure as it reads on its own (src/lib/figures.ts). */
 export const figureText = (def: RecordDef, value: number) => figure(def.unit, value);

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { formValues, leagueSizes, queryFromForm, type FormContext } from './form';
+import { formValues, queryFromForm, type FormContext } from './form';
+import { leagueSizes } from '../season-sets';
 import { DEFAULT_QUERY, decodeQuery, type Query } from './query';
 
 const CTX: FormContext = {
