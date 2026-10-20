@@ -26,6 +26,10 @@ const xAxis = (chart: Chart) =>
     ? { label: chart.x.label, percent: chart.x.percent }
     : { label: chart.x.label, type: 'point' as const, domain: [...new Set(chart.points.map((p) => value(p.x, chart.x)))] };
 const yAxis = (chart: Chart) => ({ label: chart.y.label, grid: true, percent: chart.y.percent });
+/** A tooltip: the lines it has, one under another. */
+const tooltip = (...lines: (string | undefined)[]) => lines.filter(Boolean).join('\n');
+/** Every chart's class (for the page's style) and height, unless it says otherwise. */
+const plot = (options: Plot.PlotOptions) => Plot.plot({ className: 'sg-plot', height: 320, ...options });
 
 /** The series in colour, each its own; the rest are one grey, drawn under them. */
 function colours(chart: Chart) {
@@ -54,10 +58,8 @@ function barLabels(labels: string[], width: number) {
 function drawBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   const labels = chart.points.map((p) => value(p.x, chart.x));
   const { marginBottom, marginLeft, axis } = barLabels(labels, width);
-  return Plot.plot({
-    className: 'sg-plot',
+  return plot({
     width,
-    height: 320,
     marginBottom,
     marginLeft,
     x: axis,
@@ -68,7 +70,7 @@ function drawBars(chart: Chart, width: number): SVGSVGElement | HTMLElement {
         x: (p) => value(p.x, chart.x),
         y: 'y',
         fill: 'var(--accent)',
-        title: (p) => `${chart.x.label}: ${value(p.x, chart.x)}\n${chart.y.label}: ${figure(p.y, chart.y)}`,
+        title: (p: Point) => tooltip(`${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`),
         tip: true,
       }),
       Plot.ruleY([0]),
@@ -87,13 +89,13 @@ function drawShares(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   const { marginBottom, marginLeft, axis } = barLabels(labels, width);
   const coloured = new Set(chart.coloured);
   const title = (p: Point) =>
-    [p.series, `${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.value ?? 0, chart.y)} (${figure(p.y, { ...chart.y, percent: true })})`]
-      .filter(Boolean)
-      .join('\n');
-  return Plot.plot({
-    className: 'sg-plot',
+    tooltip(
+      p.series,
+      `${chart.x.label}: ${value(p.x, chart.x)}`,
+      `${chart.y.label}: ${figure(p.value ?? 0, chart.y)} (${figure(p.y, { ...chart.y, percent: true })})`,
+    );
+  return plot({
     width: Math.min(width, marginLeft + 20 + labels.length * SHARE_BAR),
-    height: 320,
     marginBottom,
     marginLeft,
     x: { ...axis, padding: 0.2 },
@@ -130,11 +132,9 @@ function drawGroupedBars(chart: Chart, width: number): SVGSVGElement | HTMLEleme
   const { marginBottom, marginLeft, axis } = barLabels(groups, width);
   const { grey, bright, color } = colours(chart);
   const bar = { fx: (p: Point) => value(p.x, chart.x), x: 'series', y: 'y' };
-  const title = (p: Point) => `${p.series}\n${chart.x.label}: ${value(p.x, chart.x)}\n${chart.y.label}: ${figure(p.y, chart.y)}`;
-  return Plot.plot({
-    className: 'sg-plot',
+  const title = (p: Point) => tooltip(p.series, `${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`);
+  return plot({
     width,
-    height: 320,
     marginBottom,
     marginLeft,
     fx: { ...axis, padding: 0.2 },
@@ -155,10 +155,8 @@ function drawGroupedBars(chart: Chart, width: number): SVGSVGElement | HTMLEleme
 function drawDots(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   const { grey, bright, color } = colours(chart);
   const dotX = (p: Point) => (typeof p.x === 'number' ? p.x : value(p.x, chart.x));
-  const title = (p: Point) =>
-    [p.series, `${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`].filter(Boolean).join('\n');
-  return Plot.plot({
-    className: 'sg-plot',
+  const title = (p: Point) => tooltip(p.series, `${chart.x.label}: ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`);
+  return plot({
     width,
     height: 360,
     marginLeft: 48,
@@ -183,15 +181,11 @@ function drawLines(chart: Chart, width: number): SVGSVGElement | HTMLElement {
   // Colours go to this chart's biggest series in turn; the rest are thin grey lines under them.
   const { grey, bright, color } = colours(chart);
   const title = (p: Point) =>
-    [p.series, p.at ?? `${chart.x.label} ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`]
-      .filter(Boolean)
-      .join('\n');
+    tooltip(p.series, p.at ?? `${chart.x.label} ${value(p.x, chart.x)}`, `${chart.y.label}: ${figure(p.y, chart.y)}`);
   const marginLeft = 40;
   const line = { x: (p: Point) => (typeof p.x === 'number' ? p.x : value(p.x, chart.x)), y: 'y', z: 'series' };
-  return Plot.plot({
-    className: 'sg-plot',
+  return plot({
     width,
-    height: 320,
     marginLeft,
     x: chart.ticks
       ? gameAxis(chart, width - marginLeft - 20)
