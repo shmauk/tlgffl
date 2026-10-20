@@ -4,6 +4,7 @@
 // filters and views only have data from 2025, when lineups start. A third
 // (#37), draft picks (`sub=pick`), has its own filters and views and none of
 // the game filters (opposition, phase, weeks, result, minimum games).
+import { ERAS, LEAGUE_SIZES, type Era, type LeagueSize, type ScopedSeason, type SeasonScope } from '../season-sets';
 
 /** R: regular season, P: the Playoffs, C: the Shit Bowl and the Mediocre Bowl. */
 export type Phase = 'R' | 'P' | 'C';
@@ -24,9 +25,6 @@ export type Kept = 'kept' | 'drafted';
 /** Started or benched NFL players only. */
 export type Lineup = 'start' | 'bench';
 export type SortDir = 'asc' | 'desc';
-/** A platform era, as the seasons table names it. */
-export type Era = 'nfl.com' | 'sleeper';
-export const ERAS: Era[] = ['nfl.com', 'sleeper'];
 export interface Sort {
   key: string;
   dir: SortDir;
@@ -42,8 +40,8 @@ export interface Query {
   seasons: number[];
   /** Null means either era. Kept as the era, not its seasons, so a link covers seasons still to come. */
   era: Era | null;
-  /** League size (franchises in the season); null means every size. Kept as the size, like the era. */
-  size: number | null;
+  /** Null means every League size. Kept as the size, like the era. */
+  size: LeagueSize | null;
   phases: Phase[];
   /** First and last week, inclusive; null means every week. */
   weeks: [number, number] | null;
@@ -182,16 +180,8 @@ export const DEFAULT_QUERY: Query = {
   sort: null,
 };
 
-/** A season as the query's season filters see it. */
-export interface SeasonScope {
-  year: number;
-  era: string;
-  /** League size: how many franchises played. */
-  size: number;
-}
-
 /** The seasons a query searches: its from/to range, era and League size, each narrowing the others. */
-export const searchedSeasons = (q: Pick<Query, 'seasons' | 'era' | 'size'>, seasons: SeasonScope[]): number[] =>
+export const searchedSeasons = (q: SeasonScope & Pick<Query, 'seasons'>, seasons: ScopedSeason[]): number[] =>
   seasons
     .filter((s) => (!q.seasons.length || q.seasons.includes(s.year)) && (!q.era || s.era === q.era) && (!q.size || s.size === q.size))
     .map((s) => s.year)
@@ -302,7 +292,8 @@ export function decodeQuery(search: string): Query {
   q.seasons = seasonsOf(p.get('s'));
   const era = p.get('era');
   if (ERAS.includes(era as Era)) q.era = era as Era;
-  q.size = whole(p.get('size') ?? '') || null;
+  const size = whole(p.get('size') ?? '');
+  if (LEAGUE_SIZES.includes(size as LeagueSize)) q.size = size as LeagueSize;
   if (!pick) {
     q.opponents = idList(p.get('opp'));
     const phases = (p.get('ph') ?? '').split(',');

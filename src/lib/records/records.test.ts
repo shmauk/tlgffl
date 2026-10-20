@@ -7,7 +7,9 @@ import type { GroupRow } from '../statsguru/engine';
 import { open } from '../database';
 import { runQuery } from '../statsguru/engine';
 import { DEFAULT_QUERY, decodeQuery, encodeQuery } from '../statsguru/query';
-import { CATEGORIES, PHASES, RECORDS, SEASON_SETS, filters, recordDef, variants, variantUrl } from './catalogue';
+import { CATEGORIES, PHASES, RECORDS, recordDef, variants, variantUrl } from './catalogue';
+import { SEASON_SETS, scopedSeasons } from '../season-sets';
+import { searchedSeasons } from '../statsguru/query';
 import { recordView } from './records';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
@@ -61,7 +63,7 @@ describe('the catalogue', () => {
     const urls = RECORDS.flatMap((def) => variants(def).map((v) => variantUrl(def, v)));
     expect(new Set(urls).size).toBe(urls.length);
     // A segment is a season set or a phase, never both.
-    expect(SEASON_SETS.filter((s) => (PHASES as string[]).includes(s))).toEqual([]);
+    expect(SEASON_SETS.filter((s) => (PHASES as string[]).includes(s.key))).toEqual([]);
   });
 
   test('a League size variant has its own URL (#56)', () => {
@@ -87,7 +89,7 @@ describe('the catalogue', () => {
 
   test('the era and size rows offer only the distinct combinations, one URL each (#56)', () => {
     const rows = (slug: string, seasonSet: string) => {
-      const f = filters(recordDef(slug)!, seasonSet as any);
+      const f = view(slug, seasonSet).choices;
       const row = (r: typeof f.eras) => r && r.map((o) => `${o.current ? '*' : ''}${o.name}=${o.seasonSet}`);
       return { eras: row(f.eras), sizes: row(f.sizes) };
     };
@@ -117,6 +119,16 @@ describe('the catalogue', () => {
       eras: ['*All eras=all-seasons', 'NFL.com era=nfl-com', 'Sleeper era=sleeper'], sizes: null,
     });
     expect(rows('best-nfl-player-score', 'sleeper')).toEqual({ eras: null, sizes: null });
+  });
+});
+
+describe('season sets', () => {
+  test('Statsguru searches the same seasons as each season set (ADR 0002)', () => {
+    for (const { key, era, size } of SEASON_SETS) {
+      const listed = (sqlite.prepare('select season from season_sets where season_set = ? order by season').all(key) as any[])
+        .map((r) => r.season);
+      expect(searchedSeasons({ seasons: [], era, size }, scopedSeasons(db)), key).toEqual(listed);
+    }
   });
 });
 

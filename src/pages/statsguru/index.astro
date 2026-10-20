@@ -10,7 +10,8 @@ import { lineupPlayers, lineupPositions } from '../../lib/nfl-players';
 import { HEADINGS, PHASE_NAMES, PICK_VIEW_NAMES, PLAYER_VIEW_NAMES, VIEW_NAMES } from '../../lib/statsguru/render';
 import { FRANCHISE_VIEWS, PHASES, PICK_VIEWS, PLAYER_VIEWS } from '../../lib/statsguru/query';
 import { draftSize } from '../../lib/drafts';
-import { leagueSizes, type FormContext } from '../../lib/statsguru/form';
+import type { FormContext } from '../../lib/statsguru/form';
+import { leagueSizes, scopedSeasons } from '../../lib/season-sets';
 import { open } from '../../lib/database';
 
 const db = open();
@@ -23,7 +24,7 @@ const { lastRound, lastPick, firstSeason: firstDraft } = draftSize(db);
 const context: FormContext & { franchises: { id: number; name: string }[]; players: { id: string; name: string | null }[] } = {
   franchises: all.map(({ id, name }) => ({ id, name })),
   players: players.map(({ id, name }) => ({ id, name })),
-  seasons: years.map(({ year, era, teamCount }) => ({ year, era, size: teamCount })),
+  seasons: scopedSeasons(db),
   lastWeek,
   lastRound,
   lastPick,

@@ -9,7 +9,8 @@ import { runQuery, type GameRow, type GroupRow } from '../statsguru/engine';
 import type { Db } from '../database';
 import { DEFAULT_QUERY, type Phase, type Query } from '../statsguru/query';
 import type { Glyph } from '../../components/Marker.astro';
-import { SEASON_SET_QUERY, type PhaseFilter, type RecordDef, type SeasonSet } from './catalogue';
+import { seasonSetChoices, type PhaseFilter, type RecordDef, type SeasonSetChoice } from './catalogue';
+import { leagueSizes, scopedSeasons, seasonSetDef, type LeagueSize, type SeasonScope, type SeasonSet } from '../season-sets';
 import { topTen } from './rank';
 import { lineupEntries, divisionEntries } from './rivalries-divisions-sleeper';
 
@@ -72,6 +73,8 @@ export interface RecordView {
   def: RecordDef;
   seasonSet: SeasonSet;
   phase: PhaseFilter;
+  /** The page's era and League size rows, each null where it isn't shown. */
+  choices: { eras: SeasonSetChoice[] | null; sizes: SeasonSetChoice[] | null };
   entries: Entry[];
   /** True when every entry is listed, unranked. */
   all: boolean;
@@ -86,7 +89,9 @@ interface Context {
   franchises: Map<number, { name: string; active: boolean; first: number; last: number }>;
   eraOf: Map<number, 'nfl.com' | 'sleeper'>;
   /** Each season set's seasons, in order. */
-  seasonSets: Map<string, number[]>;
+  seasonSets: Map<SeasonSet, number[]>;
+  /** Each League size as a record page's size row names it: "16 teams (2015 on)". */
+  sizeNames: Record<LeagueSize, string>;
   current: number | null;
   /** The current season's phase. */
   phase: string | null;
@@ -122,8 +127,9 @@ function context(db: Db): Context {
     eraOf: new Map(db.all('select year, era from seasons').map((r) => [r.year, r.era])),
     seasonSets: db.all('select season_set, season from season_sets order by season_set, season').reduce(
       (sets, r) => sets.set(r.season_set, [...(sets.get(r.season_set) ?? []), r.season]),
-      new Map<string, number[]>(),
+      new Map<SeasonSet, number[]>(),
     ),
+    sizeNames: Object.fromEntries(leagueSizes(scopedSeasons(db)).map((s) => [s.size, s.label])) as Record<LeagueSize, string>,
     // The current season, as the build chose it (recordbook/current.py); null before any has started.
     current: db.all('select season from current_season')[0]?.season ?? null,
     phase: db.all('select phase from current_season')[0]?.phase ?? null,
@@ -187,8 +193,10 @@ export function recordView(db: Db, def: RecordDef, seasonSet: SeasonSet, phase: 
     excluded.some((x) => x.season === season && x.week === week && (x.h === f || x.a === f));
 
   const seen = new Set<string>();
-  // Statsguru links name the season set (era=, size=), not its seasons, so they keep up with seasons to come.
-  const scope = SEASON_SET_QUERY[seasonSet];
+  // Statsguru links name the season set's era and size (era=, size=), not its
+  // seasons, so they keep up with seasons to come.
+  const { era, size } = seasonSetDef(seasonSet);
+  const scope: SeasonScope = { era, size };
   if (def.statsguru) {
     statsguru = { ...def.statsguru, seasons: [], ...scope, phases: SG_PHASES[phase] };
     const rows = runQuery(db, { ...DEFAULT_QUERY, ...statsguru }).rows as (GameRow & GroupRow)[];
@@ -311,7 +319,9 @@ export function recordView(db: Db, def: RecordDef, seasonSet: SeasonSet, phase: 
   if (phase === 'all' && (gameBased || def.kind === 'career') && unrecorded.length)
     notes.push({ text: `Shit Bowl and Mediocre Bowl games were never recorded for ${seasonSpan(unrecorded)}.` });
 
-  return { def, seasonSet, phase, entries, all: !!def.all, star, notes, statsguru };
+  return {
+    def, seasonSet, phase, choices: seasonSetChoices(def, seasonSet, c.sizeNames), entries, all: !!def.all, star, notes, statsguru,
+  };
 }
 
 /** Seasons as runs: [2014, 2015, 2016, 2018] -> "2014–2016 and 2018". */

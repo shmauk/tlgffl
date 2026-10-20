@@ -4,7 +4,6 @@
 // draft picks) and filters; the other subjects' fields are ignored.
 import {
   DEFAULT_QUERY,
-  ERAS,
   FRANCHISE_VIEWS,
   PHASES,
   PICK_VIEWS,
@@ -19,33 +18,18 @@ import {
   type PickView,
   type PlayerView,
   type Query,
-  type Era,
   type Result,
-  type SeasonScope,
   type Subject,
 } from './query';
+import { ERAS, LEAGUE_SIZES, type Era, type LeagueSize, type ScopedSeason } from '../season-sets';
 
 export interface FormContext {
-  seasons: SeasonScope[];
+  seasons: ScopedSeason[];
   /** The last week any season has, for the week span's "to". */
   lastWeek: number;
   /** The last round and overall pick any draft has, for the draft-pick spans' "to". */
   lastRound: number;
   lastPick: number;
-}
-
-/** The League size choice's options, smallest first, each named with its seasons: "16 teams (2015 on)". */
-export function leagueSizes(seasons: SeasonScope[]): { size: number; label: string }[] {
-  const latest = Math.max(...seasons.map((s) => s.year));
-  return [...new Set(seasons.map((s) => s.size))]
-    .sort((a, b) => a - b)
-    .map((size) => {
-      const years = seasons.filter((s) => s.size === size).map((s) => s.year);
-      const [first, last] = [Math.min(...years), Math.max(...years)];
-      const span =
-        last === latest && first !== last ? `${first} on` : first === last ? `${first}` : `${first}–${String(last).slice(-2)}`;
-      return { size, label: `${size} teams (${span})` };
-    });
 }
 
 /** Field name -> its values (several for a multi-select or checkboxes). */
@@ -104,6 +88,7 @@ export function queryFromForm(fields: Fields, ctx: FormContext): Query {
   // The span alone: the era and League size stay as chosen, so a link keeps up with new seasons.
   const picked = years.filter((y) => y >= Math.min(a, b) && y <= Math.max(a, b));
   const era = one(fields, 'era');
+  const size = num(one(fields, 'size'));
   const [w0, w1] = [num(one(fields, 'wkFrom')) ?? 1, num(one(fields, 'wkTo')) ?? ctx.lastWeek].sort((x, y) => x - y);
   const phases = PHASES.filter((p) => (fields.ph ?? []).includes(p));
   const sub = one(fields, 'subject');
@@ -127,7 +112,7 @@ export function queryFromForm(fields: Fields, ctx: FormContext): Query {
     opponents: pick ? [] : (fields.opp ?? []).map(Number).sort((x, y) => x - y),
     seasons: picked.length === years.length ? [] : picked,
     era: ERAS.includes(era as Era) ? (era as Era) : null,
-    size: num(one(fields, 'size')) || null,
+    size: LEAGUE_SIZES.includes(size as LeagueSize) ? (size as LeagueSize) : null,
     phases: phases.length && !pick ? (phases as Phase[]) : DEFAULT_QUERY.phases,
     weeks: pick || (w0 <= 1 && w1 >= ctx.lastWeek) ? null : [w0, w1],
     result: franchise && RESULTS.includes(res as Result) ? (res as Result) : null,
