@@ -23,12 +23,11 @@ export interface PictureLine {
 }
 
 export interface AwardLine {
-  award: { slug: string; name: string };
+  /** measure says what the value is: "Average margin (points)". */
+  award: { slug: string; name: string; measure: string };
   franchises: SeasonFranchise[];
   /** The value as it reads: 12.34, $22, 24.0%. */
   value: string;
-  /** What the value is: "Average margin (points)". */
-  measure: string;
 }
 
 /** An entry a franchise set this season in a record's top ten. */

@@ -46,8 +46,8 @@ const regular: HomeData = {
     { franchise: fr(4), bracket: 'shit_bowl', seed: 1, shared: false, wins: 0, losses: 4, ties: 0, breakdown: 0.1, marks: ['SHIT BOWL'] },
   ],
   awards: [
-    { award: { slug: 'nail-biter', name: 'Nail Biter' }, franchises: [fr(2)], value: '9.54', measure: 'Average margin (points)' },
-    { award: { slug: 'highest-failed-bid', name: 'Highest failed bid' }, franchises: [fr(5), fr(6)], value: '$45', measure: 'Biggest losing waiver bid (FAAB)' },
+    { award: { slug: 'nail-biter', name: 'Nail Biter', measure: 'Average margin (points)' }, franchises: [fr(2)], value: '9.54' },
+    { award: { slug: 'highest-failed-bid', name: 'Highest failed bid', measure: 'Biggest losing waiver bid (FAAB)' }, franchises: [fr(5), fr(6)], value: '$45' },
   ],
   records: [{ record: { slug: 'highest-score', name: 'Highest score' }, rank: 2, franchises: [fr(1)], figure: '190.12' }],
   predictor: '/seasons/2026/predictor/',
@@ -85,7 +85,7 @@ const brackets: HomeData = {
       ],
     },
   ],
-  awards: [{ award: { slug: 'nail-biter', name: 'Nail Biter' }, franchises: [fr(2)], value: '8.10', measure: 'Average margin (points)' }],
+  awards: [{ award: { slug: 'nail-biter', name: 'Nail Biter', measure: 'Average margin (points)' }, franchises: [fr(2)], value: '8.10' }],
 };
 
 const offSeason: HomeData = {
@@ -94,7 +94,7 @@ const offSeason: HomeData = {
   through: 17,
   playing: null,
   updated: 'Updated 3 March 2027',
-  awards: [{ award: { slug: 'nail-biter', name: 'Nail Biter' }, franchises: [fr(2)], value: '8.10', measure: 'Average margin (points)' }],
+  awards: [{ award: { slug: 'nail-biter', name: 'Nail Biter', measure: 'Average margin (points)' }, franchises: [fr(2)], value: '8.10' }],
   records: [{ record: { slug: 'most-wins', name: 'Most wins in a season' }, rank: 1, franchises: [fr(1)], figure: '13' }],
   honours: { playoffs: fr(1), shit_bowl: fr(5), mediocre_bowl: null },
   next: { season: 2027, draft: '1 September 2027' },

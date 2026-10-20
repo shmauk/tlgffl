@@ -143,10 +143,9 @@ export function homeData(db: Db): HomeData | null {
     .map((award) => ({ award, won: awarded.filter((w) => w.award === award.slug) }))
     .filter((a) => a.won.length)
     .map(({ award, won }) => ({
-      award: { slug: award.slug, name: award.name },
+      award: { slug: award.slug, name: award.name, measure: award.measure },
       franchises: won.map((w) => w.franchise),
       value: awardValue(award.unit, won[0].value),
-      measure: award.measure,
     }));
 
   const records = recordsThisSeason(db).map((h) => ({

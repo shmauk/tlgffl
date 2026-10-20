@@ -17,11 +17,11 @@ const highestScore = (figure: string) => ({
 // 92.67 in its three losses (weeks 1, 3, 4), and 3 averaged 103 in its three wins (weeks 1, 3, 5).
 // Nobody made a move.
 const SEASON_AWARDS = [
-  { award: { slug: 'nail-biter', name: 'Nail Biter' }, franchises: [team(3), team(4)], value: '18.00', measure: 'Average margin (points)' },
-  { award: { slug: 'standard-deviation', name: 'Standard Deviation' }, franchises: ALL, value: '1.58', measure: 'Spread of scores (points)' },
-  { award: { slug: 'heartbreaker', name: 'Heartbreaker' }, franchises: [team(4)], value: '92.67', measure: 'Average score in losses (points)' },
-  { award: { slug: 'lucky-duck', name: 'Lucky Duck' }, franchises: [team(3)], value: '103.00', measure: 'Average score in wins (points)' },
-  { award: { slug: 'pick-a-lane', name: 'Pick a Lane' }, franchises: ALL, value: '0', measure: 'Adds plus trades' },
+  { award: { slug: 'nail-biter', name: 'Nail Biter', measure: 'Average margin (points)' }, franchises: [team(3), team(4)], value: '18.00' },
+  { award: { slug: 'standard-deviation', name: 'Standard Deviation', measure: 'Spread of scores (points)' }, franchises: ALL, value: '1.58' },
+  { award: { slug: 'heartbreaker', name: 'Heartbreaker', measure: 'Average score in losses (points)' }, franchises: [team(4)], value: '92.67' },
+  { award: { slug: 'lucky-duck', name: 'Lucky Duck', measure: 'Average score in wins (points)' }, franchises: [team(3)], value: '103.00' },
+  { award: { slug: 'pick-a-lane', name: 'Pick a Lane', measure: 'Adds plus trades' }, franchises: ALL, value: '0' },
 ];
 
 describe('the regular season, week 3 final and week 4 being played', () => {
@@ -57,11 +57,11 @@ describe('the regular season, week 3 final and week 4 being played', () => {
     // After week 3: 3 has the smallest average margin (10, 10, 20); everyone's scores are 1, 2 and 3
     // above their base; 5 and 6 are the only ones with three losses, and 1 and 2 with three wins.
     expect(data.awards).toEqual([
-      { award: { slug: 'nail-biter', name: 'Nail Biter' }, franchises: [team(3)], value: '13.33', measure: 'Average margin (points)' },
-      { award: { slug: 'standard-deviation', name: 'Standard Deviation' }, franchises: ALL, value: '1.00', measure: 'Spread of scores (points)' },
-      { award: { slug: 'heartbreaker', name: 'Heartbreaker' }, franchises: [team(5)], value: '82.00', measure: 'Average score in losses (points)' },
-      { award: { slug: 'lucky-duck', name: 'Lucky Duck' }, franchises: [team(2)], value: '112.00', measure: 'Average score in wins (points)' },
-      { award: { slug: 'pick-a-lane', name: 'Pick a Lane' }, franchises: ALL, value: '0', measure: 'Adds plus trades' },
+      { award: { slug: 'nail-biter', name: 'Nail Biter', measure: 'Average margin (points)' }, franchises: [team(3)], value: '13.33' },
+      { award: { slug: 'standard-deviation', name: 'Standard Deviation', measure: 'Spread of scores (points)' }, franchises: ALL, value: '1.00' },
+      { award: { slug: 'heartbreaker', name: 'Heartbreaker', measure: 'Average score in losses (points)' }, franchises: [team(5)], value: '82.00' },
+      { award: { slug: 'lucky-duck', name: 'Lucky Duck', measure: 'Average score in wins (points)' }, franchises: [team(2)], value: '112.00' },
+      { award: { slug: 'pick-a-lane', name: 'Pick a Lane', measure: 'Adds plus trades' }, franchises: ALL, value: '0' },
     ]);
   });
 

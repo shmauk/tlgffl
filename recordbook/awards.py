@@ -18,7 +18,7 @@ PRECISION = 6
 SCHEMA = """
 -- The awards (#8), in the order the site lists them. unit says how a value
 -- reads: 'points', 'count', 'share' (a fraction) or 'dollars' (FAAB).
--- measure says, in a few words and with its unit, what a value is.
+-- measure says, in a few words, what a value is, with its unit where it has one.
 -- lowest_wins is 1 where the smallest value ranks first.
 create table awards (
     slug text primary key,

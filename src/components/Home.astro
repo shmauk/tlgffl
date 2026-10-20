@@ -100,7 +100,7 @@ const CROWNS = BRACKET_ORDER.map((key) => ({ key, label: BRACKET_CROWNS[key] }))
               <FranchiseLink franchise={f} teamName={f.teamName} />
             </>
           ))}
-          , {a.value}<Marker glyph="?" title={a.measure} />
+          , {a.value}<Marker glyph="?" title={a.award.measure} />
         </p>
       ))}
     </Row>

@@ -10,7 +10,7 @@ export interface Award {
   slug: string;
   name: string;
   definition: string;
-  /** What a value is, in a few words with its unit: "Average margin (points)". */
+  /** What a value is, in a few words, with its unit where it has one: "Average margin (points)". */
   measure: string;
   unit: AwardUnit;
   lowestWins: boolean;
