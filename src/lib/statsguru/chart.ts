@@ -10,8 +10,6 @@ import { chartSpecOf, positionRank, viewOf, viewsOf, type Mark, type Query, type
 import { HEADINGS, heading, viewName } from './render';
 import { addsUp, columnKind, columnValue, type Value } from './values';
 
-export { defaultChart, type ChartSpec, type Mark } from './query';
-
 /** A results column on one of the chart's axes, by its sort key. */
 export interface Channel {
   key: string;

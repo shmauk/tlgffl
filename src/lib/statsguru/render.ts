@@ -9,8 +9,6 @@ import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView,
 import { ascendingFirst, columnKind, columnValue, isText, isWhole, PHASE_NAMES } from './values';
 import type { Era } from '../season-sets';
 
-export { PHASE_NAMES };
-
 export interface Context {
   franchises: Named[];
   /** Every season, to tell "all seasons" from a span. */
