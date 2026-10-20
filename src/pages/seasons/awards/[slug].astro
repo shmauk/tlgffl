@@ -45,7 +45,7 @@ const tallied = [...tally.values()].sort(
         <p>Not awarded yet.</p>
       ) : (
         <table class="t">
-          <thead><tr><th>Season</th><th>Winner</th><th class="num">Value</th></tr></thead>
+          <thead><tr><th>Season</th><th>Winner</th><th class="num">{award.measure}</th></tr></thead>
           <tbody>
             {seasons.map((season) => {
               const won = winners.filter((w) => w.season === season);

@@ -621,7 +621,7 @@ def build(data, out, today=None):
                              winners=winners, formats=formats, seasons=seasons, played=played,
                              current=current, done=done)
         con.executescript(awardlib.SCHEMA)
-        con.executemany("insert into awards values (?, ?, ?, ?, ?, ?)", awardlib.award_rows())
+        con.executemany("insert into awards values (?, ?, ?, ?, ?, ?, ?)", awardlib.award_rows())
         con.executemany("insert into award_results values (?, ?, ?, ?, ?)", award_results)
         con.executemany("insert into award_unknowns values (?, ?, ?)", award_unknowns)
         con.executemany("insert into award_leaders values (?, ?, ?, ?, ?)", award_leaders)
