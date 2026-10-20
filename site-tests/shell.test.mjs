@@ -20,6 +20,7 @@ const pages = walk(DIST).filter((f) => f.endsWith('.html') && !isRedirect(f));
 const read = (path) => decode(readFileSync(join(DIST, path), 'utf8'));
 
 const MENU = [
+  ['/', 'Home'],
   ['/records/', 'Records'],
   ['/franchises/', 'Franchises'],
   ['/seasons/', 'Seasons'],
@@ -60,12 +61,16 @@ test('every page’s footer says how to report a mistake, linking a new issue (#
   }
 });
 
-test("the menu marks the section a page belongs to", () => {
-  const current = (path) => read(path).match(/<a href="([^"]*)" aria-current="page"/)?.[1];
-  assert.equal(current('franchises/index.html'), '/franchises/');
-  assert.equal(current('franchises/1/index.html'), '/franchises/');
-  assert.equal(current('league/index.html'), '/league/');
-  assert.equal(current('index.html'), undefined);
+test('the menu marks the section a page belongs to, and Home only on the home page', () => {
+  const current = (path) => [...read(path).matchAll(/<a href="([^"]*)" aria-current="page"/g)].map((m) => m[1]);
+  assert.deepEqual(current('index.html'), ['/']);
+  assert.deepEqual(current('records/index.html'), ['/records/']);
+  assert.deepEqual(current('franchises/index.html'), ['/franchises/']);
+  assert.deepEqual(current('franchises/1/index.html'), ['/franchises/']);
+  assert.deepEqual(current('seasons/index.html'), ['/seasons/']);
+  assert.deepEqual(current('statsguru/index.html'), ['/statsguru/']);
+  assert.deepEqual(current('league/index.html'), ['/league/']);
+  assert.deepEqual(current('head-to-head/1-2/index.html'), []);
 });
 
 test('every menu entry leads to a page', () => {

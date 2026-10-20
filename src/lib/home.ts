@@ -7,24 +7,12 @@ import type { Phase } from './current';
 import type { BracketKey } from './brackets';
 import type { Mark } from './seeding';
 
-/** A pairing of the week being played: never a score. */
+/** A pairing of a week still to come (the season page): never a score. */
 export interface Matchup {
   /** Null for a regular-season game. */
   bracket: BracketKey | null;
   home: SeasonFranchise;
   away: SeasonFranchise;
-}
-
-export interface Result extends Matchup {
-  homePoints: number;
-  awayPoints: number;
-  /** Null for a tie. */
-  winnerId: number | null;
-}
-
-export interface Score {
-  franchise: SeasonFranchise;
-  points: number;
 }
 
 /** One line of the compact playoff picture, in seed order. */
@@ -74,10 +62,6 @@ export interface HomeData {
   updated: string;
   /** Every franchise of the season, by id (the bracket columns name them by id). */
   names: Record<number, SeasonFranchise>;
-  /** The week being played. */
-  thisWeek: Matchup[];
-  /** The latest final week. */
-  lastWeek: { results: Result[]; highest: Score | null; lowest: Score | null } | null;
   /** While the regular season is on. */
   picture: PictureLine[] | null;
   /** From the end of the regular season. */
