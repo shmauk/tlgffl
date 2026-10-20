@@ -8,7 +8,7 @@ import { esc } from '../html';
 import { chartOf, type Chart } from './chart';
 import { runQuery } from './engine';
 import { formValues, queryFromForm, type Fields, type FormContext } from './form';
-import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, defaultChart, encodeQuery, type Query } from './query';
+import { DEFAULT_QUERY, chartChoiceOf, chartColumns, chartSpecOf, decodeQuery, defaultChart, encodeQuery, readChartChoice, type Query } from './query';
 import { HEADINGS, renderResults, summary, type Context } from './render';
 import { sqlJsDb } from './sqljs';
 
@@ -171,8 +171,7 @@ export function start(root: HTMLElement) {
   chartOn.addEventListener('change', () => go(encodeQuery({ ...decodeQuery(location.search), chart: chartOn.checked })));
   builder.addEventListener('change', () => {
     const q = decodeQuery(location.search);
-    const raw = { mark: choose('mark').value, x: choose('x').value, y: choose('y').value, series: choose('series').value };
-    go(encodeQuery({ ...q, chartChoice: chartChoiceOf(q, raw) }));
+    go(encodeQuery({ ...q, chartChoice: chartChoiceOf(q, readChartChoice((name) => choose(name).value)) }));
   });
   addEventListener('popstate', () => void render());
   void render();
