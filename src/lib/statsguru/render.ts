@@ -4,12 +4,12 @@
 import { esc } from '../html';
 import { weekList } from '../format';
 import { franchiseUrl, nflPlayerName, nflPlayerUrl, seasonUrl } from '../urls';
-import type {
-  GameRow, GapRow, GroupRow, Named, NflPlayer, PerformanceRow, PickGroupRow, PickPlayerRow, PickRow, PlayerRow, PositionRow,
-  QueryResult, Row,
-} from './engine';
-import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView, type Phase, type PickView, type PlayerView, type Query } from './query';
+import type { GameRow, GapRow, Named, NflPlayer, PerformanceRow, PickPlayerRow, PickRow, QueryResult, Row } from './engine';
+import { columnsOf, encodeQuery, seasonList, sortOf, viewOf, type FranchiseView, type PickView, type PlayerView, type Query } from './query';
+import { columnValue, PHASE_NAMES } from './values';
 import type { Era } from '../season-sets';
+
+export { PHASE_NAMES };
 
 export interface Context {
   franchises: Named[];
@@ -20,11 +20,6 @@ export interface Context {
 }
 
 export const ERA_NAMES: Record<Era, string> = { 'nfl.com': 'NFL.com era', sleeper: 'Sleeper era' };
-export const PHASE_NAMES: Record<Phase, string> = {
-  R: 'Regular season',
-  P: 'Playoffs',
-  C: 'Shit Bowl and Mediocre Bowl',
-};
 export const VIEW_NAMES: Record<FranchiseView, string> = {
   totals: 'Totals per franchise',
   season: 'Season by season',
@@ -68,6 +63,8 @@ export const HEADINGS: Record<string, string> = {
 /** Columns that read A-Z (or oldest first, or best first) before they read the other way. */
 const ASCENDING_FIRST = new Set(['f', 'o', 's', 'wk', 'ph', 'res', 'pl', 'pos', 'slot', 'rank', 'pk', 'rd', 'sf', 'top']);
 const TEXT_COLUMNS = new Set(['f', 'o', 'ph', 'res', 'pl', 'pos', 'slot', 'sf', 'kd', 'frs']);
+/** Figures that count something, shown as whole numbers; the others are points, to two places. */
+const COUNTS = new Set(['w', 'l', 't', 'st', 'rank', 'ro', 'dr', 'kc', 'nfr', 'n', 'pk', 'rd']);
 const heading = (key: string, q: Query) => (key === 'pos' && q.view === 'pos' && q.grouping === 'slot' ? 'Slot' : HEADINGS[key]);
 
 const MARKERS = {
@@ -142,7 +139,6 @@ export function summary(q: Query, ctx: Context): string {
 const fr = (f: Named) => `<a class="fr" href="${franchiseUrl(f.id)}">${esc(f.name)}</a>`;
 const season = (y: number) => `<a href="${seasonUrl(y)}">${y}</a>`;
 const fixed = (n: number | null) => (n == null ? '' : n.toFixed(2));
-const pl = (p: NflPlayer) => `<a class="pl" href="${esc(nflPlayerUrl(p.id))}">${esc(nflPlayerName(p))}</a>`;
 const pos = (p: string | null) => (p == null ? 'Unknown' : esc(p));
 
 export function renderResults(result: QueryResult, q: Query): string {
@@ -172,157 +168,51 @@ export function renderResults(result: QueryResult, q: Query): string {
     .join('');
 
   const td = (key: string, html: string) => `<td${TEXT_COLUMNS.has(key) ? '' : ' class="num"'}>${html}</td>`;
-  const groupRow = (r: GroupRow) =>
-    cols
-      .map((key) => {
-        const points = ['pf', 'pa', 'apf', 'apa'].includes(key);
-        switch (key) {
-          case 'f': return td(key, fr(r.franchise));
-          case 'o': return td(key, r.opponent ? fr(r.opponent) : '<span class="alias">Not recorded</span>');
-          case 's': return td(key, r.season == null ? '' : season(r.season));
-          case 'ph': return td(key, r.phase ? PHASE_NAMES[r.phase] : '');
-          case 'gp': return td(key, `${r.gp}${r.unchecked ? mk('§') : ''}`);
-          case 'pct': return td(key, r.pct == null ? '' : (r.pct * 100).toFixed(1));
-          case 'hi':
-          case 'lo': return td(key, `${fixed(r[key])}${r.partialHighs ? mk('*') : ''}`);
-          default: {
-            const v = (r as any)[key];
-            const text = points ? fixed(v) : String(v);
-            return td(key, `${text}${points && r.reported ? mk('†') : ''}${points && r.lostScores ? mk('‡') : ''}`);
-          }
-        }
-      })
-      .join('');
-  const gameRow = (r: GameRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 's': return td(key, season(r.season));
-          case 'wk': return td(key, `<a href="${seasonUrl(r.season, r.week)}">${r.week}</a>`);
-          case 'ph': return td(key, PHASE_NAMES[r.phase]);
-          case 'f': return td(key, fr(r.franchise));
-          case 'o': return td(key, fr(r.opponent));
-          case 'pf':
-          case 'pa': return td(key, r[key] == null ? mk('‡') : fixed(r[key]));
-          case 'res': return td(key, r.result);
-          case 'mar': return td(key, r.margin == null ? '' : `${r.margin > 0 ? '+' : ''}${r.margin.toFixed(2)}`);
-          default: return td(key, '');
-        }
-      })
-      .join('');
+  /** A cell: the column's value, from the one accessor charts read too, linked and marked by its row. */
+  const cell = (r: Row, key: string) => {
+    const v = columnValue(r, key);
+    const group = r.kind === 'group' ? r : null;
+    switch (key) {
+      case 'f': return v == null ? '' : fr({ id: (r as { franchise: Named }).franchise.id, name: v as string });
+      case 'o':
+        return v == null ? '<span class="alias">Not recorded</span>' : fr({ id: (r as { opponent: Named }).opponent.id, name: v as string });
+      case 'sf': return v == null ? '' : fr({ id: (r as PickRow).slotFranchise.id, name: v as string });
+      case 's': return v == null ? '' : season(v as number);
+      case 'wk': return `<a href="${seasonUrl((r as GameRow | PerformanceRow).season, v as number)}">${v}</a>`;
+      case 'pl': return `<a class="pl" href="${esc(nflPlayerUrl((r as { player: NflPlayer }).player.id))}">${esc(v as string)}</a>`;
+      case 'pos': return pos(v as string | null);
+      case 'ph':
+      case 'res': return v == null ? '' : String(v);
+      case 'slot': return esc(v as string);
+      case 'kd': return v == null ? '<span class="alias">Not recorded</span>' : (v as string);
+      case 'frs': return (r as PickPlayerRow).franchises.map(fr).join(', ');
+      case 'top': return r.kind === 'pickPlayer' ? `${v} (${season(r.top.season)})` : String(v);
+      case 'val': return `<span title="${esc(VALUE)}">${fixed(v as number)}</span>`;
+      case 'pct':
+      case 'share': return v == null ? '' : ((v as number) * 100).toFixed(1);
+      case 'mar': return v == null ? '' : `${(v as number) > 0 ? '+' : ''}${(v as number).toFixed(2)}`;
+      case 'gp': return `${v}${group?.unchecked ? mk('§') : ''}`;
+      case 'hi':
+      case 'lo': return `${fixed(v as number | null)}${group?.partialHighs ? mk('*') : ''}`;
+      case 'pf':
+      case 'pa':
+      case 'apf':
+      case 'apa':
+        // A game whose score is lost shows only its marker.
+        if (r.kind === 'game' && v == null) return mk('‡');
+        return `${fixed(v as number | null)}${group?.reported ? mk('†') : ''}${group?.lostScores ? mk('‡') : ''}`;
+      default: return COUNTS.has(key) ? (v == null ? '' : String(v)) : fixed(v as number | null);
+    }
+  };
   const gapRow = (r: GapRow) => {
     const what =
       r.kind === 'reported'
         ? `${r.gp} games with no scores, as NFL.com reported them: ${r.w}-${r.l}-${r.t}, PF ${fixed(r.pf)}, PA ${fixed(r.pa)}${mk('†')}`
         : `${r.gp} games with no scores, left out${mk('§')}`;
-    return `${td('s', season(r.season))}${td('wk', weekList(r.weeks))}${td('ph', PHASE_NAMES.R)}${td('f', fr(r.franchise))}<td colspan="${cols.length - 4}" class="alias">${what}</td>`;
+    return `${td('s', cell(r, 's'))}${td('wk', weekList(r.weeks))}${td('ph', cell(r, 'ph'))}${td('f', cell(r, 'f'))}<td colspan="${cols.length - 4}" class="alias">${what}</td>`;
   };
-  const positionRow = (r: PositionRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 'f': return td(key, fr(r.franchise));
-          case 'pos': return td(key, pos(r.pos));
-          case 'share': return td(key, r.share == null ? '' : (r.share * 100).toFixed(1));
-          case 'gp':
-          case 'st':
-          case 'rank': return td(key, String(r[key]));
-          default: return td(key, fixed((r as any)[key]));
-        }
-      })
-      .join('');
-  const playerRow = (r: PlayerRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 'pl': return td(key, pl(r.player));
-          case 'pos': return td(key, pos(r.player.position));
-          case 'f': return td(key, r.franchise ? fr(r.franchise) : '');
-          case 's': return td(key, r.season == null ? '' : season(r.season));
-          case 'ro':
-          case 'st':
-          case 'dr':
-          case 'kc':
-          case 'nfr': return td(key, String(r[key]));
-          default: return td(key, fixed((r as any)[key]));
-        }
-      })
-      .join('');
-  const performanceRow = (r: PerformanceRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 's': return td(key, season(r.season));
-          case 'wk': return td(key, `<a href="${seasonUrl(r.season, r.week)}">${r.week}</a>`);
-          case 'ph': return td(key, PHASE_NAMES[r.phase]);
-          case 'pl': return td(key, pl(r.player));
-          case 'pos': return td(key, pos(r.player.position));
-          case 'f': return td(key, fr(r.franchise));
-          case 'o': return td(key, fr(r.opponent));
-          case 'slot': return td(key, r.slot === 'BN' ? 'Bench' : esc(r.slot));
-          case 'pts': return td(key, fixed(r.points));
-          default: return td(key, '');
-        }
-      })
-      .join('');
-  const keptCell = (kept: boolean | null) =>
-    kept == null ? '<span class="alias">Not recorded</span>' : kept ? 'Kept' : 'Drafted';
-  const value = (v: number) => `<span title="${esc(VALUE)}">${fixed(v)}</span>`;
-  const pickRow = (r: PickRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 's': return td(key, season(r.season));
-          case 'pk':
-          case 'rd': return td(key, String(key === 'pk' ? r.pick : r.round));
-          case 'f': return td(key, fr(r.franchise));
-          case 'sf': return td(key, r.slotFranchise.id === r.franchise.id ? '' : fr(r.slotFranchise));
-          case 'pl': return td(key, pl(r.player));
-          case 'pos': return td(key, pos(r.player.position));
-          case 'kd': return td(key, keptCell(r.kept));
-          case 'val': return td(key, value(r.value));
-          default: return td(key, '');
-        }
-      })
-      .join('');
-  const pickGroupRow = (r: PickGroupRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 'f': return td(key, fr(r.franchise));
-          case 'pos': return td(key, pos(r.group as string | null));
-          case 'rd': return td(key, String(r.group));
-          case 'val': return td(key, value(r.value));
-          default: return td(key, String((r as any)[key]));
-        }
-      })
-      .join('');
-  const pickPlayerRow = (r: PickPlayerRow) =>
-    cols
-      .map((key) => {
-        switch (key) {
-          case 'pl': return td(key, pl(r.player));
-          case 'pos': return td(key, pos(r.player.position));
-          case 'top': return td(key, `${r.top.pick} (${season(r.top.season)})`);
-          case 'frs': return td(key, r.franchises.map(fr).join(', '));
-          case 'val': return td(key, value(r.value));
-          default: return td(key, String((r as any)[key]));
-        }
-      })
-      .join('');
-  const row = (r: Row) => {
-    switch (r.kind) {
-      case 'pick': return `<tr>${pickRow(r)}</tr>`;
-      case 'pickGroup': return `<tr>${pickGroupRow(r)}</tr>`;
-      case 'pickPlayer': return `<tr>${pickPlayerRow(r)}</tr>`;
-      case 'group': return `<tr>${groupRow(r)}</tr>`;
-      case 'game': return `<tr>${gameRow(r)}</tr>`;
-      case 'position': return `<tr>${positionRow(r)}</tr>`;
-      case 'player': return `<tr>${playerRow(r)}</tr>`;
-      case 'performance': return `<tr>${performanceRow(r)}</tr>`;
-      default: return `<tr>${gapRow(r)}</tr>`;
-    }
-  };
+  const row = (r: Row) =>
+    `<tr>${r.kind === 'reported' || r.kind === 'unchecked' ? gapRow(r) : cols.map((key) => td(key, cell(r, key))).join('')}</tr>`;
   const lineups = result.notes.some((n) => n.kind === 'lineups');
   const scope = lineups ? `<p class="sub">Sleeper era, 2025 on${mk('¶')}</p>` : '';
   const body = result.rows.length
