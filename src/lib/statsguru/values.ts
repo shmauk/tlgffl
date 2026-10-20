@@ -49,6 +49,9 @@ export const addsUp = (key: string) => KINDS[key] === 'count' || KINDS[key] === 
 export const ascendingFirst = (key: string) =>
   ['name', 'place', 'rank'].includes(KINDS[key]) && !DESCENDING_NAMES.has(key);
 
+/** An NFL player position no Sleeper snapshot knows, as the table and a chart show it. */
+export const UNKNOWN_POSITION = 'Unknown';
+
 export const PHASE_NAMES: Record<Phase, string> = {
   R: 'Regular season',
   P: 'Playoffs',
