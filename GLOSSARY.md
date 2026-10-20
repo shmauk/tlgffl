@@ -78,6 +78,10 @@ _Avoid_: Rules, settings
 **Era**:
 The platform a season was played on: the NFL.com era (2012–2024) or the Sleeper era (2025 on).
 
+**League size**:
+How many franchises played in a season: 10 in 2012, 12 in 2013–2014, 16 since 2015. Seasons of one size can differ in format.
+_Avoid_: Format, era (for a league size)
+
 **Division**:
 A group of franchises in one season whose standings drive bracket seeding: one division to 2014, four groups of four since 2015.
 _Avoid_: Group, conference
