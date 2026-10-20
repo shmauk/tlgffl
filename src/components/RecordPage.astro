@@ -1,6 +1,6 @@
 ---
-// One record page (#14, #30): its era and phase filters as links to the
-// pre-rendered variants (one URL each, #54), the top 10 (extended to anyone level with 10th),
+// One record page (#14, #30): its era, League size (#56) and phase filters as
+// links to the pre-rendered variants (one URL each, #54), the top 10 (extended to anyone level with 10th),
 // the qualification footnote and markers, and the full list in Statsguru.
 // No JS (ADR 0002).
 import Base from '../layouts/Base.astro';
@@ -13,7 +13,7 @@ import FranchiseLink from './FranchiseLink.astro';
 import SeasonLink from './SeasonLink.astro';
 import NflPlayerLink from './NflPlayerLink.astro';
 import { figure as figureOf } from '../lib/figures';
-import { categoryOf, PHASE_NAMES, SEASON_SET_NAMES, variantUrl, type PhaseFilter, type SeasonSet, type Unit } from '../lib/records/catalogue';
+import { categoryOf, filters, PHASE_NAMES, SEASON_SET_NAMES, variantUrl, type PhaseFilter, type SeasonSet, type Unit } from '../lib/records/catalogue';
 import type { Entry, RecordFranchise, RecordView } from '../lib/records/records';
 import { headToHeadUrl, statsguruUrl } from '../lib/urls';
 import { holders as holdersOf } from '../lib/records/held';
@@ -52,6 +52,7 @@ const phaseName = def.phases.length > 1 ? PHASE_NAMES[phase] : phase === 'regula
 // A record kept in one era only (the Sleeper era's) has no era filter.
 const eraName = def.seasonSets.length > 1 ? SEASON_SET_NAMES[seasonSet] : `${SEASON_SET_NAMES[seasonSet]} only`;
 const variantName = phaseName ? `${eraName} · ${phaseName}` : eraName;
+const { eras, sizes } = filters(def, seasonSet);
 ---
 
 <Base title={`${def.name}${seasonSet === 'all-seasons' && phase === def.phases[0] ? '' : ` (${variantName})`}`}>
@@ -59,11 +60,11 @@ const variantName = phaseName ? `${eraName} · ${phaseName}` : eraName;
     <h1>{def.name}</h1>
     <p class="sub">{variantName}</p>
     {
-      def.seasonSets.length > 1 && (
+      [eras, sizes].map((row) => row && (
         <p class="filters">
-          {def.seasonSets.map((s) => <a href={href(s, phase)} aria-current={s === seasonSet ? 'page' : undefined}>{SEASON_SET_NAMES[s]}</a>)}
+          {row.map((f) => <a href={href(f.seasonSet, phase)} aria-current={f.current ? 'page' : undefined}>{f.name}</a>)}
         </p>
-      )
+      ))
     }
     {
       def.phases.length > 1 && (

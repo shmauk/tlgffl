@@ -89,6 +89,11 @@ def test_bracket_tallies_count_each_franchises_seasons(data, tmp_path):
     assert tallies(db, "finals") == [(1, 3, "2014,2015,2016"), (2, 2, "2014,2015"), (3, 1, "2016")]
     assert tallies(db, "playoffs") == [(1, 3, "2014,2015,2016"), (2, 2, "2014,2015"), (3, 1, "2016")]
     assert tallies(db, "championships", "sleeper") == []
+    # League sizes are fixed years: 2014 is a 12-team season, 2015 on 16-team.
+    assert tallies(db, "championships", "12-teams") == [(1, 1, "2014")]
+    assert tallies(db, "championships", "16-teams") == [(1, 1, "2016"), (2, 1, "2015")]
+    assert tallies(db, "championships", "nfl-com-16-teams") == [(1, 1, "2016"), (2, 1, "2015")]
+    assert tallies(db, "championships", "10-teams") == []
 
 
 def test_a_disputed_shit_bowl_counts_for_nobody(data, tmp_path):

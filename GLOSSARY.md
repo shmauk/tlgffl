@@ -175,5 +175,5 @@ A ranked list of franchises, seasons, games or divisions on one measure, such as
 _Avoid_: Leaderboard, record (for a W-L-T line)
 
 **Season set**:
-A named set of seasons a record can be ranked over: all seasons or one era's. A record's page is filtered by season set and phase.
+A named set of seasons a record can be ranked over: all seasons, one era's, one league size's, or the NFL.com era's 16-team seasons. A record's page is filtered by season set and phase.
 _Avoid_: Era (for a record's filter)
