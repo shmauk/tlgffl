@@ -16,7 +16,9 @@ const walk = (dir) =>
     return statSync(p).isDirectory() ? walk(p) : [p];
   });
 
-const SEASON_SETS = ['all-seasons', 'nfl-com', 'sleeper'];
+const SEASON_SETS = ['all-seasons', 'nfl-com', 'sleeper', '10-teams', '12-teams', '16-teams', 'nfl-com-16-teams'];
+// One 10-team season qualifies nobody for a career rate (#56).
+const setsOf = (slug) => (['career-win-pct', 'career-points-per-game'].includes(slug) ? SEASON_SETS.filter((s) => s !== '10-teams') : SEASON_SETS);
 const PHASES = ['all', 'regular', 'playoffs'];
 const SCORING = ['highest-score', 'lowest-score', 'highest-score-in-a-loss', 'lowest-score-in-a-win', 'biggest-margin',
   'narrowest-margin', 'highest-combined-score', 'lowest-combined-score', 'all-ties'];
@@ -56,7 +58,7 @@ test('each record and only its sensible season set and phase variants are pre-re
   for (const slug of RECORDS) {
     assert.ok(existsSync(join(DIST, 'records', slug, 'index.html')), slug);
     const phases = STREAKS.includes(slug) ? ['regular'] : PHASES;
-    const expected = SEASON_SETS.flatMap((set) => phases.map((phase) => variantPage(slug, set, phase, ['all-seasons', phases[0]])));
+    const expected = setsOf(slug).flatMap((set) => phases.map((phase) => variantPage(slug, set, phase, ['all-seasons', phases[0]])));
     assert.equal(new Set(expected).size, expected.length, slug);
     for (const page of expected) assert.ok(existsSync(page), page);
     // Nothing else: the old /<era>/<phase>/ pages are gone.
@@ -69,6 +71,50 @@ test('each record and only its sensible season set and phase variants are pre-re
   assert.ok(!existsSync(join(DIST, 'records', 'highest-score', 'sleeper', 'all')));
   assert.ok(existsSync(join(DIST, 'records', 'longest-winning-streak', 'sleeper', 'index.html')));
   assert.ok(!existsSync(join(DIST, 'records', 'longest-winning-streak', 'sleeper', 'regular')));
+});
+
+test('a record page offers League sizes beside the eras, only the distinct combinations (#56)', () => {
+  const html = read('records/highest-score/16-teams/regular');
+  assert.match(html, /<a href="\/records\/highest-score\/16-teams\/regular\/" aria-current="page">16 teams/);
+  assert.match(html, /<a href="\/records\/highest-score\/16-teams\/regular\/" aria-current="page">All eras/);
+  assert.match(html, /href="\/records\/highest-score\/nfl-com-16-teams\/regular\/">NFL.com era/);
+  assert.match(html, /href="\/records\/highest-score\/sleeper\/regular\/">Sleeper era/);
+  assert.match(html, /href="\/records\/highest-score\/regular\/">All sizes/);
+  assert.match(html, /href="\/records\/highest-score\/12-teams\/regular\/">12 teams/);
+  // The Sleeper era is all 16 teams, and 10 and 12 teams all NFL.com.
+  assert.doesNotMatch(read('records/highest-score/sleeper'), />All sizes</);
+  assert.doesNotMatch(read('records/highest-score/12-teams'), />NFL\.com era</);
+  assert.doesNotMatch(read('records/highest-score/12-teams'), />All eras</);
+  assert.match(read('records/highest-score/nfl-com'), /href="\/records\/highest-score\/nfl-com-16-teams\/">16 teams/);
+  // A record with one possible size has no size row, and no size pages.
+  for (const slug of ['mediocre-bowl-titles', 'group-of-death']) {
+    assert.doesNotMatch(read(`records/${slug}`), />All sizes</, slug);
+    assert.ok(!existsSync(join(DIST, 'records', slug, '16-teams')), slug);
+  }
+  assert.doesNotMatch(read('records/career-win-pct'), />10 teams/);
+  assert.ok(!existsSync(join(DIST, 'records', 'career-win-pct', '10-teams')));
+});
+
+test('a League size page names its size in the title and subtitle, and in its Statsguru link (#56)', () => {
+  const html = read('records/highest-score/16-teams/regular');
+  assert.match(html, /<title>Highest score \(16 teams · Regular season\)/);
+  assert.match(html, /<p class="sub">16 teams · Regular season<\/p>/);
+  assert.match(html, /href="\/statsguru\/\?[^"]*size=16[^"]*">Full list in Statsguru/);
+  assert.doesNotMatch(html, /href="\/statsguru\/\?[^"]*era=[^"]*">Full list in Statsguru/);
+  const both = read('records/career-wins/nfl-com-16-teams');
+  assert.match(both, /<p class="sub">NFL.com era, 16 teams · All games<\/p>/);
+  assert.match(both, /href="\/statsguru\/\?[^"]*era=nfl.com[^"]*">Full list in Statsguru/);
+  assert.match(both, /href="\/statsguru\/\?[^"]*size=16[^"]*">Full list in Statsguru/);
+});
+
+test('under 16 teams careers and streaks count only 2015-on games (#56)', () => {
+  const wins = db.prepare('select sum(wins) as w from season_lines where season >= 2015 group by franchise_id order by 1 desc')
+    .all().map((r) => r.w);
+  assert.deepEqual(figures(read('records/career-wins/16-teams/regular')), wins.filter((w) => w >= wins[9]).map(String));
+  const lengths = db.prepare(`select s.length from record_streaks s join games g on g.id = s.first_game_id
+                              where s.record = 'winning' and s.season_set = '16-teams' and g.season >= 2015
+                              order by s.length desc`).all().map((r) => r.length);
+  assert.deepEqual(figures(read('records/longest-winning-streak/16-teams')), lengths.filter((l) => l >= lengths[9]).map(String));
 });
 
 test('record pages ship no JavaScript', () => {

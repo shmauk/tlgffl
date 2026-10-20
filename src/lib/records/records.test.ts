@@ -7,7 +7,7 @@ import type { GroupRow } from '../statsguru/engine';
 import { open } from '../database';
 import { runQuery } from '../statsguru/engine';
 import { DEFAULT_QUERY, decodeQuery, encodeQuery } from '../statsguru/query';
-import { CATEGORIES, PHASES, RECORDS, SEASON_SETS, recordDef, variants, variantUrl } from './catalogue';
+import { CATEGORIES, PHASES, RECORDS, SEASON_SETS, filters, recordDef, variants, variantUrl } from './catalogue';
 import { recordView } from './records';
 
 const sqlite = new DatabaseSync(process.env.TLGFFL_DB ?? 'build/league.sqlite', { readOnly: true });
@@ -62,6 +62,61 @@ describe('the catalogue', () => {
     expect(new Set(urls).size).toBe(urls.length);
     // A segment is a season set or a phase, never both.
     expect(SEASON_SETS.filter((s) => (PHASES as string[]).includes(s))).toEqual([]);
+  });
+
+  test('a League size variant has its own URL (#56)', () => {
+    const def = recordDef('highest-score')!;
+    expect(variantUrl(def, { seasonSet: '16-teams', phase: 'regular' })).toBe('/records/highest-score/16-teams/regular/');
+    expect(variantUrl(def, { seasonSet: 'nfl-com-16-teams', phase: 'all' })).toBe('/records/highest-score/nfl-com-16-teams/');
+    expect(def.seasonSets).toEqual(['all-seasons', 'nfl-com', 'sleeper', '10-teams', '12-teams', '16-teams', 'nfl-com-16-teams']);
+  });
+
+  test('a record offers only the League sizes it can have entries for (#56)', () => {
+    const sets = (slug: string) => recordDef(slug)!.seasonSets;
+    // Nothing before 2015 (Mediocre Bowl, divisions) or 2025 (Sleeper only): one size, so no size sets.
+    for (const slug of ['mediocre-bowl-titles', 'group-of-death', 'winningest-division'])
+      expect(sets(slug), slug).toEqual(['all-seasons', 'nfl-com', 'sleeper']);
+    for (const slug of ['shit-bowl-appearances', 'best-nfl-player-score', 'most-bench-points-in-a-season'])
+      expect(sets(slug), slug).toEqual(['sleeper']);
+    // One 10-team season can't give 2 completed seasons, nor 6 games between two franchises.
+    for (const slug of ['career-win-pct', 'career-points-per-game', 'career-points-against-per-game', 'most-lopsided-rivalry'])
+      expect(sets(slug), slug).toEqual(['all-seasons', 'nfl-com', 'sleeper', '12-teams', '16-teams', 'nfl-com-16-teams']);
+    for (const slug of ['career-wins', 'longest-winning-streak', 'most-wins', 'championships', 'longest-playoff-drought'])
+      expect(sets(slug), slug).toContain('10-teams');
+  });
+
+  test('the era and size rows offer only the distinct combinations, one URL each (#56)', () => {
+    const rows = (slug: string, seasonSet: string) => {
+      const f = filters(recordDef(slug)!, seasonSet as any);
+      const row = (r: typeof f.eras) => r && r.map((o) => `${o.current ? '*' : ''}${o.name}=${o.seasonSet}`);
+      return { eras: row(f.eras), sizes: row(f.sizes) };
+    };
+    expect(rows('highest-score', 'all-seasons')).toEqual({
+      eras: ['*All eras=all-seasons', 'NFL.com era=nfl-com', 'Sleeper era=sleeper'],
+      sizes: ['*All sizes=all-seasons', '10 teams (2012)=10-teams', '12 teams (2013–14)=12-teams', '16 teams (2015 on)=16-teams'],
+    });
+    // Every Sleeper season has 16 teams: no size row.
+    expect(rows('highest-score', 'sleeper').sizes).toBeNull();
+    // 10 and 12 teams are NFL.com only: no era row.
+    expect(rows('highest-score', '12-teams').eras).toBeNull();
+    expect(rows('highest-score', '12-teams').sizes).toContain('*12 teams (2013–14)=12-teams');
+    // The NFL.com era and 16 teams together are their own set.
+    expect(rows('highest-score', 'nfl-com').sizes).toEqual([
+      '*All sizes=nfl-com', '10 teams (2012)=10-teams', '12 teams (2013–14)=12-teams', '16 teams (2015 on)=nfl-com-16-teams',
+    ]);
+    expect(rows('highest-score', '16-teams').eras).toEqual(['*All eras=16-teams', 'NFL.com era=nfl-com-16-teams', 'Sleeper era=sleeper']);
+    expect(rows('highest-score', 'nfl-com-16-teams')).toEqual({
+      eras: ['All eras=16-teams', '*NFL.com era=nfl-com-16-teams', 'Sleeper era=sleeper'],
+      sizes: ['All sizes=nfl-com', '10 teams (2012)=10-teams', '12 teams (2013–14)=12-teams', '*16 teams (2015 on)=nfl-com-16-teams'],
+    });
+    // Only the sizes a record has; with one possible size, no size row.
+    expect(rows('career-win-pct', 'all-seasons').sizes).toEqual([
+      '*All sizes=all-seasons', '12 teams (2013–14)=12-teams', '16 teams (2015 on)=16-teams',
+    ]);
+    expect(rows('mediocre-bowl-titles', 'all-seasons')).toEqual({
+      eras: ['*All eras=all-seasons', 'NFL.com era=nfl-com', 'Sleeper era=sleeper'], sizes: null,
+    });
+    expect(rows('best-nfl-player-score', 'sleeper')).toEqual({ eras: null, sizes: null });
   });
 });
 
@@ -147,6 +202,22 @@ describe('scoring', () => {
     expect(encodeQuery({ ...DEFAULT_QUERY, ...view('highest-score').statsguru! })).not.toContain('era=');
   });
 
+  test("a League size variant's full list in Statsguru names the size, and the era where set (#56)", () => {
+    const search = (slug: string, set: string) => encodeQuery({ ...DEFAULT_QUERY, ...view(slug, set).statsguru! });
+    expect(search('highest-score', '16-teams')).toContain('size=16');
+    expect(search('highest-score', '16-teams')).not.toContain('era=');
+    expect(search('highest-score', '10-teams')).toContain('size=10');
+    expect(search('career-wins', 'nfl-com-16-teams')).toMatch(/era=nfl\.com.*size=16|size=16.*era=nfl\.com/);
+    expect(search('most-wins', '12-teams')).toContain('size=12');
+  });
+
+  test('a League size keeps to its seasons (#56)', () => {
+    for (const e of view('highest-score', '10-teams').entries) expect(e.at!.season).toBe(2012);
+    for (const e of view('highest-score', '12-teams').entries) expect([2013, 2014]).toContain(e.at!.season);
+    for (const e of view('highest-score', 'nfl-com-16-teams').entries) expect(e.at!.season).toBeGreaterThanOrEqual(2015);
+    for (const e of view('highest-score', 'nfl-com-16-teams').entries) expect(e.at!.season).toBeLessThanOrEqual(2024);
+  });
+
   test('a game left out of the records is in no game-based record, and each says why', () => {
     const x = one(`select g.season, g.week, g.home_franchise_id as h, g.away_franchise_id as a, e.reason
                    from record_exclusions e join games g on g.id = e.game_id`);
@@ -170,6 +241,23 @@ describe('results and streaks', () => {
     const leaders = view('career-wins', 'all-seasons', 'regular').entries.filter((e) => e.rank === 1);
     expect(leaders.map((e) => e.value)).toEqual(leaders.map(() => most));
     expect(new Set(leaders.map((e) => e.franchise.id))).toEqual(new Set(totals.filter((t) => t.w === most).map((t) => t.f)));
+  });
+
+  test('under 16 teams a career counts only games from 2015 on (#56)', () => {
+    const totals = sqlite
+      .prepare('select franchise_id as f, sum(wins) as w from season_lines where season >= 2015 group by 1').all() as any[];
+    const most = Math.max(...totals.map((t) => t.w));
+    const leaders = view('career-wins', '16-teams', 'regular').entries.filter((e) => e.rank === 1);
+    expect(leaders.map((e) => e.value)).toEqual(leaders.map(() => most));
+    expect(new Set(leaders.map((e) => e.franchise.id))).toEqual(new Set(totals.filter((t) => t.w === most).map((t) => t.f)));
+    for (const e of view('career-wins', '16-teams', 'regular').entries) expect(e.seasons![0]).toBeGreaterThanOrEqual(2015);
+  });
+
+  test('under 16 teams a streak starts no earlier than 2015 (#56)', () => {
+    for (const slug of ['longest-winning-streak', 'longest-losing-streak', 'longest-top-half-run'])
+      for (const e of view(slug, '16-teams').entries) expect(e.from!.season, slug).toBeGreaterThanOrEqual(2015);
+    const top = one("select max(length) as n from record_streaks where record = 'winning' and season_set = '16-teams'").n;
+    expect(view('longest-winning-streak', '16-teams').entries[0].value).toBe(top);
   });
 
   test('career rates need at least 2 completed seasons', () => {

@@ -34,10 +34,10 @@ describe('the catalogue', () => {
     expect(brackets.records.slice(1).map((r) => r.slug)).toEqual(BRACKETS);
   });
 
-  test('season-line records are regular season only, over every era', () => {
+  test('season-line records are regular season only, over every era and League size', () => {
     for (const slug of [...SEASONS, 'luckiest-season', 'unluckiest-season']) {
       expect(recordDef(slug)!.phases, slug).toEqual(['regular']);
-      expect(variants(recordDef(slug)!).length, slug).toBe(3);
+      expect(variants(recordDef(slug)!).length, slug).toBe(7);
     }
   });
 });

@@ -12,16 +12,34 @@ import { recordUrl, SEASONS_URL } from '../urls';
  * the same keys (recordbook/season_sets.py), and the season_sets table lists
  * each one's seasons. No season set is named like a phase.
  */
-export type SeasonSet = 'all-seasons' | 'nfl-com' | 'sleeper';
+export type SeasonSet = 'all-seasons' | 'nfl-com' | 'sleeper' | '10-teams' | '12-teams' | '16-teams' | 'nfl-com-16-teams';
+/** A League size: how many franchises played, 10 in 2012, 12 in 2013–14 and 16 from 2015. */
+export type LeagueSize = 10 | 12 | 16;
 /** The phase filter: the Playoffs alone, the regular season alone, or every game. */
 export type PhaseFilter = 'all' | 'regular' | 'playoffs';
 
 /** The eras' season sets: every season, or one era's. */
 export const ERAS: SeasonSet[] = ['all-seasons', 'nfl-com', 'sleeper'];
-export const SEASON_SETS: SeasonSet[] = [...ERAS];
+/**
+ * Each League size's season set (#56). The NFL.com era's 16-team seasons are
+ * the one era and size pair no other set gives: the Sleeper era is all 16
+ * teams, and 10 and 12 teams are all NFL.com.
+ */
+const SIZE_SETS: Record<LeagueSize, SeasonSet> = { 10: '10-teams', 12: '12-teams', 16: '16-teams' };
+export const SEASON_SETS: SeasonSet[] = [...ERAS, ...Object.values(SIZE_SETS), 'nfl-com-16-teams'];
+/**
+ * A record's season sets: the eras, and each League size it can have entries
+ * for. A record with only one possible size has no size sets.
+ */
+const withSizes = (sizes: LeagueSize[]): SeasonSet[] =>
+  sizes.length > 1 ? [...ERAS, ...sizes.map((n) => SIZE_SETS[n]), ...(sizes.includes(16) ? ['nfl-com-16-teams' as const] : [])] : ERAS;
+const EVERY_SIZE = withSizes([10, 12, 16]);
+// One 10-team season gives nobody 2 completed seasons, nor 6 games against one opponent.
+const NOT_10_TEAMS = withSizes([12, 16]);
 export const PHASES: PhaseFilter[] = ['all', 'regular', 'playoffs'];
 export const SEASON_SET_NAMES: Record<SeasonSet, string> = {
   'all-seasons': 'All eras', 'nfl-com': 'NFL.com era', sleeper: 'Sleeper era',
+  '10-teams': '10 teams', '12-teams': '12 teams', '16-teams': '16 teams', 'nfl-com-16-teams': 'NFL.com era, 16 teams',
 };
 /**
  * Each season set as Statsguru names it (#55): by era and League size, not
@@ -31,6 +49,10 @@ export const SEASON_SET_QUERY: Record<SeasonSet, Pick<Query, 'era' | 'size'>> = 
   'all-seasons': { era: null, size: null },
   'nfl-com': { era: 'nfl.com', size: null },
   sleeper: { era: 'sleeper', size: null },
+  '10-teams': { era: null, size: 10 },
+  '12-teams': { era: null, size: 12 },
+  '16-teams': { era: null, size: 16 },
+  'nfl-com-16-teams': { era: 'nfl.com', size: 16 },
 };
 export const PHASE_NAMES: Record<PhaseFilter, string> = { all: 'All games', regular: 'Regular season', playoffs: 'Playoffs' };
 
@@ -95,31 +117,32 @@ const GAMES = 'Every final game with a score, from each franchise’s side.';
 const game = (
   slug: string, name: string, dir: 'asc' | 'desc', key: 'pf' | 'mar', result: 'W' | 'L' | null, qualification = GAMES,
 ): RecordDef => ({
-  slug, name, category: 'scoring', kind: 'game', unit: 'points', dir, seasonSets: ERAS, phases: PHASES, qualification,
+  slug, name, category: 'scoring', kind: 'game', unit: 'points', dir, seasonSets: EVERY_SIZE, phases: PHASES, qualification,
   statsguru: { view: 'games', result, sort: { key, dir } },
   figure: (r) => (r.kind === 'game' ? r[key === 'pf' ? 'pf' : 'margin'] : null),
 });
 const pair = (slug: string, name: string, dir: 'asc' | 'desc', table: 'combined' | 'ties', qualification: string): RecordDef => ({
-  slug, name, category: 'scoring', kind: 'pair', unit: 'points', dir, seasonSets: ERAS, phases: PHASES, qualification,
+  slug, name, category: 'scoring', kind: 'pair', unit: 'points', dir, seasonSets: EVERY_SIZE, phases: PHASES, qualification,
   figure: none, table, all: table === 'ties',
 });
 const career = (
   slug: string, name: string, key: 'w' | 'pct' | 'apf' | 'apa', unit: Unit, qualification: string, category = 'results',
 ): RecordDef => ({
-  slug, name, category, kind: 'career', unit, dir: 'desc', seasonSets: ERAS, phases: PHASES, qualification,
+  slug, name, category, kind: 'career', unit, dir: 'desc', seasonSets: key === 'w' ? EVERY_SIZE : NOT_10_TEAMS, phases: PHASES,
+  qualification,
   statsguru: { view: 'totals', sort: { key, dir: 'desc' } },
   figure: (r) => (r.kind === 'group' ? r[key] : null),
   rate: key !== 'w',
 });
 const STREAKS = 'Consecutive regular-season games, carried across seasons. NFL.com-era Shit Bowl and Mediocre Bowl games were never recorded, so bracket games don’t count.';
 const streak = (slug: string, name: string, table: 'winning' | 'losing' | 'top_half', qualification: string): RecordDef => ({
-  slug, name, category: 'results', kind: 'streak', unit: 'count', dir: 'desc', seasonSets: ERAS, phases: ['regular'],
+  slug, name, category: 'results', kind: 'streak', unit: 'count', dir: 'desc', seasonSets: EVERY_SIZE, phases: ['regular'],
   qualification, figure: none, table,
 });
 
 const rivalry = (slug: string, name: string, key: 'pct' | 'gp', qualification: string): RecordDef => ({
   slug, name, category: 'head-to-head', kind: 'rivalry', unit: key === 'pct' ? 'pct' : 'count', dir: 'desc',
-  seasonSets: ERAS, phases: PHASES, qualification, heading: key === 'pct' ? 'Win %' : 'Games',
+  seasonSets: key === 'pct' ? NOT_10_TEAMS : EVERY_SIZE, phases: PHASES, qualification, heading: key === 'pct' ? 'Win %' : 'Games',
   statsguru: { view: 'opp', minGames: key === 'pct' ? 6 : 0, sort: { key, dir: 'desc' } },
   // Reported games have no known opponent: they aren't anyone's rivalry.
   figure: (r) => (r.kind === 'group' && r.opponent ? r[key] : null),
@@ -147,7 +170,7 @@ const season = (
   slug: string, name: string, dir: 'asc' | 'desc', column: string, unit: Unit, alongside: Alongside[],
   qualification = SEASON_LINES, category = 'seasons',
 ): RecordDef => ({
-  slug, name, category, kind: 'season', unit, dir, seasonSets: ERAS, phases: ['regular'], qualification, figure: none, column,
+  slug, name, category, kind: 'season', unit, dir, seasonSets: EVERY_SIZE, phases: ['regular'], qualification, figure: none, column,
   alongside, seasonSort: SEASON_SORT[column],
 });
 const PF_GAME: Alongside = { label: 'PF per game', column: 'points_for_per_game', unit: 'points' };
@@ -156,12 +179,12 @@ const WIN_PCT: Alongside = { label: 'Win %', column: 'win_pct', unit: 'pct' };
 const BREAKDOWN_PCT: Alongside = { label: 'Breakdown %', column: 'breakdown_pct', unit: 'pct' };
 
 const FINISHED = 'Every finished season.';
-const tally = (slug: string, name: string, record: string, qualification: string, seasonSets: SeasonSet[] = ERAS): RecordDef => ({
+const tally = (slug: string, name: string, record: string, qualification: string, seasonSets: SeasonSet[] = EVERY_SIZE): RecordDef => ({
   slug, name, category: 'brackets', kind: 'tally', unit: 'count', dir: 'desc', seasonSets, phases: ['all'], qualification,
   figure: none, record,
 });
 const run = (slug: string, name: string, record: string, qualification: string): RecordDef => ({
-  slug, name, category: 'brackets', kind: 'run', unit: 'count', dir: 'desc', seasonSets: ERAS, phases: ['all'], qualification,
+  slug, name, category: 'brackets', kind: 'run', unit: 'count', dir: 'desc', seasonSets: EVERY_SIZE, phases: ['all'], qualification,
   figure: none, record,
 });
 
@@ -208,7 +231,7 @@ export const RECORDS: RecordDef[] = [
     `Since 2025: NFL.com never recorded who played in the Shit Bowl, so the NFL.com era can’t be counted. ${FINISHED}`,
     ['sleeper']),
   tally('mediocre-bowl-titles', 'Mediocre Bowl titles', 'mediocre_bowl_titles',
-    `Since 2015, when the Mediocre Bowl began. ${FINISHED} An unknown or disputed outcome counts for nobody.`),
+    `Since 2015, when the Mediocre Bowl began. ${FINISHED} An unknown or disputed outcome counts for nobody.`, ERAS),
   run('longest-playoff-drought', 'Longest Playoff drought', 'drought',
     `Consecutive seasons a franchise played without a Playoff appearance. ${FINISHED}`),
   run('longest-playoff-appearance-streak', 'Longest Playoff appearance streak', 'appearances',
@@ -288,3 +311,46 @@ export const variantPath = (def: RecordDef, { seasonSet, phase }: Variant): stri
 
 /** A variant's one URL. */
 export const variantUrl = (def: RecordDef, variant: Variant) => recordUrl(def.slug, variantPath(def, variant));
+
+/** One choice in a record page's era or size row. */
+export interface Filter {
+  name: string;
+  seasonSet: SeasonSet;
+  current: boolean;
+}
+
+type EraChoice = 'all-seasons' | 'nfl-com' | 'sleeper';
+const ERA_OF: Record<SeasonSet, EraChoice> = {
+  'all-seasons': 'all-seasons', 'nfl-com': 'nfl-com', sleeper: 'sleeper',
+  '10-teams': 'all-seasons', '12-teams': 'all-seasons', '16-teams': 'all-seasons', 'nfl-com-16-teams': 'nfl-com',
+};
+const SIZE_OF: Record<SeasonSet, LeagueSize | null> = {
+  'all-seasons': null, 'nfl-com': null, sleeper: null,
+  '10-teams': 10, '12-teams': 12, '16-teams': 16, 'nfl-com-16-teams': 16,
+};
+const SIZE_NAMES: Record<LeagueSize, string> = { 10: '10 teams (2012)', 12: '12 teams (2013–14)', 16: '16 teams (2015 on)' };
+/** The one season set an era and a League size (null for every size) give together. */
+const setOf = (era: EraChoice, size: LeagueSize | null): SeasonSet =>
+  era === 'sleeper' ? 'sleeper' : size === null ? era : size === 16 && era === 'nfl-com' ? 'nfl-com-16-teams' : SIZE_SETS[size];
+
+/**
+ * A record page's era and size rows (#56), each null where it isn't shown.
+ * Each choice keeps the other row's, and equivalent pairs are one season set:
+ * the Sleeper era has no size row (every Sleeper season is 16 teams), and 10
+ * or 12 teams no era row (both are NFL.com only). A record with one possible
+ * era or size has no row for it.
+ */
+export function filters(def: RecordDef, seasonSet: SeasonSet): { eras: Filter[] | null; sizes: Filter[] | null } {
+  const era = ERA_OF[seasonSet];
+  const size = SIZE_OF[seasonSet];
+  const eras = ERAS.filter((s) => def.seasonSets.includes(s)) as EraChoice[];
+  const sizes = ([10, 12, 16] as LeagueSize[]).filter((n) => def.seasonSets.includes(SIZE_SETS[n]));
+  return {
+    eras: eras.length > 1 && size !== 10 && size !== 12
+      ? eras.map((e) => ({ name: SEASON_SET_NAMES[e], seasonSet: setOf(e, size), current: e === era }))
+      : null,
+    sizes: sizes.length > 1 && era !== 'sleeper'
+      ? [null, ...sizes].map((n) => ({ name: n === null ? 'All sizes' : SIZE_NAMES[n], seasonSet: setOf(era, n), current: n === size }))
+      : null,
+  };
+}

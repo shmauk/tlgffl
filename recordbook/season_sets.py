@@ -3,9 +3,10 @@
 Every figure a record ranks over some of the seasons (bracket tallies,
 streaks, completed seasons) is kept once per season set, and the site filters
 records by the same keys, which are also the URL segments of a record's
-variants. For now the sets are all seasons and the two eras; another set
-(League size, #56) is one more entry in season_sets(). Keys never collide
-with a record's phases ('all', 'regular', 'playoffs').
+variants. The sets are all seasons, the two eras, each League size (#56) and
+the one pairing of era and size no other set already gives: the NFL.com era's
+16-team seasons. Keys never collide with a record's phases ('all', 'regular',
+'playoffs').
 """
 
 SCHEMA = """
@@ -20,6 +21,15 @@ create table season_sets (
 
 ALL = "all-seasons"
 
+# Each League size's seasons, as fixed years (GLOSSARY.md) rather than read
+# from the season formats: (first season, last season or None while it lasts).
+SIZES = {"10-teams": (2012, 2012), "12-teams": (2013, 2014), "16-teams": (2015, None)}
+
+
+def _sized(year, size):
+    first, last = SIZES[size]
+    return first <= year and (last is None or year <= last)
+
 
 def season_sets(seasons):
     """{season set: frozenset of seasons}, in the order records list them,
@@ -29,6 +39,9 @@ def season_sets(seasons):
         ALL: frozenset(year for year, _era, _count in seasons),
         **{key: frozenset(year for year, era, _count in seasons if era == platform)
            for key, platform in by_era.items()},
+        **{size: frozenset(year for year, _era, _count in seasons if _sized(year, size)) for size in SIZES},
+        "nfl-com-16-teams": frozenset(year for year, era, _count in seasons
+                                      if era == "nfl.com" and _sized(year, "16-teams")),
     }
 
 
